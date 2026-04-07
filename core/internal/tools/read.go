@@ -1,0 +1,114 @@
+package tools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+)
+
+// FileReadTool reads file contents, optionally limited to a line range.
+type FileReadTool struct {
+	RootDir string
+}
+
+func NewFileReadTool() *FileReadTool                    { return &FileReadTool{} }
+func NewFileReadToolInDir(rootDir string) *FileReadTool { return &FileReadTool{RootDir: rootDir} }
+
+func (t *FileReadTool) Name() string { return "Read" }
+
+func (t *FileReadTool) PermissionKey() PermissionKey { return PermissionNone }
+
+func (t *FileReadTool) Description() string {
+	return `Read the contents of a file.
+Returns the file content with line numbers prefixed (format: "N\tcontent").
+Use offset and limit to read a specific range of lines.`
+}
+
+func (t *FileReadTool) InputSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"file_path": {
+				"type": "string",
+				"description": "Absolute or relative path to the file to read"
+			},
+			"offset": {
+				"type": "integer",
+				"description": "Line number to start reading from (1-based, default 1)"
+			},
+			"limit": {
+				"type": "integer",
+				"description": "Maximum number of lines to return (default: all)"
+			}
+		},
+		"required": ["file_path"]
+	}`)
+}
+
+func (t *FileReadTool) IsReadOnly() bool { return true }
+
+type readInput struct {
+	FilePath string `json:"file_path"`
+	Offset   int    `json:"offset"`
+	Limit    int    `json:"limit"`
+}
+
+func (t *FileReadTool) Summary(raw json.RawMessage) string {
+	var in readInput
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return "<invalid input>"
+	}
+	return in.FilePath
+}
+
+func (t *FileReadTool) Execute(_ context.Context, raw json.RawMessage) (string, error) {
+	var in readInput
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return "", fmt.Errorf("invalid Read input: %w", err)
+	}
+	if in.FilePath == "" {
+		return "", fmt.Errorf("Read: file_path is required")
+	}
+
+	resolvedPath, _, err := resolvePath(t.RootDir, in.FilePath)
+	if err != nil {
+		return "", fmt.Errorf("Read: %w", err)
+	}
+
+	data, err := os.ReadFile(resolvedPath)
+	if err != nil {
+		return "", fmt.Errorf("Read: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+
+	// Determine slice bounds (convert 1-based offset to 0-based index)
+	start := 0
+	if in.Offset > 1 {
+		start = in.Offset - 1
+	}
+	if start >= len(lines) {
+		return "(offset beyond end of file)", nil
+	}
+
+	end := len(lines)
+	if in.Limit > 0 && start+in.Limit < end {
+		end = start + in.Limit
+	}
+
+	lines = lines[start:end]
+
+	var sb strings.Builder
+	for i, line := range lines {
+		fmt.Fprintf(&sb, "%d\t%s\n", start+i+1, line)
+	}
+
+	const maxOutput = 100_000
+	result := sb.String()
+	if len(result) > maxOutput {
+		result = result[:maxOutput] + fmt.Sprintf("\n... [truncated at %d chars]", maxOutput)
+	}
+	return result, nil
+}

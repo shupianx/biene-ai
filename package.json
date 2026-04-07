@@ -1,0 +1,56 @@
+{
+  "name": "biene-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Desktop shell for the Biene local AI coding assistant",
+  "author": "yu",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.cjs",
+    "start": "electron .",
+    "build:renderer": "npm --prefix renderer run build",
+    "build:core": "node scripts/build-core.cjs",
+    "package:desktop": "electron-builder",
+    "build": "node scripts/build-desktop.cjs"
+  },
+  "devDependencies": {
+    "electron": "^35.3.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.biene.desktop",
+    "productName": "Biene",
+    "electronDist": "node_modules/electron/dist",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "renderer/dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "core/dist",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "identity": null
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}

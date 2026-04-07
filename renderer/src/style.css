@@ -1,0 +1,28 @@
+@import "highlight.js/styles/github.css";
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  src: url('./assets/fonts/HarmonyOS_SansSC_Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'HarmonyOS Sans SC', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #f9fafb;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+  overflow: hidden;
+}
