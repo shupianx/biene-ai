@@ -2,7 +2,10 @@
   <div class="grid-view">
     <div class="grid-body">
       <div v-if="store.sessionList.length > 0" class="grid-actions">
-        <button class="new-btn" @click="showNewModal = true">+ New Agent</button>
+        <button class="new-btn" @click="showNewModal = true">
+          <svg class="new-btn-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="addRoundedIconBody" />
+          <span>New Agent</span>
+        </button>
       </div>
       <div v-if="store.sessionList.length === 0" class="empty-grid">
         <div class="empty-icon">⚡</div>
@@ -62,6 +65,7 @@ import ConfirmModal from '../components/ConfirmModal.vue'
 
 const store = useSessionsStore()
 const { openAgent } = useAgentNavigation()
+const addRoundedIconBody = '<path fill="currentColor" d="M11 13H6q-.425 0-.712-.288T5 12t.288-.712T6 11h5V6q0-.425.288-.712T12 5t.713.288T13 6v5h5q.425 0 .713.288T19 12t-.288.713T18 13h-5v5q0 .425-.288.713T12 19t-.712-.288T11 18z"/>' // sourced from @iconify-json/material-symbols
 const showNewModal = ref(false)
 const editingSessionId = ref<string | null>(null)
 const deletingSessionId = ref<string | null>(null)
@@ -149,15 +153,45 @@ async function onConfirmDelete() {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f3f4f6;
+  background: var(--app-bg);
+}
+
+.new-btn,
+.new-agent-btn {
+  border: 1px solid var(--accent-warm-border);
+  background: var(--accent-warm-bg);
+  color: var(--accent-warm-text);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+
+.new-btn:hover,
+.new-agent-btn:hover {
+  background: var(--accent-warm-bg-hover);
+  border-color: var(--accent-warm-bg-active);
+}
+
+.new-btn:active,
+.new-agent-btn:active {
+  background: var(--accent-warm-bg-active);
+  border-color: var(--accent-warm-border-strong);
 }
 
 .new-btn {
-  padding: 7px 16px; border-radius: 8px; border: none;
-  background: #6366f1; color: #fff; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: background .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: bold;
 }
-.new-btn:hover { background: #4f46e5; }
+
+.new-btn-icon {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
 
 .grid-body {
   flex: 1; overflow-y: auto; padding: 24px;
@@ -183,9 +217,16 @@ async function onConfirmDelete() {
 .empty-icon { font-size: 40px; }
 .empty-grid p { font-size: 15px; margin: 0; }
 .new-agent-btn {
-  margin-top: 4px; padding: 10px 24px; border-radius: 10px; border: none;
-  background: #6366f1; color: #fff; font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: background .15s;
+  margin-top: 4px;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
 }
-.new-agent-btn:hover { background: #4f46e5; }
+
+.new-btn:focus-visible,
+.new-agent-btn:focus-visible {
+  outline: 2px solid var(--accent-warm-ring);
+  outline-offset: 2px;
+}
 </style>

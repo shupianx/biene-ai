@@ -20,7 +20,7 @@ type ModelEntry struct {
 
 // Settings holds global behavior settings.
 type Settings struct {
-	MaxTokens int  `json:"max_tokens"`
+	MaxTokens int `json:"max_tokens"`
 }
 
 // Config is the root configuration structure.
@@ -35,24 +35,6 @@ type LoadResult struct {
 	Config  *Config
 	Path    string
 	Created bool
-}
-
-// DefaultConfig returns a config with sensible defaults.
-func DefaultConfig() *Config {
-	return &Config{
-		DefaultModel: "main",
-		ModelList: []ModelEntry{
-			{
-				Name:     "main",
-				Provider: "anthropic",
-				APIKey:   "",
-				Model:    "claude-opus-4-6",
-			},
-		},
-		Settings: Settings{
-			MaxTokens: 8192,
-		},
-	}
 }
 
 // TemplateConfig returns an empty config template for first-time setup.
@@ -194,65 +176,4 @@ func (c *Config) GetModel(name string) (ModelEntry, error) {
 		}
 	}
 	return ModelEntry{}, fmt.Errorf("model %q not found in config", name)
-}
-
-// Init runs an interactive first-time setup wizard and saves the result.
-func Init() error {
-	path, err := configPath()
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Welcome to biene! Let's set up your configuration.")
-	fmt.Printf("Config will be saved to: %s\n\n", path)
-
-	cfg := DefaultConfig()
-
-	fmt.Print("Config name [main]: ")
-	var name string
-	fmt.Scanln(&name)
-	if name == "" {
-		name = "main"
-	}
-
-	fmt.Print("API provider (anthropic/openai_compatible) [anthropic]: ")
-	var provider string
-	fmt.Scanln(&provider)
-	if provider == "" {
-		provider = "anthropic"
-	}
-
-	fmt.Print("API key: ")
-	var apiKey string
-	fmt.Scanln(&apiKey)
-
-	fmt.Print("Model [claude-opus-4-6]: ")
-	var model string
-	fmt.Scanln(&model)
-	if model == "" {
-		model = "claude-opus-4-6"
-	}
-
-	var baseURL string
-	if provider == "openai_compatible" {
-		fmt.Print("Base URL (e.g. http://localhost:11434/v1): ")
-		fmt.Scanln(&baseURL)
-	}
-
-	cfg.DefaultModel = name
-	cfg.ModelList = []ModelEntry{
-		{
-			Name:     name,
-			Provider: provider,
-			APIKey:   apiKey,
-			Model:    model,
-			BaseURL:  baseURL,
-		},
-	}
-
-	if err := Save(cfg); err != nil {
-		return err
-	}
-	fmt.Println("\nConfiguration saved. Run `biene` to start.")
-	return nil
 }

@@ -1,4 +1,4 @@
-package server
+package session
 
 import (
 	"encoding/json"
@@ -135,7 +135,7 @@ func (s *Session) persistPermissions(perms tools.PermissionSet) {
 	}
 }
 
-func (s *Session) updateSettings(name string, perms tools.PermissionSet, profile prompt.AgentProfile) (SessionMeta, error) {
+func (s *Session) UpdateSettings(name string, perms tools.PermissionSet, profile prompt.AgentProfile) (SessionMeta, error) {
 	name = strings.TrimSpace(name)
 	profile = normalizeProfile(profile)
 

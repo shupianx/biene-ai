@@ -95,7 +95,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
 .card.error   .status-dot { background: #ef4444; }
 
 .name {
-  font-size: 14px; font-weight: 700; color: #111827; flex: 1; min-width: 0;
+  font-size: 14px; font-weight: bold; color: #111827; flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -161,7 +161,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
   display: flex; align-items: center;
 }
 .status-label {
-  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 999px;
   text-transform: uppercase; background: #f3f4f6; color: #6b7280;
 }
 .status-label.approval { background: #fef3c7; color: #92400e; }

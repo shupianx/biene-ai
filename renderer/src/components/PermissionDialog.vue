@@ -50,7 +50,7 @@ const permissionDescription = computed(() => getPermissionDescription(props.req?
   background: #fde68a;
   color: #92400e;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: bold;
   text-transform: uppercase;
 }
 .desc  { margin: 0 0 4px; font-size: 14px; color: #6b7280; }
@@ -59,11 +59,11 @@ const permissionDescription = computed(() => getPermissionDescription(props.req?
   font-size: 13px;
   color: #92400e;
 }
-.tool-name    { font-weight: 700; font-size: 14px; color: #78350f; }
+.tool-name    { font-weight: bold; font-size: 14px; color: #78350f; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .btn {
   padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer;
-  font-size: 14px; font-weight: 500; transition: opacity .15s;
+  font-size: 14px; font-weight: bold; transition: opacity .15s;
 }
 .btn:hover { opacity: .85; }
 .deny   { background: #f3f4f6; color: #374151; }

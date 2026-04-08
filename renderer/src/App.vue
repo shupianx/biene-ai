@@ -23,7 +23,7 @@ const showTitleBar = computed(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f8fafc;
+  background: var(--app-bg);
 }
 
 .app-content {

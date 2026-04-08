@@ -6,6 +6,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strings"
+
+	"biene/internal/session"
 )
 
 const maxMultipartMemory = 32 << 20
@@ -22,8 +24,8 @@ func (s *Server) handleChatEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
-	subID, events := sess.subscribeEvents()
-	defer sess.unsubscribeEvents(subID)
+	subID, events := sess.SubscribeEvents()
+	defer sess.UnsubscribeEvents(subID)
 
 	ctx := r.Context()
 	for {
@@ -48,7 +50,7 @@ type sendRequest struct {
 type incomingInput struct {
 	Text            string
 	ClientMessageID string
-	Files           []uploadedFile
+	Files           []session.UploadedFile
 }
 
 // handleChatSend accepts either JSON text input or multipart text+files.
@@ -65,13 +67,13 @@ func (s *Server) handleChatSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attachments, err := storeUploadedFiles(sess.WorkDir, "uploads", input.Files)
+	attachments, err := session.StoreUploadedFiles(sess.WorkDir, "uploads", input.Files)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	sess.enqueueUserInput(input.Text, attachments, input.ClientMessageID)
+	sess.EnqueueUserInput(input.Text, attachments, input.ClientMessageID)
 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
@@ -84,7 +86,7 @@ func (s *Server) handleChatInterrupt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess.cancelCurrentQuery()
+	sess.CancelCurrentQuery()
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -117,7 +119,7 @@ func parseMultipartInput(r *http.Request) (incomingInput, error) {
 	text := strings.TrimSpace(r.FormValue("text"))
 	clientMessageID := strings.TrimSpace(r.FormValue("client_message_id"))
 	headers := r.MultipartForm.File["files"]
-	files := make([]uploadedFile, 0, len(headers))
+	files := make([]session.UploadedFile, 0, len(headers))
 	for _, header := range headers {
 		file, err := readMultipartFile(header)
 		if err != nil {
@@ -136,11 +138,11 @@ func parseMultipartInput(r *http.Request) (incomingInput, error) {
 	}, nil
 }
 
-func readMultipartFile(header *multipart.FileHeader) (uploadedFile, error) {
+func readMultipartFile(header *multipart.FileHeader) (session.UploadedFile, error) {
 	f, err := header.Open()
 	if err != nil {
-		return uploadedFile{}, err
+		return session.UploadedFile{}, err
 	}
 	defer f.Close()
-	return readUploadedFile(header.Filename, f)
+	return session.ReadUploadedFile(header.Filename, f)
 }

@@ -1,4 +1,4 @@
-package server
+package session
 
 import (
 	"context"
@@ -98,20 +98,20 @@ func attachmentPaths(atts []DisplayAttachment) []string {
 
 // ── File upload / copy ────────────────────────────────────────────────────
 
-type uploadedFile struct {
+type UploadedFile struct {
 	Name string
 	Data []byte
 }
 
-func readUploadedFile(name string, r io.Reader) (uploadedFile, error) {
+func ReadUploadedFile(name string, r io.Reader) (UploadedFile, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
-		return uploadedFile{}, err
+		return UploadedFile{}, err
 	}
-	return uploadedFile{Name: name, Data: data}, nil
+	return UploadedFile{Name: name, Data: data}, nil
 }
 
-func storeUploadedFiles(workDir, subdir string, files []uploadedFile) ([]DisplayAttachment, error) {
+func StoreUploadedFiles(workDir, subdir string, files []UploadedFile) ([]DisplayAttachment, error) {
 	if len(files) == 0 {
 		return nil, nil
 	}
@@ -165,7 +165,7 @@ func copyFilesBetweenWorkspaces(ctx context.Context, fromWorkDir, toWorkDir, sub
 		default:
 		}
 
-		sourcePath, _, err := resolveWorkspacePath(fromWorkDir, requestedPath)
+		sourcePath, _, err := ResolveWorkspacePath(fromWorkDir, requestedPath)
 		if err != nil {
 			return nil, fmt.Errorf("copying %q: %w", requestedPath, err)
 		}
@@ -222,7 +222,7 @@ func uniqueDestPath(destDir, baseName string) (string, string, error) {
 	return "", "", fmt.Errorf("unable to allocate unique file name for %q", baseName)
 }
 
-func resolveWorkspacePath(rootDir, requestedPath string) (string, string, error) {
+func ResolveWorkspacePath(rootDir, requestedPath string) (string, string, error) {
 	if requestedPath == "" {
 		return "", "", fmt.Errorf("path is required")
 	}

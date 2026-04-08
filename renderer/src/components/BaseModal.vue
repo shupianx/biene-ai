@@ -66,7 +66,7 @@ const emit = defineEmits<{
 
 .modal-title {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: bold;
   color: #111827;
 }
 

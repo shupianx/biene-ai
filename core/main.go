@@ -1,14 +1,49 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"strings"
 
-	"biene/cmd"
+	"biene/internal/config"
+	"biene/internal/server"
 )
 
 func main() {
-	if err := cmd.Root.Execute(); err != nil {
+	host := flag.String("host", "127.0.0.1", "HTTP bind host")
+	port := flag.Int("port", 8080, "HTTP server port")
+	workspace := flag.String("workspace", "workspace", "Directory for agent workspaces (relative or absolute)")
+	flag.Parse()
+
+	if flag.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "unexpected arguments: %s\n", strings.Join(flag.Args(), " "))
+		flag.Usage()
+		os.Exit(2)
+	}
+
+	loadResult, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, fmt.Errorf("loading config: %w", err))
+		os.Exit(1)
+	}
+
+	if loadResult.Created {
+		fmt.Printf("Config template created at %s\nEdit it, then restart.\n", loadResult.Path)
+	}
+
+	srv, err := server.New(server.Options{
+		Host:          *host,
+		Port:          *port,
+		Config:        loadResult.Config,
+		WorkspaceRoot: *workspace,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

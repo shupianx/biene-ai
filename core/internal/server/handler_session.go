@@ -52,7 +52,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, sess.meta())
+	writeJSON(w, http.StatusCreated, sess.Meta())
 }
 
 type updateSessionRequest struct {
@@ -75,7 +75,7 @@ func (s *Server) handleUpdateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	meta := sess.meta()
+	meta := sess.Meta()
 	name := meta.Name
 	if req.Name != nil {
 		name = strings.TrimSpace(*req.Name)
@@ -98,7 +98,7 @@ func (s *Server) handleUpdateSession(w http.ResponseWriter, r *http.Request) {
 		profile = *req.Profile
 	}
 
-	meta, err := sess.updateSettings(name, perms, profile)
+	meta, err := sess.UpdateSettings(name, perms, profile)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -126,5 +126,5 @@ func (s *Server) handleSessionHistory(w http.ResponseWriter, r *http.Request) {
 	if sess == nil {
 		return
 	}
-	writeJSON(w, http.StatusOK, sess.snapshotHistory())
+	writeJSON(w, http.StatusOK, sess.SnapshotHistory())
 }

@@ -1,4 +1,4 @@
-package server
+package session
 
 import (
 	"context"
@@ -155,7 +155,7 @@ func (m *SessionManager) Init() {
 			history:           history,
 			pendingPermission: clonePermissionPayload(meta.PendingPermission),
 			persistedCount:    len(history),
-			subscribers:       make(map[int]chan sseFrame),
+			subscribers:       make(map[int]chan Frame),
 			store:             st,
 		}
 		checker.OnPermissionNeeded = func(req permission.PermissionRequest) {
@@ -215,7 +215,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		apiMessages:       []api.Message{},
 		history:           []DisplayMessage{},
 		pendingPermission: nil,
-		subscribers:       make(map[int]chan sseFrame),
+		subscribers:       make(map[int]chan Frame),
 	}
 	checker.OnPermissionNeeded = func(req permission.PermissionRequest) {
 		payload := sess.setPendingPermission(req)
@@ -291,7 +291,7 @@ func (m *SessionManager) List() []SessionMeta {
 
 	out := make([]SessionMeta, 0, len(sessions))
 	for _, s := range sessions {
-		out = append(out, s.meta())
+		out = append(out, s.Meta())
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].CreatedAt.Before(out[j].CreatedAt)
@@ -312,7 +312,7 @@ func (m *SessionManager) ListAgents(excludeID string) []tools.AgentPeer {
 
 	out := make([]tools.AgentPeer, 0, len(sessions))
 	for _, sess := range sessions {
-		meta := sess.meta()
+		meta := sess.Meta()
 		out = append(out, tools.AgentPeer{
 			ID:      meta.ID,
 			Name:    meta.Name,

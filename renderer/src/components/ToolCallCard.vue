@@ -52,13 +52,13 @@ function fmt(v: unknown) {
 }
 .tool-header:hover { background: #f3f4f6; }
 .tool-icon   { font-size: 14px; width: 16px; }
-.tool-name   { font-weight: 600; color: #374151; }
+.tool-name   { font-weight: bold; color: #374151; }
 .tool-summary { flex: 1; color: #6b7280; font-family: monospace; font-size: 12px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .expand-icon { color: #9ca3af; font-size: 10px; }
 .tool-body   { padding: 0 12px 10px; background: #fff; }
 .tool-section { margin-top: 8px; }
-.section-label { font-size: 11px; font-weight: 600; color: #9ca3af; text-transform: uppercase; margin-bottom: 4px; }
+.section-label { font-size: 11px; font-weight: bold; color: #9ca3af; text-transform: uppercase; margin-bottom: 4px; }
 .code-block {
   background: #f3f4f6; border-radius: 6px; padding: 8px; font-size: 12px;
   white-space: pre-wrap; word-break: break-all; overflow-x: auto; margin: 0; max-height: 200px;

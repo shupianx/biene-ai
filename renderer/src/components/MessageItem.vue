@@ -2,7 +2,14 @@
   <div class="message" :class="msg.role">
     <div class="bubble">
       <div v-if="msg.role === 'assistant'" class="markdown" v-html="renderedText" />
-      <div v-else class="user-text" dir="auto">{{ msg.text }}</div>
+      <div
+        v-else
+        class="user-text"
+        :class="{ 'agent-source-text': msg.author_type === 'agent' }"
+        dir="auto"
+      >
+        {{ msg.text }}
+      </div>
       <ToolCallCard
         v-for="(tc, i) in (msg.tool_calls ?? [])"
         :key="i"
@@ -88,19 +95,27 @@ async function openSourceAgent() {
 }
 
 .user-text {
-  display: inline-block; background: #f3f4f6; color: #111827;
+  display: inline-block; background: #eceef1; color: #111827;
   padding: 10px 14px; border-radius: 16px;
   text-align: start;
   font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
 }
 
+.user-text.agent-source-text {
+  background: var(--accent-warm-bg);
+  border: 1px solid var(--accent-warm-border);
+}
+
 .message-meta {
   margin-top: 6px;
+  margin-right: 8px;
   display: flex;
   flex-direction: row;
   align-items: flex-end;
   justify-content: flex-end;
   gap: 8px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .message-source,
@@ -111,10 +126,6 @@ async function openSourceAgent() {
   text-align: right;
 }
 
-.message-source {
-  user-select: none;
-}
-
 .message-source-link {
   border: none;
   padding: 0;
@@ -122,7 +133,7 @@ async function openSourceAgent() {
   background: transparent;
   color: #2563eb;
   font: inherit;
-  font-weight: 600;
+  font-weight: bold;
   cursor: pointer;
   text-decoration: none;
 }
@@ -223,7 +234,7 @@ async function openSourceAgent() {
 }
 .markdown :deep(th) {
   background: #f8fafc;
-  font-weight: 600;
+  font-weight: bold;
 }
 .markdown :deep(img) {
   display: block;

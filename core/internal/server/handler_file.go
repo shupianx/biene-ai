@@ -2,6 +2,8 @@ package server
 
 import (
 	"net/http"
+
+	"biene/internal/session"
 )
 
 // handleSessionFile serves a file from the session workspace.
@@ -18,7 +20,7 @@ func (s *Server) handleSessionFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resolvedPath, _, err := resolveWorkspacePath(sess.WorkDir, requestedPath)
+	resolvedPath, _, err := session.ResolveWorkspacePath(sess.WorkDir, requestedPath)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

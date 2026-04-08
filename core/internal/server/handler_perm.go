@@ -37,10 +37,11 @@ func (s *Server) handlePermission(w http.ResponseWriter, r *http.Request) {
 		decision = permission.DecisionDeny
 	}
 
-	if err := sess.checker.Resolve(resp.RequestID, decision); err != nil {
+	meta, err := sess.ResolvePermission(resp.RequestID, decision)
+	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusOK, sess.meta())
+	writeJSON(w, http.StatusOK, meta)
 }

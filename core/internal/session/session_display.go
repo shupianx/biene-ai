@@ -1,4 +1,4 @@
-package server
+package session
 
 import (
 	"biene/internal/query"
@@ -166,8 +166,8 @@ func (s *Session) applyEvent(ev query.Event) {
 	}
 }
 
-// snapshotHistory returns a copy of the current history (safe for JSON encoding).
-func (s *Session) snapshotHistory() []DisplayMessage {
+// SnapshotHistory returns a copy of the current history (safe for JSON encoding).
+func (s *Session) SnapshotHistory() []DisplayMessage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

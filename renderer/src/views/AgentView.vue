@@ -48,14 +48,12 @@ watch(
     loading.value = true
 
     if (!id) {
-      store.setActive(null)
       loading.value = false
       return
     }
 
     await store.refresh(false)
-    const current = await store.ensureSession(id, true)
-    store.setActive(current?.meta.id ?? null)
+    await store.ensureSession(id, true)
     loading.value = false
   },
   { immediate: true },
@@ -77,14 +75,13 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('focus', syncSessionMeta)
   document.removeEventListener('visibilitychange', onVisibilityChange)
-  store.setActive(null)
 })
 </script>
 
 <style scoped>
 .agent-page {
   height: 100%;
-  background: #fff;
+  background: var(--app-bg);
 }
 
 .state-page {
@@ -108,7 +105,7 @@ onBeforeUnmount(() => {
   background: #fff;
   color: #374151;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: bold;
   cursor: pointer;
 }
 

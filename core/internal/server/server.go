@@ -6,12 +6,13 @@ import (
 	"net/http"
 
 	"biene/internal/config"
+	"biene/internal/session"
 )
 
 // Server is the biene HTTP server.
 type Server struct {
 	cfg  *config.Config
-	mgr  *SessionManager
+	mgr  *session.SessionManager
 	host string
 	port int
 }
@@ -36,7 +37,7 @@ func New(opts Options) (*Server, error) {
 		workspaceRoot = "workspace"
 	}
 
-	mgr := NewSessionManager(workspaceRoot, opts.Config)
+	mgr := session.NewSessionManager(workspaceRoot, opts.Config)
 	mgr.Init()
 
 	return &Server{
@@ -106,7 +107,7 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 // lookupSession is a helper used by per-session handlers.
-func (s *Server) lookupSession(w http.ResponseWriter, r *http.Request) *Session {
+func (s *Server) lookupSession(w http.ResponseWriter, r *http.Request) *session.Session {
 	id := r.PathValue("id")
 	sess := s.mgr.Get(id)
 	if sess == nil {

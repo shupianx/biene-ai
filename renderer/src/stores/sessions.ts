@@ -29,17 +29,12 @@ export interface AgentSession {
 
 export const useSessionsStore = defineStore('sessions', () => {
   const sessions = ref<Record<string, AgentSession>>({})
-  const activeId = ref<string | null>(null)
   let initialized = false
 
   const sessionList = computed(() =>
     Object.values(sessions.value).sort(
       (a, b) => new Date(a.meta.created_at).getTime() - new Date(b.meta.created_at).getTime()
     )
-  )
-
-  const activeSession = computed(() =>
-    activeId.value ? sessions.value[activeId.value] ?? null : null
   )
 
   // ── Bootstrap ────────────────────────────────────────────────────────────
@@ -65,9 +60,6 @@ export const useSessionsStore = defineStore('sessions', () => {
       const sess = sessions.value[id]
       if (sess?._disconnect) sess._disconnect()
       delete sessions.value[id]
-      if (activeId.value === id) {
-        activeId.value = null
-      }
     }
 
     await Promise.all(list.map(async (meta) => {
@@ -142,14 +134,6 @@ export const useSessionsStore = defineStore('sessions', () => {
     if (sess?._disconnect) sess._disconnect()
     delete sessions.value[id]
     await deleteSession(id)
-    if (activeId.value === id) {
-      const remaining = Object.keys(sessions.value)
-      activeId.value = remaining.length > 0 ? remaining[0] : null
-    }
-  }
-
-  function setActive(id: string | null) {
-    activeId.value = id
   }
 
   // ── Messaging ─────────────────────────────────────────────────────────────
@@ -299,8 +283,8 @@ export const useSessionsStore = defineStore('sessions', () => {
   }
 
   return {
-    sessions, activeId, sessionList, activeSession,
-    init, refresh, ensureSession, ensureHistory, create, update, remove, setActive,
+    sessions, sessionList,
+    init, refresh, ensureSession, ensureHistory, create, update, remove,
     sendMessage, interrupt, resolvePermission,
   }
 })

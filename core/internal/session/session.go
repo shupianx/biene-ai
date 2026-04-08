@@ -1,4 +1,4 @@
-package server
+package session
 
 import (
 	"context"
@@ -95,10 +95,10 @@ type Session struct {
 	// history is the server-side render state returned by GET /history.
 	history []DisplayMessage
 	// pendingPermission tracks the current unresolved permission prompt, if any.
-	pendingPermission *permissionRequestPayload
+	pendingPermission *PermissionRequestPayload
 
 	// subscribers fan out live SSE frames to all connected clients.
-	subscribers      map[int]chan sseFrame
+	subscribers      map[int]chan Frame
 	nextSubscriberID int
 
 	// store persists messages and meta to disk. May be nil if persistence is unavailable.
@@ -120,12 +120,12 @@ type SessionMeta struct {
 	Status            SessionStatus             `json:"status"`
 	Permissions       tools.PermissionSet       `json:"permissions"`
 	Profile           prompt.AgentProfile       `json:"profile"`
-	PendingPermission *permissionRequestPayload `json:"pending_permission,omitempty"`
+	PendingPermission *PermissionRequestPayload `json:"pending_permission,omitempty"`
 	CreatedAt         time.Time                 `json:"created_at"`
 	LastActive        time.Time                 `json:"last_active"`
 }
 
-func (s *Session) meta() SessionMeta {
+func (s *Session) Meta() SessionMeta {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.metaLocked()
@@ -159,7 +159,7 @@ func normalizeAgentName(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
 }
 
-func clonePermissionPayload(in *permissionRequestPayload) *permissionRequestPayload {
+func clonePermissionPayload(in *PermissionRequestPayload) *PermissionRequestPayload {
 	if in == nil {
 		return nil
 	}
@@ -169,8 +169,8 @@ func clonePermissionPayload(in *permissionRequestPayload) *permissionRequestPayl
 
 // ── Permission pending/clear ──────────────────────────────────────────────
 
-func (s *Session) setPendingPermission(req permission.PermissionRequest) *permissionRequestPayload {
-	payload := &permissionRequestPayload{
+func (s *Session) setPendingPermission(req permission.PermissionRequest) *PermissionRequestPayload {
+	payload := &PermissionRequestPayload{
 		RequestID:   req.RequestID,
 		Permission:  string(req.Permission),
 		ToolName:    req.ToolName,
@@ -207,22 +207,22 @@ func (s *Session) clearPendingPermission(requestID string) {
 
 // ── SSE subscription ──────────────────────────────────────────────────────
 
-func (s *Session) subscribeEvents() (int, <-chan sseFrame) {
+func (s *Session) SubscribeEvents() (int, <-chan Frame) {
 	s.subscribersMu.Lock()
 	defer s.subscribersMu.Unlock()
 
 	id := s.nextSubscriberID
 	s.nextSubscriberID++
 
-	ch := make(chan sseFrame, 256)
+	ch := make(chan Frame, 256)
 	if s.subscribers == nil {
-		s.subscribers = make(map[int]chan sseFrame)
+		s.subscribers = make(map[int]chan Frame)
 	}
 	s.subscribers[id] = ch
 	return id, ch
 }
 
-func (s *Session) unsubscribeEvents(id int) {
+func (s *Session) UnsubscribeEvents(id int) {
 	s.subscribersMu.Lock()
 	defer s.subscribersMu.Unlock()
 
@@ -235,7 +235,7 @@ func (s *Session) unsubscribeEvents(id int) {
 }
 
 // send broadcasts a frame to all connected SSE subscribers (non-blocking).
-func (s *Session) send(frame sseFrame) {
+func (s *Session) send(frame Frame) {
 	s.subscribersMu.RLock()
 	defer s.subscribersMu.RUnlock()
 
@@ -250,13 +250,21 @@ func (s *Session) send(frame sseFrame) {
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 
 // cancelCurrentQuery cancels any in-flight query goroutine.
-func (s *Session) cancelCurrentQuery() {
+func (s *Session) CancelCurrentQuery() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.cancelQuery != nil {
 		s.cancelQuery()
 		s.cancelQuery = nil
 	}
+}
+
+// ResolvePermission resolves a pending permission request and returns fresh session metadata.
+func (s *Session) ResolvePermission(requestID string, decision permission.Decision) (SessionMeta, error) {
+	if err := s.checker.Resolve(requestID, decision); err != nil {
+		return SessionMeta{}, err
+	}
+	return s.Meta(), nil
 }
 
 func (s *Session) close() {
@@ -279,7 +287,7 @@ func (s *Session) close() {
 // ── Input enqueueing ──────────────────────────────────────────────────────
 
 // enqueueUserInput appends a user-authored message and triggers the next run when idle.
-func (s *Session) enqueueUserInput(text string, attachments []DisplayAttachment, messageID string) {
+func (s *Session) EnqueueUserInput(text string, attachments []DisplayAttachment, messageID string) {
 	if messageID == "" {
 		messageID = newMsgID()
 	}

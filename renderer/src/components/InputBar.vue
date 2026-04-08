@@ -1,53 +1,52 @@
 <template>
   <div class="input-bar">
-    <textarea
-      ref="taRef"
-      v-model="text"
-      :disabled="disabled"
-      placeholder="Message this agent…"
-      rows="1"
-      @keydown.enter.exact.prevent="onEnter"
-      @input="resize"
-      @compositionstart="onCompositionStart"
-      @compositionend="onCompositionEnd"
-    />
-    <button
-      class="action-btn"
-      :class="{ interrupt: interruptible }"
-      :disabled="buttonDisabled"
-      :title="buttonTitle"
-      @click="handleAction"
-    >
-      <svg
-        v-if="!interruptible"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-      </svg>
-      <span v-else-if="interrupting" class="interrupt-spinner" aria-hidden="true" />
-      <svg
-        v-else
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <rect x="6" y="6" width="12" height="12" rx="2" />
-      </svg>
-    </button>
+    <div class="composer" :class="{ disabled }">
+      <textarea
+        ref="taRef"
+        v-model="text"
+        :disabled="disabled"
+        placeholder="Message this agent…"
+        rows="1"
+        @keydown.enter.exact.prevent="onEnter"
+        @input="resize"
+        @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
+      />
+      <div class="composer-actions">
+        <button
+          class="action-btn"
+          :class="{ interrupt: interruptible }"
+          :disabled="buttonDisabled"
+          :title="buttonTitle"
+          @click="handleAction"
+        >
+          <svg
+            v-if="!interruptible"
+            class="send-icon"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            v-html="sendIconBody"
+          />
+          <span v-else-if="interrupting" class="interrupt-spinner" aria-hidden="true" />
+          <svg
+            v-else
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue'
+import { icons as mynauiIcons } from '@iconify-json/mynaui'
 
 const props = defineProps<{
   disabled?: boolean
@@ -62,6 +61,7 @@ const emit  = defineEmits<{
 const text  = ref('')
 const taRef = ref<HTMLTextAreaElement | null>(null)
 const isComposing = ref(false)
+const sendIconBody = mynauiIcons.icons.send.body
 let compositionLockedUntil = 0
 
 const buttonDisabled = computed(() => {
@@ -121,29 +121,98 @@ async function submit() {
 
 <style scoped>
 .input-bar {
-  display: flex; align-items: flex-end; gap: 10px;
-  padding: 14px 16px;
-  background: #fff; border-top: 1px solid #e5e7eb;
+  padding: 0 15px 15px;
+  background: var(--app-bg);
 }
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  min-height: 102px;
+  padding: 18px 18px 14px 20px;
+  border: 1px solid #ddd6cf;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+
+.composer:focus-within {
+  border-color: #d6d3d1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .06);
+}
+
+.composer.disabled {
+  background: #fffcf8;
+}
+
 textarea {
-  flex: 1; resize: none;
-  border: 1.5px solid #e5e7eb; border-radius: 12px;
-  padding: 10px 14px; font-size: 14px; font-family: inherit;
-  line-height: 1.5; outline: none; transition: border-color .2s;
+  width: 100%;
+  min-height: 42px;
+  resize: none;
+  border: none;
+  padding: 0;
+  font-size: 15px;
+  font-family: inherit;
+  line-height: 1.55;
+  outline: none;
+  transition: background .2s;
+  background: transparent;
+  color: #0f172a;
   max-height: 160px; overflow-y: auto;
 }
-textarea:focus   { border-color: #6366f1; }
-textarea:disabled { background: #f9fafb; color: #9ca3af; }
+textarea::placeholder {
+  color: #78716c;
+}
+textarea:focus {
+  background: transparent;
+}
+textarea:disabled { color: #9ca3af; }
+
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
 .action-btn {
   flex-shrink: 0; width: 40px; height: 40px; border-radius: 10px;
-  border: none; background: #6366f1; color: #fff;
+  border: 1px solid #ea580c;
+  background: #ea580c;
+  color: #fff;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: background .2s, opacity .2s;
+  cursor: pointer; transition: background .2s, border-color .2s, color .2s, opacity .2s;
 }
-.action-btn:hover:not(:disabled) { background: #4f46e5; }
+.action-btn:hover:not(:disabled) {
+  background: #c2410c;
+  border-color: #c2410c;
+}
+.action-btn:active:not(:disabled) {
+  background: #9a3412;
+  border-color: #9a3412;
+}
 .action-btn:disabled { opacity: .4; cursor: not-allowed; }
-.action-btn.interrupt { background: #e11d48; }
-.action-btn.interrupt:hover:not(:disabled) { background: #be123c; }
+.action-btn:focus-visible {
+  outline: 2px solid var(--accent-warm-ring);
+  outline-offset: 2px;
+}
+.send-icon {
+  width: 18px;
+  height: 18px;
+  overflow: visible;
+  flex-shrink: 0;
+}
+.action-btn.interrupt {
+  border-color: #e11d48;
+  background: #e11d48;
+  color: #fff;
+}
+.action-btn.interrupt:hover:not(:disabled) {
+  border-color: #be123c;
+  background: #be123c;
+}
 
 .interrupt-spinner {
   width: 16px;

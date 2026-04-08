@@ -40,14 +40,8 @@ At runtime:
 
 Global config lives at `~/.biene/config.json`.
 
-You can create it interactively with:
-
-```bash
-cd core
-go run . config init
-```
-
-You can also edit it directly. A minimal example:
+The core will create a template automatically on first start if the file does not exist.
+You can also create or edit it directly. A minimal example:
 
 ```json
 {

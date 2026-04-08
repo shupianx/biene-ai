@@ -33,13 +33,13 @@ const emit = defineEmits<{
 }
 .btn-cancel {
   padding: 8px 16px; border-radius: 8px; border: 1.5px solid #e5e7eb;
-  background: #fff; color: #374151; font-size: 13px; font-weight: 600;
+  background: #fff; color: #374151; font-size: 13px; font-weight: bold;
   cursor: pointer;
 }
 .btn-cancel:hover { background: #f9fafb; }
 .btn-confirm {
   padding: 8px 18px; border-radius: 8px; border: none;
-  background: #ef4444; color: #fff; font-size: 13px; font-weight: 600;
+  background: #ef4444; color: #fff; font-size: 13px; font-weight: bold;
   cursor: pointer;
 }
 .btn-confirm:hover { background: #dc2626; }

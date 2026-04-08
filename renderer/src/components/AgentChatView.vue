@@ -127,7 +127,7 @@ function onInterrupt() {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--app-bg);
 }
 
 .chat-header {
@@ -138,6 +138,7 @@ function onInterrupt() {
   height: 56px;
   flex-shrink: 0;
   border-bottom: 1px solid #e5e7eb;
+  background: var(--app-bg);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -150,7 +151,7 @@ function onInterrupt() {
 
 .chat-name {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: bold;
   color: #111827;
 }
 
@@ -173,7 +174,7 @@ function onInterrupt() {
 
 .badge {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: bold;
   padding: 3px 10px;
   border-radius: 999px;
   text-transform: uppercase;
@@ -198,16 +199,37 @@ function onInterrupt() {
 }
 
 .close-btn:hover {
-  background: #f3f4f6;
+  background: #fff2e8;
   color: #374151;
 }
 
 .message-list {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 20px 28px;
   display: flex;
   flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: #d6d3d1 #fffaf5;
+}
+
+.message-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.message-list::-webkit-scrollbar-track {
+  background: #fffaf5;
+  border-radius: 999px;
+}
+
+.message-list::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+  border: 2px solid #fffaf5;
+  border-radius: 999px;
+}
+
+.message-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a29e;
 }
 
 .empty-chat {
@@ -226,7 +248,7 @@ function onInterrupt() {
 .empty-dir { font-size: 12px !important; }
 .empty-dir code {
   font-size: 12px;
-  background: #f3f4f6;
+  background: #fff;
   padding: 2px 6px;
   border-radius: 4px;
   color: #374151;

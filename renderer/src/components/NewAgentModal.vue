@@ -153,19 +153,22 @@ function submit() {
 
 <style scoped>
 .field { display: flex; flex-direction: column; gap: 6px; }
-.label { font-size: 13px; font-weight: 600; color: #374151; }
+.label { font-size: 13px; font-weight: bold; color: #374151; }
 
 .input {
   height: 38px; padding: 0 12px;
   border: 1.5px solid #e5e7eb; border-radius: 8px;
   font-size: 14px; color: #111827; outline: none;
-  transition: border-color .15s;
+  transition: border-color .15s, box-shadow .15s;
 }
-.input:focus { border-color: #6366f1; }
+.input:focus {
+  border-color: var(--accent-soft-bg-active);
+  box-shadow: 0 0 0 3px var(--accent-soft-focus);
+}
 .input.invalid { border-color: #ef4444; }
 .sub-label {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: bold;
   color: #6b7280;
 }
 .profile-grid {
@@ -182,7 +185,7 @@ function submit() {
   color: #111827;
   outline: none;
   background: #fff;
-  transition: border-color .15s;
+  transition: border-color .15s, box-shadow .15s;
 }
 .select {
   height: 38px;
@@ -195,7 +198,8 @@ function submit() {
 }
 .select:focus,
 .textarea:focus {
-  border-color: #6366f1;
+  border-color: var(--accent-soft-bg-active);
+  box-shadow: 0 0 0 3px var(--accent-soft-focus);
 }
 .field-hint {
   font-size: 12px;
@@ -262,7 +266,7 @@ function submit() {
 }
 .permission-name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: bold;
   color: #111827;
 }
 .permission-desc {
@@ -272,15 +276,26 @@ function submit() {
 .hint { font-size: 12px; color: #9ca3af; margin: 0; }
 .btn-cancel {
   padding: 8px 16px; border-radius: 8px; border: 1.5px solid #e5e7eb;
-  background: #fff; color: #374151; font-size: 13px; font-weight: 600;
+  background: #fff; color: #374151; font-size: 13px; font-weight: bold;
   cursor: pointer; transition: background .15s;
 }
 .btn-cancel:hover { background: #f9fafb; }
 .btn-create {
-  padding: 8px 20px; border-radius: 8px; border: none;
-  background: #6366f1; color: #fff; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: background .15s;
+  padding: 8px 20px; border-radius: 8px; border: 1px solid var(--accent-soft-border);
+  background: var(--accent-soft-bg); color: var(--accent-soft-text); font-size: 13px; font-weight: bold;
+  cursor: pointer; transition: background .15s, border-color .15s, color .15s;
 }
-.btn-create:hover:not(:disabled) { background: #4f46e5; }
+.btn-create:hover:not(:disabled) {
+  background: var(--accent-soft-bg-hover);
+  border-color: var(--accent-soft-bg-active);
+}
+.btn-create:active:not(:disabled) {
+  background: var(--accent-soft-bg-active);
+  border-color: var(--accent-soft-border-strong);
+}
 .btn-create:disabled { opacity: .5; cursor: not-allowed; }
+.btn-create:focus-visible {
+  outline: 2px solid var(--accent-soft-ring);
+  outline-offset: 2px;
+}
 </style>

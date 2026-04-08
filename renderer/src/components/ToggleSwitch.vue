@@ -53,7 +53,7 @@ function onChange(event: Event) {
   height: 28px;
   border-radius: 999px;
   background: #d1d5db;
-  transition: background .18s ease;
+  transition: background .18s ease, box-shadow .18s ease;
   box-shadow: inset 0 0 0 1px rgba(17, 24, 39, .06);
 }
 
@@ -71,7 +71,8 @@ function onChange(event: Event) {
 }
 
 .switch-input:checked + .switch-track {
-  background: #6366f1;
+  background: var(--accent-warm-bg-active);
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, .28);
 }
 
 .switch-input:checked + .switch-track::after {
@@ -79,7 +80,7 @@ function onChange(event: Event) {
 }
 
 .switch-input:focus-visible + .switch-track {
-  outline: 2px solid rgba(99, 102, 241, .35);
+  outline: 2px solid var(--accent-warm-ring);
   outline-offset: 2px;
 }
 
