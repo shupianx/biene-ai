@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 )
 
-// Frame is a pre-serialized unit ready to be flushed to an SSE response.
+// Frame is a pre-serialized realtime event payload.
 type Frame struct {
 	EventType string
 	Data      []byte
 }
 
-// makeFrame serialises the payload and returns an SSE frame.
+// makeFrame serialises the payload and returns an event frame.
 func makeFrame(eventType string, payload any) Frame {
 	data, _ := json.Marshal(payload)
 	return Frame{EventType: eventType, Data: data}

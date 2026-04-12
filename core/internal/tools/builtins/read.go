@@ -1,4 +1,4 @@
-package tools
+package builtins
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"biene/internal/tools"
 )
 
 // FileReadTool reads file contents, optionally limited to a line range.
@@ -18,7 +20,7 @@ func NewFileReadToolInDir(rootDir string) *FileReadTool { return &FileReadTool{R
 
 func (t *FileReadTool) Name() string { return "Read" }
 
-func (t *FileReadTool) PermissionKey() PermissionKey { return PermissionNone }
+func (t *FileReadTool) PermissionKey() tools.PermissionKey { return tools.PermissionNone }
 
 func (t *FileReadTool) Description() string {
 	return `Read the contents of a file.
@@ -46,8 +48,6 @@ func (t *FileReadTool) InputSchema() json.RawMessage {
 		"required": ["file_path"]
 	}`)
 }
-
-func (t *FileReadTool) IsReadOnly() bool { return true }
 
 type readInput struct {
 	FilePath string `json:"file_path"`
@@ -84,7 +84,6 @@ func (t *FileReadTool) Execute(_ context.Context, raw json.RawMessage) (string, 
 
 	lines := strings.Split(string(data), "\n")
 
-	// Determine slice bounds (convert 1-based offset to 0-based index)
 	start := 0
 	if in.Offset > 1 {
 		start = in.Offset - 1

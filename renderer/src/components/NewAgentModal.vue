@@ -105,7 +105,13 @@ import BaseModal from './BaseModal.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import { isAgentNameTaken } from '../utils/agentNames'
 import { defaultPermissions, permissionDefinitions } from '../utils/permissions'
-import { defaultProfile, domainOptions, styleOptions } from '../utils/profile'
+import {
+  defaultProfile,
+  findDomainOption,
+  findStyleOption,
+  listDomainOptions,
+  listStyleOptions,
+} from '../utils/profile'
 
 const props = defineProps<{
   defaultName: string
@@ -122,14 +128,24 @@ const profile = ref<AgentProfile>(defaultProfile())
 const advancedOpen = ref(false)
 const nameInput = ref<HTMLInputElement | null>(null)
 
-onMounted(() => nameInput.value?.focus())
+onMounted(() => {
+  nameInput.value?.focus()
+})
+
+const domainOptions = computed(() =>
+  listDomainOptions(profile.value.domain)
+)
+
+const styleOptions = computed(() =>
+  listStyleOptions(profile.value.style)
+)
 
 const selectedDomainDescription = computed(() =>
-  domainOptions.find((option) => option.value === profile.value.domain)?.description ?? ''
+  findDomainOption(profile.value.domain)?.description ?? ''
 )
 
 const selectedStyleDescription = computed(() =>
-  styleOptions.find((option) => option.value === profile.value.style)?.description ?? ''
+  findStyleOption(profile.value.style)?.description ?? ''
 )
 
 const effectiveName = computed(() =>

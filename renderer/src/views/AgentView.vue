@@ -34,7 +34,8 @@ const session = computed(() =>
 )
 
 function syncSessionMeta() {
-  void store.refresh(false)
+  if (!sessionId.value) return
+  void store.syncSession(sessionId.value, false, true)
 }
 
 function onVisibilityChange() {
@@ -52,8 +53,7 @@ watch(
       return
     }
 
-    await store.refresh(false)
-    await store.ensureSession(id, true)
+    await store.syncSession(id, true, true)
     loading.value = false
   },
   { immediate: true },

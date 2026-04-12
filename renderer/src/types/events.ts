@@ -1,4 +1,4 @@
-export type SSEEventType =
+export type SessionEventType =
   | 'message_added'
   | 'status'
   | 'text_delta'

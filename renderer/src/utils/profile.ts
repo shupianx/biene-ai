@@ -1,4 +1,6 @@
 import type { AgentDomain, AgentProfile, AgentStyle } from '../api/http'
+import { t } from '../i18n'
+import type { MessageKey } from '../i18n/messages'
 
 export interface SelectOption<T extends string> {
   value: T
@@ -6,44 +8,58 @@ export interface SelectOption<T extends string> {
   description: string
 }
 
-export const domainOptions: SelectOption<AgentDomain>[] = [
+export interface ProfileOption<T extends string> {
+  value: T
+  labelKey: MessageKey
+  descriptionKey: MessageKey
+  selectable?: boolean
+}
+
+const domainCatalog: ProfileOption<AgentDomain>[] = [
   {
     value: 'general',
-    label: 'General',
-    description: 'General problem-solving, planning, and analysis.',
+    labelKey: 'profile.domain.general.label',
+    descriptionKey: 'profile.domain.general.description',
+    selectable: true,
   },
   {
     value: 'coding',
-    label: 'Coding',
-    description: 'Software engineering work inside the workspace.',
+    labelKey: 'profile.domain.coding.label',
+    descriptionKey: 'profile.domain.coding.description',
+    selectable: true,
   },
 ]
 
-export const styleOptions: SelectOption<AgentStyle>[] = [
+const styleCatalog: ProfileOption<AgentStyle>[] = [
   {
     value: 'balanced',
-    label: 'Balanced',
-    description: 'Balanced speed, clarity, and completeness.',
+    labelKey: 'profile.style.balanced.label',
+    descriptionKey: 'profile.style.balanced.description',
+    selectable: true,
   },
   {
     value: 'concise',
-    label: 'Concise',
-    description: 'Shorter, tighter responses with minimal preamble.',
+    labelKey: 'profile.style.concise.label',
+    descriptionKey: 'profile.style.concise.description',
+    selectable: true,
   },
   {
     value: 'thorough',
-    label: 'Thorough',
-    description: 'More complete explanations with assumptions and tradeoffs.',
+    labelKey: 'profile.style.thorough.label',
+    descriptionKey: 'profile.style.thorough.description',
+    selectable: true,
   },
   {
     value: 'skeptical',
-    label: 'Skeptical',
-    description: 'More verification, risk checking, and challenge of assumptions.',
+    labelKey: 'profile.style.skeptical.label',
+    descriptionKey: 'profile.style.skeptical.description',
+    selectable: true,
   },
   {
     value: 'proactive',
-    label: 'Proactive',
-    description: 'Pushes the task forward aggressively when the next step is clear.',
+    labelKey: 'profile.style.proactive.label',
+    descriptionKey: 'profile.style.proactive.description',
+    selectable: true,
   },
 ]
 
@@ -60,5 +76,43 @@ export function cloneProfile(profile: AgentProfile): AgentProfile {
     domain: profile.domain,
     style: profile.style,
     custom_instructions: profile.custom_instructions ?? '',
+  }
+}
+
+export function listDomainOptions(current?: AgentDomain) {
+  return listOptions(domainCatalog, current)
+}
+
+export function listStyleOptions(current?: AgentStyle) {
+  return listOptions(styleCatalog, current)
+}
+
+export function findDomainOption(value: AgentDomain) {
+  return fromCatalogOption(domainCatalog.find((option) => option.value === value))
+}
+
+export function findStyleOption(value: AgentStyle) {
+  return fromCatalogOption(styleCatalog.find((option) => option.value === value))
+}
+
+function listOptions<T extends string>(catalog: ProfileOption<T>[], current?: T) {
+  const currentOption = current ? catalog.find((option) => option.value === current) : undefined
+  const visible = catalog.filter((option) => option.selectable !== false)
+  if (currentOption && visible.every((option) => option.value !== currentOption.value)) {
+    return [...visible, currentOption].map((option) => toSelectOption(option))
+  }
+  return visible.map((option) => toSelectOption(option))
+}
+
+function fromCatalogOption<T extends string>(option?: ProfileOption<T>): SelectOption<T> | undefined {
+  if (!option) return undefined
+  return toSelectOption(option)
+}
+
+function toSelectOption<T extends string>(option: ProfileOption<T>): SelectOption<T> {
+  return {
+    value: option.value,
+    label: t(option.labelKey),
+    description: t(option.descriptionKey),
   }
 }

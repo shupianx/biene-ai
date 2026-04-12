@@ -1,7 +1,7 @@
 package session
 
 import (
-	"biene/internal/query"
+	"biene/internal/agentloop"
 	"biene/internal/tools"
 	"time"
 )
@@ -106,16 +106,16 @@ func (s *Session) markInterruptedAssistantSegmentsLocked() {
 	}
 }
 
-// applyEvent updates the display history for a query event.
-func (s *Session) applyEvent(ev query.Event) {
+// applyEvent updates the display history for an agent loop event.
+func (s *Session) applyEvent(ev agentloop.Event) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	switch ev.Kind {
-	case query.KindTextDelta:
+	case agentloop.KindTextDelta:
 		msg := s.currentAssistantTextSegmentLocked()
 		msg.Text += ev.Text
-	case query.KindToolCompose:
+	case agentloop.KindToolCompose:
 		msg := s.currentAssistantToolSegmentLocked()
 		msg.ToolCalls = append(msg.ToolCalls, DisplayTool{
 			ToolID:      ev.ToolID,
@@ -124,7 +124,7 @@ func (s *Session) applyEvent(ev query.Event) {
 			ToolInput:   ev.ToolInput,
 			Status:      "composing",
 		})
-	case query.KindToolStart:
+	case agentloop.KindToolStart:
 		if toolCall := s.latestActiveToolLocked(ev.ToolID, ev.ToolName, "composing"); toolCall != nil {
 			toolCall.ToolSummary = ev.ToolSummary
 			toolCall.ToolInput = ev.ToolInput
@@ -139,7 +139,7 @@ func (s *Session) applyEvent(ev query.Event) {
 			ToolInput:   ev.ToolInput,
 			Status:      "pending",
 		})
-	case query.KindToolResult:
+	case agentloop.KindToolResult:
 		if toolCall := s.latestActiveToolLocked(ev.ToolID, ev.ToolName, "pending", "composing"); toolCall != nil {
 			if ev.IsError {
 				toolCall.Status = "error"
@@ -148,20 +148,20 @@ func (s *Session) applyEvent(ev query.Event) {
 			}
 			toolCall.Result = ev.Text
 		}
-	case query.KindToolDenied:
+	case agentloop.KindToolDenied:
 		if toolCall := s.latestActiveToolLocked(ev.ToolID, ev.ToolName, "pending", "composing"); toolCall != nil {
 			toolCall.Status = "denied"
 		}
-	case query.KindError:
+	case agentloop.KindError:
 		msg := s.currentAssistantTextSegmentLocked()
 		if msg.Text != "" {
 			msg.Text += "\n\n"
 		}
 		msg.Text += "**Error:** " + ev.Text
 		s.finishStreamingAssistantSegmentsLocked()
-	case query.KindInterrupted:
+	case agentloop.KindInterrupted:
 		s.markInterruptedAssistantSegmentsLocked()
-	case query.KindDone:
+	case agentloop.KindDone:
 		s.finishStreamingAssistantSegmentsLocked()
 	}
 }

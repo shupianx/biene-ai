@@ -12,35 +12,6 @@ import (
 
 const maxMultipartMemory = 32 << 20
 
-// handleChatEvents serves the SSE stream for a session.
-// GET /api/sessions/{id}/events
-func (s *Server) handleChatEvents(w http.ResponseWriter, r *http.Request) {
-	sess := s.lookupSession(w, r)
-	if sess == nil {
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-	subID, events := sess.SubscribeEvents()
-	defer sess.UnsubscribeEvents(subID)
-
-	ctx := r.Context()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case frame, ok := <-events:
-			if !ok {
-				return
-			}
-			writeSSE(w, frame)
-		}
-	}
-}
-
 // sendRequest is the JSON body for POST /api/sessions/{id}/send.
 type sendRequest struct {
 	Text            string `json:"text"`

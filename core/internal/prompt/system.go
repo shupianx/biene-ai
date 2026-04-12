@@ -11,6 +11,9 @@ import (
 // Build constructs the system prompt that is sent with every API request.
 func Build(registry *tools.Registry, cwd string, profile AgentProfile) string {
 	profile = NormalizeProfile(profile)
+	catalog := CurrentCatalog()
+	domain := catalog.domainDefinition(profile.Domain)
+	style := catalog.styleDefinition(profile.Style)
 
 	var sb strings.Builder
 
@@ -24,8 +27,8 @@ func Build(registry *tools.Registry, cwd string, profile AgentProfile) string {
 		"When coordinating with other agents, describe the collaboration in natural language instead of exposing internal mechanics.",
 	})
 
-	writeSection(&sb, "Domain", domainRules(profile.Domain))
-	writeSection(&sb, "Style", styleRules(profile.Style))
+	writeSection(&sb, "Domain", domain.Rules)
+	writeSection(&sb, "Style", style.Rules)
 
 	if profile.CustomInstructions != "" {
 		writeSection(&sb, "Custom Instructions", []string{profile.CustomInstructions})
@@ -43,59 +46,6 @@ func Build(registry *tools.Registry, cwd string, profile AgentProfile) string {
 	writeSection(&sb, "Tools", toolLines)
 
 	return strings.TrimRight(sb.String(), "\n")
-}
-
-func domainRules(domain Domain) []string {
-	switch domain {
-	case DomainGeneral:
-		return []string{
-			"Treat the task as a general problem-solving request unless the user clearly wants code or file changes.",
-			"Prefer analysis, planning, explanation, coordination, and decision support when those are the best fit.",
-			"Use the available workspace tools only when they materially help solve the task.",
-			"When collaborating with other agents, request a direct response only when you actually need one.",
-			"If another agent message explicitly asks for a reply, send at most one direct reply unless they send a new follow-up.",
-		}
-	default:
-		return []string{
-			"Treat the task as software engineering work inside the assigned workspace.",
-			"Read relevant files before editing them.",
-			"Prefer targeted edits over full rewrites when modifying existing files.",
-			"Start by understanding the relevant code paths before making changes.",
-			"Stay within the available tools and workspace boundaries.",
-			"When collaborating with other agents, request a direct response only when you actually need one.",
-			"If another agent message explicitly asks for a reply, send at most one direct reply unless they send a new follow-up.",
-		}
-	}
-}
-
-func styleRules(style Style) []string {
-	switch style {
-	case StyleConcise:
-		return []string{
-			"Keep responses tight and direct.",
-			"Minimize preamble and only explain what matters for the decision or next step.",
-		}
-	case StyleThorough:
-		return []string{
-			"Be deliberate and complete.",
-			"Surface assumptions, edge cases, and important tradeoffs when they matter.",
-		}
-	case StyleSkeptical:
-		return []string{
-			"Actively check weak assumptions and look for failure modes or inconsistencies.",
-			"Prefer verified conclusions over optimistic guesses.",
-		}
-	case StyleProactive:
-		return []string{
-			"Push the task forward when the next step is clear.",
-			"Prefer concrete progress over extended deliberation when risk is low.",
-		}
-	default:
-		return []string{
-			"Balance speed, clarity, and completeness.",
-			"Adapt the amount of detail to the difficulty and stakes of the task.",
-		}
-	}
 }
 
 func writeSection(sb *strings.Builder, title string, lines []string) {

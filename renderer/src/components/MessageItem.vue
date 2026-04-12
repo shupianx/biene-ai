@@ -71,13 +71,11 @@ const metaLinesVisible = computed(() =>
 )
 
 const canOpenSourceAgent = computed(() =>
-  Boolean(props.msg.author_id && store.sessions[props.msg.author_id])
+  Boolean(props.msg.author_id)
 )
 
 async function openSourceAgent() {
   if (!props.msg.author_id) return
-  await store.refresh(false)
-  if (!store.sessions[props.msg.author_id]) return
   await openAgent(props.msg.author_id)
 }
 </script>

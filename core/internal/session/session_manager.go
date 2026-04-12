@@ -14,10 +14,11 @@ import (
 
 	"biene/internal/api"
 	"biene/internal/config"
-	"biene/internal/permission"
+	"biene/internal/permission/webperm"
 	"biene/internal/prompt"
 	"biene/internal/store"
 	"biene/internal/tools"
+	"biene/internal/tools/builtins"
 )
 
 // SessionManager holds all active agent sessions.
@@ -128,14 +129,14 @@ func (m *SessionManager) Init() {
 			continue
 		}
 		provider := newProvider(modelEntry)
-		registry := tools.RegistryForWorkDir(workDir)
-		checker := permission.NewHTTPChecker(perms)
+		registry := builtins.RegistryForWorkDir(workDir)
+		checker := webperm.NewChecker(perms)
 		maxTokens := m.cfg.Settings.MaxTokens
 		if maxTokens == 0 {
 			maxTokens = 8192
 		}
-		registry.Register(tools.NewListAgentsTool(m, id))
-		registry.Register(tools.NewSendToAgentTool(m, id))
+		registry.Register(builtins.NewListAgentsTool(m, id))
+		registry.Register(builtins.NewSendToAgentTool(m, id))
 
 		sess := &Session{
 			ID:                id,
@@ -158,7 +159,7 @@ func (m *SessionManager) Init() {
 			subscribers:       make(map[int]chan Frame),
 			store:             st,
 		}
-		checker.OnPermissionNeeded = func(req permission.PermissionRequest) {
+		checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
 			payload := sess.setPendingPermission(req)
 			sess.send(makeFrame("permission_request", payload))
 		}
@@ -186,15 +187,15 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	}
 
 	provider := newProvider(modelEntry)
-	registry := tools.RegistryForWorkDir(workDir)
-	checker := permission.NewHTTPChecker(permissions)
+	registry := builtins.RegistryForWorkDir(workDir)
+	checker := webperm.NewChecker(permissions)
 	maxTokens := m.cfg.Settings.MaxTokens
 	if maxTokens == 0 {
 		maxTokens = 8192
 	}
 
-	registry.Register(tools.NewListAgentsTool(m, id))
-	registry.Register(tools.NewSendToAgentTool(m, id))
+	registry.Register(builtins.NewListAgentsTool(m, id))
+	registry.Register(builtins.NewSendToAgentTool(m, id))
 
 	sysprompt := prompt.Build(registry, workDir, profile)
 	now := time.Now()
@@ -217,7 +218,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		pendingPermission: nil,
 		subscribers:       make(map[int]chan Frame),
 	}
-	checker.OnPermissionNeeded = func(req permission.PermissionRequest) {
+	checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
 		payload := sess.setPendingPermission(req)
 		sess.send(makeFrame("permission_request", payload))
 	}

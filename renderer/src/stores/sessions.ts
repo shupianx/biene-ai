@@ -7,7 +7,8 @@ import {
   resolvePermission as apiResolve,
   type SessionMeta, type SessionPermissions, type AgentProfile, type DisplayMessage, type DisplayTool,
 } from '../api/http'
-import { connectSSE } from '../api/sse'
+import { connectWS } from '../api/ws'
+import { getCoreBaseUrl, getDesktopBridge } from '../runtime'
 import type { PermissionRequestData } from '../types/events'
 
 // ── Per-session state ──────────────────────────────────────────────────────
@@ -21,8 +22,13 @@ export interface AgentSession {
   isInterrupting: boolean
   pendingPermission: PermissionRequest | null
   _historyLoaded: boolean
-  // cleanup fn returned by connectSSE
+  // cleanup fn returned by connectWS
   _disconnect: (() => void) | null
+}
+
+interface AttachOptions {
+  loadHistory?: boolean
+  subscribe?: boolean
 }
 
 // ── Store ──────────────────────────────────────────────────────────────────
@@ -30,6 +36,10 @@ export interface AgentSession {
 export const useSessionsStore = defineStore('sessions', () => {
   const sessions = ref<Record<string, AgentSession>>({})
   let initialized = false
+
+  // Startup diagnostic
+  const bridge = getDesktopBridge()
+  console.log(`[sessions] coreBaseUrl=${getCoreBaseUrl()}, isElectron=${bridge?.isElectron ?? false}, windowKind=${bridge?.windowKind ?? 'browser'}`)
 
   const sessionList = computed(() =>
     Object.values(sessions.value).sort(
@@ -39,19 +49,23 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   // ── Bootstrap ────────────────────────────────────────────────────────────
 
-  async function init(loadHistory = false) {
+  async function init(loadHistory = false, subscribe = true) {
     if (initialized) {
-      if (loadHistory) {
-        await Promise.all(Object.keys(sessions.value).map((id) => ensureHistory(id)))
-      }
+      await Promise.all(
+        Object.values(sessions.value).map((sess) =>
+          _attach(sess.meta, { loadHistory, subscribe })
+        )
+      )
       return
     }
     initialized = true
     const list = await listSessions()
-    await Promise.all(list.map(meta => _attach(meta, loadHistory)))
+    await Promise.all(
+      list.map((meta) => _attach(meta, { loadHistory, subscribe }))
+    )
   }
 
-  async function refresh(loadHistory = false) {
+  async function refresh(loadHistory = false, subscribe = true) {
     const list = await listSessions()
     const liveIDs = new Set(list.map((meta) => meta.id))
 
@@ -62,37 +76,33 @@ export const useSessionsStore = defineStore('sessions', () => {
       delete sessions.value[id]
     }
 
-    await Promise.all(list.map(async (meta) => {
-      const existing = sessions.value[meta.id]
-      if (existing) {
-        existing.meta = meta
-        existing.isStreaming = meta.status === 'running'
-        if (meta.status !== 'running') {
-          existing.isInterrupting = false
-        }
-        existing.pendingPermission = meta.pending_permission ?? null
-        if (loadHistory) {
-          await ensureHistory(meta.id)
-        }
-        return
-      }
-      await _attach(meta, loadHistory)
-    }))
+    await Promise.all(
+      list.map((meta) => _attach(meta, { loadHistory, subscribe }))
+    )
   }
 
-  async function ensureSession(id: string, loadHistory = false) {
+  async function syncSession(id: string, loadHistory = false, subscribe = true) {
+    const list = await listSessions()
+    const meta = list.find((item) => item.id === id)
+    if (!meta) {
+      const sess = sessions.value[id]
+      if (sess?._disconnect) sess._disconnect()
+      delete sessions.value[id]
+      return null
+    }
+
+    await _attach(meta, { loadHistory, subscribe })
+    return sessions.value[id] ?? null
+  }
+
+  async function ensureSession(id: string, loadHistory = false, subscribe = true) {
     const existing = sessions.value[id]
     if (existing) {
+      _setSubscription(existing, id, subscribe)
       if (loadHistory) await ensureHistory(id)
       return existing
     }
-
-    const list = await listSessions()
-    const meta = list.find((item) => item.id === id)
-    if (!meta) return null
-
-    await _attach(meta, loadHistory)
-    return sessions.value[id] ?? null
+    return syncSession(id, loadHistory, subscribe)
   }
 
   async function ensureHistory(id: string) {
@@ -114,9 +124,14 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   // ── Create / delete ───────────────────────────────────────────────────────
 
-  async function create(name: string, permissions: SessionPermissions, profile: AgentProfile) {
+  async function create(
+    name: string,
+    permissions: SessionPermissions,
+    profile: AgentProfile,
+    options: AttachOptions = {},
+  ) {
     const meta = await createSession({ name, permissions, profile })
-    await _attach(meta, true)
+    await _attach(meta, options)
     return meta
   }
 
@@ -140,14 +155,19 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   async function sendMessage(sessionId: string, text: string) {
     const sess = sessions.value[sessionId]
-    if (!sess || sess.isStreaming) return
+    if (!sess || sess.isStreaming) {
+      console.warn(`[sendMessage] blocked: sess=${!!sess}, isStreaming=${sess?.isStreaming}`)
+      return
+    }
     const messageId = crypto.randomUUID()
     const createdAt = new Date().toISOString()
     sess.isStreaming = true
     sess.messages.push({ id: messageId, role: 'user', text, created_at: createdAt, tool_calls: [] })
     try {
       await apiSend(sessionId, text, messageId)
+      console.log(`[sendMessage] POST ok for ${sessionId}`)
     } catch (err) {
+      console.error(`[sendMessage] POST failed for ${sessionId}:`, err)
       sess.isStreaming = false
       sess.meta.status = 'error'
       sess.messages = sess.messages.filter(m => m.id !== messageId)
@@ -164,6 +184,14 @@ export const useSessionsStore = defineStore('sessions', () => {
     sess.isInterrupting = true
     try {
       await apiInterrupt(sessionId)
+      // Give the realtime channel a moment to deliver the status event, then
+      // sync state from the server as a fallback in case it was missed.
+      setTimeout(() => {
+        const s = sessions.value[sessionId]
+        if (s?.isInterrupting || s?.isStreaming) {
+          void syncSession(sessionId, false, true)
+        }
+      }, 2000)
     } catch {
       sess.isInterrupting = false
     }
@@ -178,33 +206,55 @@ export const useSessionsStore = defineStore('sessions', () => {
     sess.meta = await apiResolve(sessionId, requestId, decision)
   }
 
-  // ── Internal: attach a session to SSE and load its history ────────────────
+  // ── Internal: attach a session to realtime updates and load its history ───
 
-  async function _attach(meta: SessionMeta, loadHistory: boolean) {
-    const existing = sessions.value[meta.id]
-    if (existing?._disconnect) existing._disconnect()
+  async function _attach(meta: SessionMeta, options: AttachOptions = {}) {
+    const loadHistory = Boolean(options.loadHistory)
+    const subscribe = options.subscribe ?? true
 
-    const sess: AgentSession = {
-      meta,
-      messages: [],
-      isStreaming: meta.status === 'running',
-      isInterrupting: false,
-      pendingPermission: meta.pending_permission ?? null,
-      _historyLoaded: false,
-      _disconnect: null,
+    let sess = sessions.value[meta.id]
+    if (!sess) {
+      sess = {
+        meta,
+        messages: [],
+        isStreaming: meta.status === 'running',
+        isInterrupting: false,
+        pendingPermission: meta.pending_permission ?? null,
+        _historyLoaded: false,
+        _disconnect: null,
+      }
+      sessions.value[meta.id] = sess
+    } else {
+      sess.meta = meta
+      sess.isStreaming = meta.status === 'running'
+      if (meta.status !== 'running') {
+        sess.isInterrupting = false
+      }
+      sess.pendingPermission = meta.pending_permission ?? null
     }
-    sessions.value[meta.id] = sess
 
     if (loadHistory) {
-      const history = await getSessionHistory(meta.id)
-      sessions.value[meta.id].messages = history
-      sessions.value[meta.id]._historyLoaded = true
+      await ensureHistory(meta.id)
     }
 
-    const id = meta.id
-    sess._disconnect = connectSSE(meta.id, {
+    _setSubscription(sess, meta.id, subscribe)
+  }
+
+  function _setSubscription(sess: AgentSession, id: string, subscribe: boolean) {
+    if (!subscribe) {
+      if (sess._disconnect) {
+        sess._disconnect()
+        sess._disconnect = null
+      }
+      return
+    }
+
+    if (sess._disconnect) return
+
+    sess._disconnect = connectWS(id, {
       onMessageAdded({ message }) {
         const s = sessions.value[id]
+        if (!s) return
         // Avoid duplicates (the sender already appended the message optimistically).
         if (!s.messages.find(m => m.id === message.id)) {
           s.messages.push(message)
@@ -213,6 +263,7 @@ export const useSessionsStore = defineStore('sessions', () => {
       },
       onStatus({ status }) {
         const s = sessions.value[id]
+        if (!s) return
         s.meta.status = status
         s.isStreaming = status === 'running'
         if (status !== 'running') {
@@ -222,9 +273,13 @@ export const useSessionsStore = defineStore('sessions', () => {
         }
       },
       onTextDelta({ text }) {
-        _ensureAssistantTextSegment(sessions.value[id]).text += text
+        const s = sessions.value[id]
+        if (!s) return
+        _ensureAssistantTextSegment(s).text += text
       },
       onToolCompose({ tool_id, tool_name, tool_summary, tool_input }) {
+        const s = sessions.value[id]
+        if (!s) return
         const tc: DisplayTool = {
           tool_id,
           tool_name,
@@ -232,10 +287,12 @@ export const useSessionsStore = defineStore('sessions', () => {
           tool_input,
           status: 'composing',
         }
-        _ensureAssistantToolSegment(sessions.value[id]).tool_calls!.push(tc)
+        _ensureAssistantToolSegment(s).tool_calls!.push(tc)
       },
       onToolStart({ tool_id, tool_name, tool_summary, tool_input }) {
-        const existing = _findLatestActiveTool(sessions.value[id], tool_id, tool_name, ['composing'])
+        const s = sessions.value[id]
+        if (!s) return
+        const existing = _findLatestActiveTool(s, tool_id, tool_name, ['composing'])
         if (existing) {
           existing.tool_summary = tool_summary
           existing.tool_input = tool_input
@@ -249,42 +306,58 @@ export const useSessionsStore = defineStore('sessions', () => {
           tool_input,
           status: 'pending',
         }
-        _ensureAssistantToolSegment(sessions.value[id]).tool_calls!.push(tc)
+        _ensureAssistantToolSegment(s).tool_calls!.push(tc)
       },
       onToolResult({ tool_id, tool_name, text, is_error }) {
-        const tc = _findLatestActiveTool(sessions.value[id], tool_id, tool_name, ['pending', 'composing'])
+        const s = sessions.value[id]
+        if (!s) return
+        const tc = _findLatestActiveTool(s, tool_id, tool_name, ['pending', 'composing'])
         if (tc) { tc.status = is_error ? 'error' : 'done'; tc.result = text }
       },
       onToolDenied({ tool_id, tool_name }) {
-        const tc = _findLatestActiveTool(sessions.value[id], tool_id, tool_name, ['pending', 'composing'])
+        const s = sessions.value[id]
+        if (!s) return
+        const tc = _findLatestActiveTool(s, tool_id, tool_name, ['pending', 'composing'])
         if (tc) tc.status = 'denied'
       },
       onPermissionRequest(data) {
-        sessions.value[id].pendingPermission = data
-        sessions.value[id].meta.pending_permission = data
+        const s = sessions.value[id]
+        if (!s) return
+        s.pendingPermission = data
+        s.meta.pending_permission = data
       },
       onPermissionCleared() {
         const s = sessions.value[id]
+        if (!s) return
         s.pendingPermission = null
         s.meta.pending_permission = undefined
       },
       onError({ message }) {
-        _ensureAssistantTextSegment(sessions.value[id]).text += `\n\n**Error:** ${message}`
+        const s = sessions.value[id]
+        if (!s) return
+        _ensureAssistantTextSegment(s).text += `\n\n**Error:** ${message}`
       },
       onDone() {
         const s = sessions.value[id]
+        if (!s) return
         if (s.isInterrupting) {
           _interruptAssistantTurn(s)
           return
         }
         _finishAssistantTurn(s)
       },
+      onReconnect() {
+        const s = sessions.value[id]
+        if (!s) return
+        s._historyLoaded = false
+        void syncSession(id, true, true)
+      },
     })
   }
 
   return {
     sessions, sessionList,
-    init, refresh, ensureSession, ensureHistory, create, update, remove,
+    init, refresh, syncSession, ensureSession, ensureHistory, create, update, remove,
     sendMessage, interrupt, resolvePermission,
   }
 })

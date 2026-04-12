@@ -69,9 +69,10 @@ const addRoundedIconBody = '<path fill="currentColor" d="M11 13H6q-.425 0-.712-.
 const showNewModal = ref(false)
 const editingSessionId = ref<string | null>(null)
 const deletingSessionId = ref<string | null>(null)
+let refreshTimer: number | null = null
 
 function syncSessions() {
-  void store.refresh(false)
+  void store.refresh(false, false)
 }
 
 function onVisibilityChange() {
@@ -80,12 +81,20 @@ function onVisibilityChange() {
 }
 
 onMounted(() => {
-  void store.init(false)
+  void store.init(false, false)
+  refreshTimer = window.setInterval(() => {
+    if (document.visibilityState !== 'visible') return
+    syncSessions()
+  }, 2000)
   window.addEventListener('focus', syncSessions)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 onBeforeUnmount(() => {
+  if (refreshTimer !== null) {
+    window.clearInterval(refreshTimer)
+    refreshTimer = null
+  }
   window.removeEventListener('focus', syncSessions)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
@@ -119,7 +128,7 @@ function onNew() {
 }
 
 async function onCreateAgent(name: string, permissions: SessionPermissions, profile: AgentProfile) {
-  const meta = await store.create(name, permissions, profile)
+  const meta = await store.create(name, permissions, profile, { subscribe: false })
   showNewModal.value = false
   await openAgent(meta.id)
 }
@@ -135,7 +144,7 @@ async function onOpenSession(id: string) {
 }
 
 async function onOpenSettings(id: string) {
-  await store.refresh(false)
+  await store.refresh(false, false)
   if (!store.sessions[id]) return
   editingSessionId.value = id
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"biene/internal/config"
+	"biene/internal/prompt"
 	"biene/internal/session"
 )
 
@@ -37,6 +38,8 @@ func New(opts Options) (*Server, error) {
 		workspaceRoot = "workspace"
 	}
 
+	_ = prompt.CurrentCatalog()
+
 	mgr := session.NewSessionManager(workspaceRoot, opts.Config)
 	mgr.Init()
 
@@ -64,8 +67,8 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("GET /api/sessions/{id}/history", s.handleSessionHistory)
 	mux.HandleFunc("GET /api/sessions/{id}/file", s.handleSessionFile)
 
-	// Per-session chat + events
-	mux.HandleFunc("GET /api/sessions/{id}/events", s.handleChatEvents)
+	// Per-session chat + realtime events
+	mux.HandleFunc("GET /api/sessions/{id}/ws", s.handleChatWebSocket)
 	mux.HandleFunc("POST /api/sessions/{id}/send", s.handleChatSend)
 	mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.handleChatInterrupt)
 	mux.HandleFunc("POST /api/sessions/{id}/permission", s.handlePermission)

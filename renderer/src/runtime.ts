@@ -34,3 +34,13 @@ export function buildCoreUrl(path: string) {
   if (!baseUrl) return path
   return new URL(path, `${baseUrl}/`).toString()
 }
+
+export function buildCoreWebSocketUrl(path: string) {
+  const baseUrl = getCoreBaseUrl()
+  const url = baseUrl
+    ? new URL(path, `${baseUrl}/`)
+    : new URL(path, window.location.href)
+
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
+}

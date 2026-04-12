@@ -4,20 +4,7 @@ import "strings"
 
 type Domain string
 
-const (
-	DomainGeneral Domain = "general"
-	DomainCoding  Domain = "coding"
-)
-
 type Style string
-
-const (
-	StyleBalanced  Style = "balanced"
-	StyleConcise   Style = "concise"
-	StyleThorough  Style = "thorough"
-	StyleSkeptical Style = "skeptical"
-	StyleProactive Style = "proactive"
-)
 
 type AgentProfile struct {
 	Domain             Domain `json:"domain"`
@@ -26,23 +13,24 @@ type AgentProfile struct {
 }
 
 func DefaultProfile() AgentProfile {
+	catalog := CurrentCatalog()
 	return AgentProfile{
-		Domain: DomainCoding,
-		Style:  StyleBalanced,
+		Domain: catalog.DefaultDomain,
+		Style:  catalog.DefaultStyle,
 	}
 }
 
 func NormalizeProfile(profile AgentProfile) AgentProfile {
-	switch profile.Domain {
-	case DomainGeneral, DomainCoding:
-	default:
-		profile.Domain = DomainCoding
+	catalog := CurrentCatalog()
+
+	profile.Domain = Domain(strings.TrimSpace(string(profile.Domain)))
+	if profile.Domain == "" || !catalog.hasDomain(profile.Domain) {
+		profile.Domain = catalog.DefaultDomain
 	}
 
-	switch profile.Style {
-	case StyleBalanced, StyleConcise, StyleThorough, StyleSkeptical, StyleProactive:
-	default:
-		profile.Style = StyleBalanced
+	profile.Style = Style(strings.TrimSpace(string(profile.Style)))
+	if profile.Style == "" || !catalog.hasStyle(profile.Style) {
+		profile.Style = catalog.DefaultStyle
 	}
 
 	profile.CustomInstructions = strings.TrimSpace(profile.CustomInstructions)

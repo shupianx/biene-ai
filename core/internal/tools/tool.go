@@ -3,8 +3,6 @@ package tools
 import (
 	"context"
 	"encoding/json"
-
-	"biene/internal/api"
 )
 
 type PermissionKey string
@@ -56,10 +54,6 @@ type Tool interface {
 	// InputSchema returns the JSON Schema for the tool's input object.
 	InputSchema() json.RawMessage
 
-	// IsReadOnly returns true when the tool never modifies the filesystem or
-	// runs processes.  Read-only tools skip the interactive permission prompt.
-	IsReadOnly() bool
-
 	// Execute runs the tool with the given JSON input and returns a text result.
 	Execute(ctx context.Context, input json.RawMessage) (string, error)
 
@@ -95,32 +89,4 @@ func (r *Registry) All() []Tool {
 		out = append(out, t)
 	}
 	return out
-}
-
-// Definitions converts all registered tools to API tool definitions.
-func (r *Registry) Definitions() []api.ToolDefinition {
-	defs := make([]api.ToolDefinition, 0, len(r.tools))
-	for _, t := range r.tools {
-		defs = append(defs, api.ToolDefinition{
-			Name:        t.Name(),
-			Description: t.Description(),
-			InputSchema: t.InputSchema(),
-		})
-	}
-	return defs
-}
-
-// DefaultRegistry returns a registry pre-loaded with all built-in tools.
-func DefaultRegistry() *Registry {
-	return RegistryForWorkDir("")
-}
-
-// RegistryForWorkDir returns a registry where Bash commands execute inside workDir.
-// Pass an empty string to use the process working directory.
-func RegistryForWorkDir(workDir string) *Registry {
-	r := NewRegistry()
-	r.Register(NewFileReadToolInDir(workDir))
-	r.Register(NewFileWriteToolInDir(workDir))
-	r.Register(NewFileEditToolInDir(workDir))
-	return r
 }

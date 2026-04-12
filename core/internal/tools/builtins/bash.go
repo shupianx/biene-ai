@@ -1,4 +1,4 @@
-package tools
+package builtins
 
 import (
 	"bytes"
@@ -8,13 +8,13 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"biene/internal/tools"
 )
 
-// readOnlyPrefixes lists command prefixes that are considered safe (read-only).
-// Bash commands starting with any of these prefixes will skip the permission prompt.
 var readOnlyPrefixes = []string{
 	"cat ", "cat\t", "head ", "tail ", "less ", "more ",
-	"ls ", "ls\t", "ls\n", "ls", // bare "ls" is safe
+	"ls ", "ls\t", "ls\n", "ls",
 	"pwd", "echo ", "printf ",
 	"grep ", "rg ", "ripgrep ",
 	"find ", "fd ",
@@ -26,14 +26,14 @@ var readOnlyPrefixes = []string{
 	"du ", "df ",
 	"tree ",
 	"jq ",
-	"curl ", "wget ", // treat as read-only for permission (may still be risky)
+	"curl ", "wget ",
 }
 
 const defaultBashTimeout = 120 * time.Second
 
 // BashTool executes shell commands.
 type BashTool struct {
-	WorkDir string // if set, commands run with this as the working directory
+	WorkDir string
 }
 
 func NewBashTool() *BashTool                { return &BashTool{} }
@@ -41,7 +41,7 @@ func NewBashToolInDir(dir string) *BashTool { return &BashTool{WorkDir: dir} }
 
 func (t *BashTool) Name() string { return "Bash" }
 
-func (t *BashTool) PermissionKey() PermissionKey { return PermissionWrite }
+func (t *BashTool) PermissionKey() tools.PermissionKey { return tools.PermissionWrite }
 
 func (t *BashTool) Description() string {
 	return `Execute a shell command in bash and return its stdout and stderr.
@@ -67,10 +67,6 @@ func (t *BashTool) InputSchema() json.RawMessage {
 	}`)
 }
 
-func (t *BashTool) IsReadOnly() bool { return false } // decided per-invocation in Summary/Execute
-
-// isReadOnlyCommand returns true when the command is heuristically safe to run
-// without a permission prompt.
 func isReadOnlyCommand(cmd string) bool {
 	trimmed := strings.TrimSpace(cmd)
 	for _, prefix := range readOnlyPrefixes {
@@ -109,8 +105,6 @@ func (t *BashTool) Summary(raw json.RawMessage) string {
 	return cmd
 }
 
-// ReadOnly returns whether this specific invocation is read-only.
-// Used by the permission layer to decide whether to prompt.
 func (t *BashTool) ReadOnlyForInput(raw json.RawMessage) bool {
 	in, err := parseBashInput(raw)
 	if err != nil {
@@ -141,7 +135,7 @@ func (t *BashTool) Execute(ctx context.Context, raw json.RawMessage) (string, er
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	_ = cmd.Run() // we include stderr in the result regardless of exit code
+	_ = cmd.Run()
 
 	var sb strings.Builder
 	if stdout.Len() > 0 {
@@ -159,7 +153,6 @@ func (t *BashTool) Execute(ctx context.Context, raw json.RawMessage) (string, er
 	}
 
 	result := sb.String()
-	// Truncate very large outputs to prevent context bloat
 	const maxOutput = 50_000
 	if len(result) > maxOutput {
 		result = result[:maxOutput] + fmt.Sprintf("\n... [output truncated at %d chars]", maxOutput)

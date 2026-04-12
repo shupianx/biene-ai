@@ -212,7 +212,6 @@ function openAgentWindow(sessionId) {
     minHeight: 640,
     frameless: true,
     windowKind: 'agent',
-    openDevTools: false,
   })
 
   agentWindows.set(sessionId, win)

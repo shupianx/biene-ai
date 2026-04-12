@@ -1,51 +1,46 @@
-package query
+package agentloop
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"biene/internal/api"
 	"biene/internal/tools"
 )
 
-// ─── Event types emitted by Run ───────────────────────────────────────────
-
-// EventKind classifies a query.Event.
+// EventKind classifies an Event.
 type EventKind string
 
 const (
-	KindTextDelta   EventKind = "text_delta"   // partial assistant text
-	KindToolCompose EventKind = "tool_compose" // tool intent detected, still composing input
-	KindToolStart   EventKind = "tool_start"   // tool about to execute
-	KindToolResult  EventKind = "tool_result"  // tool finished
-	KindToolDenied  EventKind = "tool_denied"  // user denied permission
-	KindInterrupted EventKind = "interrupted"  // conversation turn was interrupted
-	KindDone        EventKind = "done"         // conversation turn complete
-	KindError       EventKind = "error"        // unrecoverable error
+	KindTextDelta   EventKind = "text_delta"
+	KindToolCompose EventKind = "tool_compose"
+	KindToolStart   EventKind = "tool_start"
+	KindToolResult  EventKind = "tool_result"
+	KindToolDenied  EventKind = "tool_denied"
+	KindInterrupted EventKind = "interrupted"
+	KindDone        EventKind = "done"
+	KindError       EventKind = "error"
 )
 
 // Event is a single update emitted to the caller.
 type Event struct {
 	Kind        EventKind
-	Text        string          // KindTextDelta, KindToolResult, KindToolDenied, KindError
-	ToolID      string          // KindToolCompose / KindToolStart / KindToolResult / KindToolDenied
-	ToolName    string          // KindToolStart / KindToolResult / KindToolDenied
-	ToolSummary string          // KindToolStart — human-readable description
-	ToolInput   json.RawMessage // KindToolStart
-	IsError     bool            // KindToolResult
+	Text        string
+	ToolID      string
+	ToolName    string
+	ToolSummary string
+	ToolInput   json.RawMessage
+	IsError     bool
 }
 
-// ─── Permission interface ─────────────────────────────────────────────────
-
 // PermissionChecker decides whether a tool call is allowed to proceed.
-// Both permission.Checker (CLI) and permission.HTTPChecker (Web) implement this.
+// Both permission.Checker (CLI) and webperm.Checker (Web) implement this.
 type PermissionChecker interface {
 	Check(ctx context.Context, tool tools.Tool, input json.RawMessage) (bool, error)
 }
-
-// ─── Run config ───────────────────────────────────────────────────────────
 
 // Config holds everything needed for a single conversational turn.
 type Config struct {
@@ -53,20 +48,11 @@ type Config struct {
 	Registry     *tools.Registry
 	Checker      PermissionChecker
 	SystemPrompt string
-	Messages     []api.Message // mutable: the caller owns this slice
+	Messages     []api.Message
 	MaxTokens    int
 }
 
-// ─── Run ──────────────────────────────────────────────────────────────────
-
 // Run executes one user turn and emits events on the returned channel.
-// It manages the full agentic loop: model → tools → model → … until the
-// model produces a response with no tool calls.
-//
-// Appended messages (assistant reply + tool results) are added to
-// cfg.Messages so the caller can pass the updated history to the next turn.
-//
-// The channel is closed when the turn is complete or on error.
 func Run(ctx context.Context, cfg *Config) <-chan Event {
 	ch := make(chan Event, 64)
 	go func() {
@@ -85,10 +71,9 @@ func Run(ctx context.Context, cfg *Config) <-chan Event {
 }
 
 func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
-	toolDefs := cfg.Registry.Definitions()
+	toolDefs := toolDefinitions(cfg.Registry)
 
 	for {
-		// ── 1. Call the model (streaming) ────────────────────────────────
 		stream, err := cfg.Provider.Stream(
 			ctx,
 			cfg.SystemPrompt,
@@ -103,7 +88,6 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 		var preparedWriteToolID string
 		var preparedWrite *preparedPermission
 
-		// Collect the assistant's response into a Message
 		assistantMsg, toolUses, err := collectStream(ctx, stream, ch, func(tu api.ToolUseBlock) {
 			tool := cfg.Registry.Find(tu.Name)
 			if tool == nil || tool.PermissionKey() != tools.PermissionWrite {
@@ -128,12 +112,10 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 		}
 		cfg.Messages = append(cfg.Messages, assistantMsg)
 
-		// ── 2. No tool calls → turn is done ──────────────────────────────
 		if len(toolUses) == 0 {
 			return nil
 		}
 
-		// ── 3. Execute each tool call (serially) ─────────────────────────
 		var resultBlocks []api.ContentBlock
 		for _, tu := range toolUses {
 			tool := cfg.Registry.Find(tu.Name)
@@ -148,7 +130,6 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 				continue
 			}
 
-			// Permission check — send KindToolStart before asking
 			ch <- Event{
 				Kind:        KindToolStart,
 				ToolID:      tu.ID,
@@ -176,7 +157,6 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 				continue
 			}
 
-			// Execute
 			result, execErr := tool.Execute(ctx, tu.Input)
 			if execErr != nil {
 				if isInterruptError(ctx, execErr) {
@@ -199,7 +179,6 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 			})
 		}
 
-		// ── 4. Append tool results as a user message and loop ─────────────
 		cfg.Messages = append(cfg.Messages, api.Message{
 			Role:    api.RoleUser,
 			Content: resultBlocks,
@@ -207,8 +186,18 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 	}
 }
 
-// collectStream drains the streaming channel, forwards text deltas as events,
-// and returns the assembled assistant Message plus any tool_use blocks.
+func toolDefinitions(registry *tools.Registry) []api.ToolDefinition {
+	defs := make([]api.ToolDefinition, 0, len(registry.All()))
+	for _, tool := range registry.All() {
+		defs = append(defs, api.ToolDefinition{
+			Name:        tool.Name(),
+			Description: tool.Description(),
+			InputSchema: tool.InputSchema(),
+		})
+	}
+	return defs
+}
+
 type preparedPermission struct {
 	done    chan struct{}
 	allowed bool
@@ -234,75 +223,74 @@ func (p *preparedPermission) Wait() (bool, error) {
 	return p.allowed, p.err
 }
 
-func earlyToolSummary(toolName string) string {
-	switch toolName {
-	case "Write":
-		return "Preparing file write"
-	case "Edit":
-		return "Preparing file edit"
-	default:
-		return "Preparing tool input"
-	}
-}
-
 func collectStream(
 	ctx context.Context,
 	stream <-chan api.StreamEvent,
 	ch chan<- Event,
 	onToolUseStart func(api.ToolUseBlock),
 ) (api.Message, []api.ToolUseBlock, error) {
-	var textBuf []string
+	var content []api.ContentBlock
+	var text strings.Builder
 	var toolUses []api.ToolUseBlock
 
+done:
 	for {
 		select {
 		case <-ctx.Done():
 			return api.Message{}, nil, ctx.Err()
 		case ev, ok := <-stream:
 			if !ok {
-				break
+				break done
 			}
 			switch ev.Type {
 			case api.EventTextDelta:
+				text.WriteString(ev.Text)
 				ch <- Event{Kind: KindTextDelta, Text: ev.Text}
-				textBuf = append(textBuf, ev.Text)
 			case api.EventToolUseStart:
 				if ev.ToolUse != nil && onToolUseStart != nil {
 					onToolUseStart(*ev.ToolUse)
 				}
 			case api.EventToolUse:
-				toolUses = append(toolUses, *ev.ToolUse)
-			case api.EventError:
-				return api.Message{}, nil, ev.Err
+				if text.Len() > 0 {
+					content = append(content, api.TextBlock{Text: text.String()})
+					text.Reset()
+				}
+				if ev.ToolUse != nil {
+					content = append(content, *ev.ToolUse)
+					toolUses = append(toolUses, *ev.ToolUse)
+				}
 			case api.EventDone:
-				goto done
+				break done
+			case api.EventError:
+				if ev.Err != nil {
+					return api.Message{}, nil, ev.Err
+				}
+				return api.Message{}, nil, errors.New("stream error")
 			}
-			continue
 		}
-		break
-	}
-done:
-	var content []api.ContentBlock
-	if len(textBuf) > 0 {
-		combined := ""
-		for _, t := range textBuf {
-			combined += t
-		}
-		content = append(content, api.TextBlock{Text: combined})
-	}
-	for _, tu := range toolUses {
-		content = append(content, tu)
 	}
 
-	msg := api.Message{Role: api.RoleAssistant, Content: content}
-	return msg, toolUses, nil
+	if text.Len() > 0 {
+		content = append(content, api.TextBlock{Text: text.String()})
+	}
+
+	return api.Message{
+		Role:    api.RoleAssistant,
+		Content: content,
+	}, toolUses, nil
+}
+
+func earlyToolSummary(name string) string {
+	switch name {
+	case "Write":
+		return "prepare file write"
+	case "Edit":
+		return "prepare file edit"
+	default:
+		return "prepare tool call"
+	}
 }
 
 func isInterruptError(ctx context.Context, err error) bool {
-	if ctx.Err() == nil {
-		return false
-	}
-	return errors.Is(err, ctx.Err()) ||
-		errors.Is(err, context.Canceled) ||
-		errors.Is(err, context.DeadlineExceeded)
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil
 }

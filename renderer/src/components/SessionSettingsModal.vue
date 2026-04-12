@@ -89,7 +89,13 @@ import BaseModal from './BaseModal.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import { isAgentNameTaken } from '../utils/agentNames'
 import { clonePermissions, permissionDefinitions } from '../utils/permissions'
-import { cloneProfile, domainOptions, styleOptions } from '../utils/profile'
+import {
+  cloneProfile,
+  findDomainOption,
+  findStyleOption,
+  listDomainOptions,
+  listStyleOptions,
+} from '../utils/profile'
 
 const props = defineProps<{
   name: string
@@ -113,12 +119,20 @@ onMounted(() => {
   nameInput.value?.select()
 })
 
+const domainOptions = computed(() =>
+  listDomainOptions(profile.value.domain)
+)
+
+const styleOptions = computed(() =>
+  listStyleOptions(profile.value.style)
+)
+
 const selectedDomainDescription = computed(() =>
-  domainOptions.find((option) => option.value === profile.value.domain)?.description ?? ''
+  findDomainOption(profile.value.domain)?.description ?? ''
 )
 
 const selectedStyleDescription = computed(() =>
-  styleOptions.find((option) => option.value === profile.value.style)?.description ?? ''
+  findStyleOption(profile.value.style)?.description ?? ''
 )
 
 const effectiveName = computed(() =>

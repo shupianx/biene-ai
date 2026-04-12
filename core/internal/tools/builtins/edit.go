@@ -1,4 +1,4 @@
-package tools
+package builtins
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"biene/internal/tools"
 )
 
 // FileEditTool replaces an exact string in a file with a new string.
@@ -19,7 +21,7 @@ func NewFileEditToolInDir(rootDir string) *FileEditTool { return &FileEditTool{R
 
 func (t *FileEditTool) Name() string { return "Edit" }
 
-func (t *FileEditTool) PermissionKey() PermissionKey { return PermissionWrite }
+func (t *FileEditTool) PermissionKey() tools.PermissionKey { return tools.PermissionWrite }
 
 func (t *FileEditTool) Description() string {
 	return `Make a precise edit to a file by replacing old_string with new_string.
@@ -48,8 +50,6 @@ func (t *FileEditTool) InputSchema() json.RawMessage {
 		"required": ["file_path", "old_string", "new_string"]
 	}`)
 }
-
-func (t *FileEditTool) IsReadOnly() bool { return false }
 
 type editInput struct {
 	FilePath  string `json:"file_path"`
@@ -95,7 +95,6 @@ func (t *FileEditTool) Execute(_ context.Context, raw json.RawMessage) (string, 
 	}
 	content := string(data)
 
-	// Verify old_string appears exactly once
 	count := strings.Count(content, in.OldString)
 	switch count {
 	case 0:
@@ -103,7 +102,6 @@ func (t *FileEditTool) Execute(_ context.Context, raw json.RawMessage) (string, 
 	default:
 		return "", fmt.Errorf("Edit: old_string appears %d times in %s — add more surrounding context to make it unique", count, relPath)
 	case 1:
-		// exactly one match — proceed
 	}
 
 	newContent := strings.Replace(content, in.OldString, in.NewString, 1)
@@ -111,7 +109,6 @@ func (t *FileEditTool) Execute(_ context.Context, raw json.RawMessage) (string, 
 		return "", fmt.Errorf("Edit: writing file: %w", err)
 	}
 
-	// Report a short diff summary
 	oldLines := strings.Count(in.OldString, "\n") + 1
 	newLines := strings.Count(in.NewString, "\n") + 1
 	return fmt.Sprintf("Successfully edited %s: replaced %d line(s) with %d line(s)", relPath, oldLines, newLines), nil

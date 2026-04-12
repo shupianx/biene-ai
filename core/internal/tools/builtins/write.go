@@ -1,4 +1,4 @@
-package tools
+package builtins
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"biene/internal/tools"
 )
 
 // FileWriteTool creates or overwrites a file with the given content.
@@ -18,7 +20,7 @@ func NewFileWriteToolInDir(rootDir string) *FileWriteTool { return &FileWriteToo
 
 func (t *FileWriteTool) Name() string { return "Write" }
 
-func (t *FileWriteTool) PermissionKey() PermissionKey { return PermissionWrite }
+func (t *FileWriteTool) PermissionKey() tools.PermissionKey { return tools.PermissionWrite }
 
 func (t *FileWriteTool) Description() string {
 	return `Write content to a file, creating it (and any missing parent directories) if necessary.
@@ -42,8 +44,6 @@ func (t *FileWriteTool) InputSchema() json.RawMessage {
 		"required": ["file_path", "file_text"]
 	}`)
 }
-
-func (t *FileWriteTool) IsReadOnly() bool { return false }
 
 type writeInput struct {
 	FilePath string `json:"file_path"`
@@ -75,7 +75,6 @@ func (t *FileWriteTool) Execute(_ context.Context, raw json.RawMessage) (string,
 		return "", fmt.Errorf("Write: %w", err)
 	}
 
-	// Create parent directories if needed
 	if dir := filepath.Dir(resolvedPath); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return "", fmt.Errorf("Write: creating directories: %w", err)

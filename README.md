@@ -31,7 +31,7 @@ The repository is split into three main parts:
 At runtime:
 
 - Electron starts the local core service
-- The renderer talks to that core over HTTP + SSE
+- The renderer talks to that core over HTTP + WebSocket
 - Agent state is persisted on disk
 - In development, agent workspaces live under [`workspace/`](./workspace)
 - In packaged builds, workspaces are stored under Electron `userData`

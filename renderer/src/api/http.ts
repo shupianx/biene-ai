@@ -24,8 +24,8 @@ export interface SessionPermissions {
   send_to_agent: boolean
 }
 
-export type AgentDomain = 'general' | 'coding'
-export type AgentStyle = 'balanced' | 'concise' | 'thorough' | 'skeptical' | 'proactive'
+export type AgentDomain = string
+export type AgentStyle = string
 
 export interface AgentProfile {
   domain: AgentDomain
