@@ -1,6 +1,9 @@
 import type {
   MessageAddedData,
   StatusData,
+  SessionDeletedData,
+  SessionListEventType,
+  SessionMetaEventData,
   TextDeltaData,
   ToolStartData,
   ToolResultData,
@@ -29,6 +32,11 @@ export interface WSHandlers {
 
 interface WSMessage {
   type: SessionEventType
+  data: unknown
+}
+
+interface SessionListWSMessage {
+  type: SessionListEventType
   data: unknown
 }
 
@@ -117,6 +125,92 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
       ws = null
       if (closed) return
       console.warn(`[WS] closed for ${sessionId}, code=${event.code}, reason=${event.reason || 'n/a'}`)
+      scheduleReconnect()
+    }
+  }
+
+  open()
+
+  return () => {
+    closed = true
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    ws?.close()
+    ws = null
+  }
+}
+
+export interface SessionListWSHandlers {
+  onSessionCreated: (data: SessionMetaEventData) => void
+  onSessionUpdated: (data: SessionMetaEventData) => void
+  onSessionDeleted: (data: SessionDeletedData) => void
+  onOpen?: () => void
+  onReconnect?: () => void
+}
+
+export function connectSessionListWS(handlers: SessionListWSHandlers): () => void {
+  const url = buildCoreWebSocketUrl('/api/sessions/ws')
+  let ws: WebSocket | null = null
+  let reconnectTimer: number | null = null
+  let reconnectDelayMs = 500
+  let closed = false
+  let hasOpened = false
+
+  const dispatch = (message: SessionListWSMessage) => {
+    switch (message.type) {
+      case 'session_created':
+        handlers.onSessionCreated(message.data as SessionMetaEventData)
+        break
+      case 'session_updated':
+        handlers.onSessionUpdated(message.data as SessionMetaEventData)
+        break
+      case 'session_deleted':
+        handlers.onSessionDeleted(message.data as SessionDeletedData)
+        break
+    }
+  }
+
+  const scheduleReconnect = () => {
+    if (closed || reconnectTimer !== null) return
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null
+      open()
+    }, reconnectDelayMs)
+    reconnectDelayMs = Math.min(reconnectDelayMs * 2, 3000)
+  }
+
+  const open = () => {
+    console.log(`[WS] connecting session list: ${url}`)
+    ws = new WebSocket(url)
+
+    ws.onopen = () => {
+      console.log('[WS] connected session list')
+      reconnectDelayMs = 500
+      handlers.onOpen?.()
+      if (hasOpened) {
+        handlers.onReconnect?.()
+      }
+      hasOpened = true
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        dispatch(JSON.parse(event.data) as SessionListWSMessage)
+      } catch (err) {
+        console.warn('[WS] invalid session list message:', err)
+      }
+    }
+
+    ws.onerror = (event) => {
+      console.warn('[WS] session list error', event)
+    }
+
+    ws.onclose = (event) => {
+      ws = null
+      if (closed) return
+      console.warn(`[WS] session list closed, code=${event.code}, reason=${event.reason || 'n/a'}`)
       scheduleReconnect()
     }
   }

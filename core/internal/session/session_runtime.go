@@ -109,8 +109,11 @@ func (s *Session) enqueueInput(display DisplayMessage, apiMessage api.Message) {
 	} else {
 		s.apiMessages = append(s.apiMessages, apiMessage)
 	}
-	ctx, cfg := s.prepareRunLocked(!running)
+	ctx, cfg, meta := s.prepareRunLocked(!running)
 	s.mu.Unlock()
+	if meta != nil {
+		s.notifyMetaChanged(*meta)
+	}
 
 	s.send(makeFrame("message_added", messageAddedPayload{Message: display}))
 
@@ -122,15 +125,16 @@ func (s *Session) enqueueInput(display DisplayMessage, apiMessage api.Message) {
 	}
 }
 
-func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloop.Config) {
+func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloop.Config, *SessionMeta) {
 	if !shouldStart {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancelQuery = cancel
 	s.Status = StatusRunning
 	s.send(makeFrame("status", statusPayload{Status: s.Status}))
+	meta := s.metaLocked()
 
 	messages := append([]api.Message(nil), s.apiMessages...)
 	cfg := &agentloop.Config{
@@ -141,7 +145,7 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 		Messages:     messages,
 		MaxTokens:    s.maxTokens,
 	}
-	return ctx, cfg
+	return ctx, cfg, &meta
 }
 
 // ── Agent loop ────────────────────────────────────────────────────────────
@@ -237,8 +241,11 @@ func (s *Session) finishRun(cfg *agentloop.Config, hadError bool, interrupted bo
 		}
 		if !interrupted {
 			s.pendingInputs = nil
-			ctxNext, cfgNext := s.prepareRunLocked(true)
+			ctxNext, cfgNext, metaNext := s.prepareRunLocked(true)
 			s.mu.Unlock()
+			if metaNext != nil {
+				s.notifyMetaChanged(*metaNext)
+			}
 			go s.runQuery(ctxNext, cfgNext)
 			return
 		}
@@ -262,5 +269,6 @@ func (s *Session) finishRun(cfg *agentloop.Config, hadError bool, interrupted bo
 	s.mu.Unlock()
 
 	s.send(makeFrame("status", statusPayload{Status: status}))
+	s.notifyMetaChanged(metaSnap)
 	s.persistAfterRun(newDisplay, apiMsgs, metaSnap)
 }

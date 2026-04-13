@@ -27,6 +27,10 @@ type SessionManager struct {
 	sessions      map[string]*Session
 	workspaceRoot string // absolute path of the workspace directory
 	cfg           *config.Config
+	subscribers   map[int]chan ManagerFrame
+
+	subscribersMu    sync.RWMutex
+	nextSubscriberID int
 }
 
 // NewSessionManager creates a manager with the given workspace root.
@@ -39,6 +43,7 @@ func NewSessionManager(workspaceRoot string, cfg *config.Config) *SessionManager
 		sessions:      make(map[string]*Session),
 		workspaceRoot: rootAbs,
 		cfg:           cfg,
+		subscribers:   make(map[int]chan ManagerFrame),
 	}
 }
 
@@ -159,6 +164,7 @@ func (m *SessionManager) Init() {
 			subscribers:       make(map[int]chan Frame),
 			store:             st,
 		}
+		sess.onMetaChanged = m.emitSessionUpdated
 		checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
 			payload := sess.setPendingPermission(req)
 			sess.send(makeFrame("permission_request", payload))
@@ -218,6 +224,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		pendingPermission: nil,
 		subscribers:       make(map[int]chan Frame),
 	}
+	sess.onMetaChanged = m.emitSessionUpdated
 	checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
 		payload := sess.setPendingPermission(req)
 		sess.send(makeFrame("permission_request", payload))
@@ -241,6 +248,8 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	m.mu.Lock()
 	m.sessions[id] = sess
 	m.mu.Unlock()
+
+	m.emitSessionCreated(sess.Meta())
 
 	return sess, nil
 }
@@ -371,6 +380,7 @@ func (m *SessionManager) Delete(id string) bool {
 	}
 	m.mu.Unlock()
 	if ok {
+		m.emitSessionDeleted(id)
 		sess.close()
 		if sess.store != nil {
 			sess.store.Close()

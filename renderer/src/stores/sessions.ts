@@ -96,6 +96,17 @@ export const useSessionsStore = defineStore('sessions', () => {
     return sessions.value[id] ?? null
   }
 
+  async function upsertSessionMeta(meta: SessionMeta, subscribe = false) {
+    await _attach(meta, { subscribe })
+    return sessions.value[meta.id] ?? null
+  }
+
+  function removeSessionLocal(id: string) {
+    const sess = sessions.value[id]
+    if (sess?._disconnect) sess._disconnect()
+    delete sessions.value[id]
+  }
+
   async function ensureSession(id: string, loadHistory = false, subscribe = true) {
     const existing = sessions.value[id]
     if (existing) {
@@ -146,9 +157,7 @@ export const useSessionsStore = defineStore('sessions', () => {
   }
 
   async function remove(id: string) {
-    const sess = sessions.value[id]
-    if (sess?._disconnect) sess._disconnect()
-    delete sessions.value[id]
+    removeSessionLocal(id)
     await deleteSession(id)
   }
 
@@ -358,7 +367,7 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   return {
     sessions, sessionList,
-    init, refresh, syncSession, ensureSession, ensureHistory, create, update, remove,
+    init, refresh, syncSession, upsertSessionMeta, removeSessionLocal, ensureSession, ensureHistory, create, update, remove,
     sendMessage, interrupt, resolvePermission,
   }
 })

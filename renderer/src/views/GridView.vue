@@ -2,6 +2,15 @@
   <div class="grid-view">
     <div class="grid-body">
       <div v-if="store.sessionList.length > 0" class="grid-actions">
+        <button
+          class="icon-btn"
+          type="button"
+          :title="t('grid.refreshStatus')"
+          :aria-label="t('grid.refreshStatus')"
+          @click="onRefresh"
+        >
+          <svg class="icon-btn-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="refreshIconBody" />
+        </button>
         <button class="new-btn" @click="showNewModal = true">
           <svg class="new-btn-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="addRoundedIconBody" />
           <span>{{ t('grid.newAgent') }}</span>
@@ -55,6 +64,7 @@
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
 import type { AgentProfile, SessionPermissions } from '../api/http'
+import { connectSessionListWS } from '../api/ws'
 import { t } from '../i18n'
 import { useSessionsStore } from '../stores/sessions'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
@@ -67,10 +77,11 @@ import ConfirmModal from '../components/ConfirmModal.vue'
 const store = useSessionsStore()
 const { openAgent } = useAgentNavigation()
 const addRoundedIconBody = '<path fill="currentColor" d="M11 13H6q-.425 0-.712-.288T5 12t.288-.712T6 11h5V6q0-.425.288-.712T12 5t.713.288T13 6v5h5q.425 0 .713.288T19 12t-.288.713T18 13h-5v5q0 .425-.288.713T12 19t-.712-.288T11 18z"/>' // sourced from @iconify-json/material-symbols
+const refreshIconBody = '<path fill="currentColor" d="M12 20q-3.35 0-5.675-2.325T4 12q0-3.35 2.325-5.675T12 4q1.725 0 3.275.7t2.7 1.95V4h2v7h-7v-2h4.2q-.85-1.175-2.175-1.837T12 6Q9.5 6 7.75 7.75T6 12t1.75 4.25T12 18q1.925 0 3.475-1.1T17.6 14h2.1q-.7 2.7-2.85 4.35T12 20"/>' // sourced from @iconify-json/material-symbols
 const showNewModal = ref(false)
 const editingSessionId = ref<string | null>(null)
 const deletingSessionId = ref<string | null>(null)
-let refreshTimer: number | null = null
+let disconnectListWS: (() => void) | null = null
 
 function syncSessions() {
   void store.refresh(false, false)
@@ -83,19 +94,30 @@ function onVisibilityChange() {
 
 onMounted(() => {
   void store.init(false, false)
-  refreshTimer = window.setInterval(() => {
-    if (document.visibilityState !== 'visible') return
-    syncSessions()
-  }, 2000)
+  disconnectListWS = connectSessionListWS({
+    onOpen() {
+      void store.refresh(false, false)
+    },
+    onSessionCreated({ session }) {
+      void store.upsertSessionMeta(session, false)
+    },
+    onSessionUpdated({ session }) {
+      void store.upsertSessionMeta(session, false)
+    },
+    onSessionDeleted({ id }) {
+      store.removeSessionLocal(id)
+    },
+    onReconnect() {
+      void store.refresh(false, false)
+    },
+  })
   window.addEventListener('focus', syncSessions)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 onBeforeUnmount(() => {
-  if (refreshTimer !== null) {
-    window.clearInterval(refreshTimer)
-    refreshTimer = null
-  }
+  disconnectListWS?.()
+  disconnectListWS = null
   window.removeEventListener('focus', syncSessions)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
@@ -126,6 +148,10 @@ const editableOtherNames = computed(() =>
 
 function onNew() {
   showNewModal.value = true
+}
+
+async function onRefresh() {
+  await store.refresh(false, false)
 }
 
 async function onCreateAgent(name: string, permissions: SessionPermissions, profile: AgentProfile) {
@@ -187,6 +213,40 @@ async function onConfirmDelete() {
   border-color: var(--accent-warm-border-strong);
 }
 
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  flex-shrink: 0;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  background: rgba(255, 255, 255, 0.96);
+  color: #64748b;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+}
+
+.icon-btn:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.icon-btn:active {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.icon-btn-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
 .new-btn {
   display: inline-flex;
   align-items: center;
@@ -209,6 +269,8 @@ async function onConfirmDelete() {
 
 .grid-actions {
   display: flex;
+  align-items: center;
+  gap: 8px;
   justify-content: flex-end;
   margin-bottom: 16px;
 }
@@ -232,6 +294,11 @@ async function onConfirmDelete() {
   border-radius: 8px;
   font-size: 14px;
   font-weight: bold;
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid rgba(148, 163, 184, 0.3);
+  outline-offset: 2px;
 }
 
 .new-btn:focus-visible,

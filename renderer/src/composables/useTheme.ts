@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { getDesktopBridge } from '../runtime'
 
 type ThemeMode = 'light' | 'dark'
 
@@ -38,6 +39,21 @@ export function initTheme() {
   if (typeof window !== 'undefined') {
     window.addEventListener('storage', handleStorage)
   }
+
+  const bridge = getDesktopBridge()
+  if (bridge?.getDesktopSettings) {
+    void bridge.getDesktopSettings().then((settings) => {
+      const next = settings.theme === 'dark' ? 'dark' : 'light'
+      syncTheme(next)
+      try {
+        window.localStorage.setItem(storageKey, next)
+      } catch {
+        // Ignore storage failures and still apply the in-memory theme.
+      }
+    }).catch(() => {
+      // Keep the already-applied fallback theme.
+    })
+  }
 }
 
 export function useTheme() {
@@ -45,11 +61,18 @@ export function useTheme() {
 
   function setTheme(next: ThemeMode) {
     syncTheme(next)
-    if (typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(storageKey, next)
-    } catch {
-      // Ignore storage failures and still apply the in-memory theme.
+    const bridge = getDesktopBridge()
+    if (bridge?.updateDesktopSettings) {
+      void bridge.updateDesktopSettings({ theme: next }).catch(() => {
+        // Ignore desktop setting persistence failures and keep the UI responsive.
+      })
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(storageKey, next)
+      } catch {
+        // Ignore storage failures and still apply the in-memory theme.
+      }
     }
   }
 

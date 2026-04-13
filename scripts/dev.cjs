@@ -1,6 +1,6 @@
 const http = require('http')
 const path = require('path')
-const { spawn } = require('child_process')
+const { spawn, spawnSync } = require('child_process')
 
 const rootDir = path.resolve(__dirname, '..')
 const rendererUrl = 'http://127.0.0.1:5173'
@@ -11,6 +11,18 @@ let electronProcess = null
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function buildCore() {
+  const result = spawnSync(process.execPath, [path.join(rootDir, 'scripts', 'build-core.cjs')], {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: process.env,
+  })
+
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1)
+  }
 }
 
 async function waitForRenderer(timeoutMs = 20000) {
@@ -51,6 +63,8 @@ process.on('SIGTERM', () => {
   cleanup()
   process.exit(143)
 })
+
+buildCore()
 
 rendererProcess = spawn('npm', ['--prefix', 'renderer', 'run', 'dev'], {
   cwd: rootDir,

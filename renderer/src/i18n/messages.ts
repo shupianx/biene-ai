@@ -1,5 +1,8 @@
 export const messages = {
   en: {
+    app: {
+      coreUnavailable: 'Restart the core to keep using Biene.',
+    },
     common: {
       back: 'Back',
       cancel: 'Cancel',
@@ -14,9 +17,16 @@ export const messages = {
     },
     titleBar: {
       about: 'About Biene',
+      coreOffline: 'Core offline',
+      coreOnline: 'Core online',
+      coreRunning: 'Core running',
+      coreStopped: 'Core stopped',
       context: 'Workspace',
       darkMode: 'Dark mode',
+      killCore: 'Kill core',
+      keepCoreRunningOnExit: 'Keep core running on exit',
       openSettingsMenu: 'Open settings menu',
+      runCore: 'Run core',
     },
     grid: {
       createOne: 'Create one',
@@ -24,6 +34,7 @@ export const messages = {
       deleteAgentTitle: 'Delete Agent',
       newAgent: 'New Agent',
       noAgentsYet: 'No agents yet',
+      refreshStatus: 'Refresh instance status',
     },
     agent: {
       anotherAgent: 'another agent',
@@ -52,6 +63,9 @@ export const messages = {
       agentSettingsTitle: 'Agent Settings',
       customInstructions: 'Custom instructions',
       customInstructionsPlaceholder: 'Optional agent-specific instructions',
+      darkModeHint: 'Switch the desktop UI between light and dark themes.',
+      desktopSettingsTitle: 'Settings',
+      keepCoreRunningOnExitHint: 'When enabled, quitting the app leaves the core process running in the background.',
       newAgentTitle: 'New Agent',
       profile: 'Profile',
       style: 'Style',
@@ -122,6 +136,9 @@ export const messages = {
     },
   },
   'zh-CN': {
+    app: {
+      coreUnavailable: '请先启动内核后再继续使用。',
+    },
     common: {
       back: '返回',
       cancel: '取消',
@@ -136,9 +153,16 @@ export const messages = {
     },
     titleBar: {
       about: '关于 Biene',
+      coreOffline: '核心离线',
+      coreOnline: '核心在线',
+      coreRunning: '内核运行中',
+      coreStopped: '内核已停止',
       context: 'Workspace',
       darkMode: '深色模式',
+      killCore: '停止内核',
+      keepCoreRunningOnExit: '退出时保持核心运行',
       openSettingsMenu: '打开设置菜单',
+      runCore: '启动内核',
     },
     grid: {
       createOne: '创建一个',
@@ -146,6 +170,7 @@ export const messages = {
       deleteAgentTitle: '删除智能体',
       newAgent: '新建实例',
       noAgentsYet: '还没有智能体',
+      refreshStatus: '刷新实例状态',
     },
     agent: {
       anotherAgent: '另一个智能体',
@@ -174,6 +199,9 @@ export const messages = {
       agentSettingsTitle: '智能体设置',
       customInstructions: '自定义指令',
       customInstructionsPlaceholder: '可选的智能体专属指令',
+      darkModeHint: '切换桌面界面的浅色和深色主题。',
+      desktopSettingsTitle: '设置',
+      keepCoreRunningOnExitHint: '开启后，退出应用时会让核心进程继续在后台运行。',
       newAgentTitle: '新建智能体',
       profile: '配置',
       style: '风格',

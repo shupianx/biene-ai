@@ -1,9 +1,10 @@
-import { buildCoreUrl } from '../runtime'
+import { buildCoreHeaders, buildCoreUrl } from '../runtime'
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const headers = buildCoreHeaders(body ? { 'Content-Type': 'application/json' } : undefined)
   const res = await fetch(buildCoreUrl(path), {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {

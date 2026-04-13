@@ -1,19 +1,48 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
+const { Menu, app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
 const { spawn } = require('child_process')
+const { randomBytes } = require('crypto')
 const http = require('http')
 const net = require('net')
 const path = require('path')
+const {
+  clearCoreState,
+  defaultDesktopSettings,
+  loadCoreState,
+  loadDesktopSettings,
+  saveCoreState,
+  saveDesktopSettings,
+} = require('./desktopState.cjs')
 
 const ROOT_DIR = path.resolve(__dirname, '..')
 const CORE_DIR = path.join(ROOT_DIR, 'core')
 const RENDERER_ENTRY = path.join(ROOT_DIR, 'renderer', 'dist', 'index.html')
 const IS_DEV = Boolean(process.env.BIENE_RENDERER_URL)
+const DEV_CORE_BINARY = path.join(
+  CORE_DIR,
+  'dist',
+  process.platform === 'win32' ? 'biene-core.exe' : 'biene-core',
+)
+const CORE_AUTH_HEADER = 'X-Biene-Token'
 
 let coreProcess = null
 let coreBaseUrl = ''
+let coreAuthToken = ''
 let isQuitting = false
 let mainWindow = null
 const agentWindows = new Map()
+let desktopSettings = defaultDesktopSettings()
+let corePID = 0
+let coreMonitorTimer = null
+let coreHealthy = false
+let coreStartPromise = null
+let quitAfterCoreStop = false
+
+function stopCoreMonitor() {
+  if (coreMonitorTimer != null) {
+    clearInterval(coreMonitorTimer)
+    coreMonitorTimer = null
+  }
+}
 
 function getFreePort() {
   return new Promise((resolve, reject) => {
@@ -40,6 +69,8 @@ function resolvePackagedWorkspaceDir() {
 }
 
 function resolveCoreCommand(port) {
+  const authToken = ensureCoreAuthToken()
+
   if (app.isPackaged) {
     const binaryName = process.platform === 'win32' ? 'biene-core.exe' : 'biene-core'
     return {
@@ -52,15 +83,18 @@ function resolveCoreCommand(port) {
         '--workspace',
         resolvePackagedWorkspaceDir(),
       ],
-      options: { cwd: process.resourcesPath },
+      options: {
+        cwd: process.resourcesPath,
+        env: {
+          BIENE_CORE_TOKEN: authToken,
+        },
+      },
     }
   }
 
   return {
-    command: 'go',
+    command: DEV_CORE_BINARY,
     args: [
-      'run',
-      '.',
       '--host',
       '127.0.0.1',
       '--port',
@@ -68,30 +102,51 @@ function resolveCoreCommand(port) {
       '--workspace',
       path.join(ROOT_DIR, 'workspace'),
     ],
-    options: { cwd: CORE_DIR },
+    options: {
+      cwd: ROOT_DIR,
+      env: {
+        BIENE_CORE_TOKEN: authToken,
+      },
+    },
   }
+}
+
+function createCoreAuthToken() {
+  return randomBytes(24).toString('hex')
+}
+
+function ensureCoreAuthToken() {
+  if (typeof coreAuthToken === 'string' && coreAuthToken.trim()) {
+    return coreAuthToken
+  }
+  coreAuthToken = createCoreAuthToken()
+  return coreAuthToken
 }
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function parsePortFromUrl(url) {
+  try {
+    const port = Number(new URL(String(url)).port)
+    return Number.isInteger(port) && port > 0 && port <= 65535 ? port : 0
+  } catch {
+    return 0
+  }
+}
+
+async function resolveCorePort() {
+  const preferredPort = parsePortFromUrl(coreBaseUrl)
+  if (preferredPort > 0) return preferredPort
+  return getFreePort()
+}
+
 async function waitForCore(url, timeoutMs = 15000) {
   const startedAt = Date.now()
 
   while (Date.now() - startedAt < timeoutMs) {
-    const ok = await new Promise((resolve) => {
-      const req = http.get(`${url}/api/health`, (res) => {
-        res.resume()
-        resolve(res.statusCode === 200)
-      })
-
-      req.on('error', () => resolve(false))
-      req.setTimeout(1000, () => {
-        req.destroy()
-        resolve(false)
-      })
-    })
+    const ok = await checkCoreHealth(url)
 
     if (ok) return
     await wait(250)
@@ -100,38 +155,287 @@ async function waitForCore(url, timeoutMs = 15000) {
   throw new Error('Timed out while waiting for the local core service to start.')
 }
 
+function buildCoreAuthHeaders(token = coreAuthToken) {
+  if (!token) return undefined
+  return {
+    [CORE_AUTH_HEADER]: token,
+  }
+}
+
+function checkCoreHealth(url, token = coreAuthToken) {
+  return new Promise((resolve) => {
+    const req = http.get(`${url}/api/health`, { headers: buildCoreAuthHeaders(token) }, (res) => {
+      res.resume()
+      resolve(res.statusCode === 200)
+    })
+
+    req.on('error', () => resolve(false))
+    req.setTimeout(1000, () => {
+      req.destroy()
+      resolve(false)
+    })
+  })
+}
+
+function currentCoreStatus() {
+  return {
+    healthy: coreHealthy,
+  }
+}
+
+function normalizeCoreMenuLabels(labels) {
+  return {
+    killCore: typeof labels?.killCore === 'string' && labels.killCore.trim()
+      ? labels.killCore
+      : 'Kill core',
+    runCore: typeof labels?.runCore === 'string' && labels.runCore.trim()
+      ? labels.runCore
+      : 'Run core',
+  }
+}
+
+function normalizeSettingsMenuLabels(labels) {
+  return {
+    settings: typeof labels?.settings === 'string' && labels.settings.trim()
+      ? labels.settings
+      : 'Settings',
+    about: typeof labels?.about === 'string' && labels.about.trim()
+      ? labels.about
+      : 'About Biene',
+  }
+}
+
+function broadcastCoreStatus() {
+  const status = currentCoreStatus()
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue
+    win.webContents.send('desktop:coreStatus', status)
+  }
+}
+
+function setCoreHealthy(next) {
+  if (coreHealthy === next) return
+  coreHealthy = next
+  broadcastCoreStatus()
+}
+
+function startCoreMonitor() {
+  stopCoreMonitor()
+
+  coreMonitorTimer = setInterval(async () => {
+    if (!coreBaseUrl || isQuitting) return
+    const ok = await checkCoreHealth(coreBaseUrl)
+    setCoreHealthy(ok)
+    if (ok) return
+
+    coreProcess = null
+    corePID = 0
+    clearCoreState(app)
+  }, 3000)
+}
+
 function pipeCoreLogs(child) {
   child.stdout?.on('data', (chunk) => process.stdout.write(`[biene-core] ${chunk}`))
   child.stderr?.on('data', (chunk) => process.stderr.write(`[biene-core] ${chunk}`))
 }
 
+function requestCoreShutdown(timeoutMs = 5000) {
+  if (!coreBaseUrl || !ensureCoreAuthToken()) {
+    return Promise.resolve(false)
+  }
+
+  const shutdownUrl = new URL('/api/admin/shutdown', `${coreBaseUrl}/`)
+
+  return new Promise((resolve) => {
+    const req = http.request(shutdownUrl, {
+      method: 'POST',
+      headers: buildCoreAuthHeaders(),
+    }, async (res) => {
+      res.resume()
+      if (res.statusCode !== 200 && res.statusCode !== 202 && res.statusCode !== 204) {
+        resolve(false)
+        return
+      }
+
+      const startedAt = Date.now()
+      while (Date.now() - startedAt < timeoutMs) {
+        if (!(await checkCoreHealth(coreBaseUrl))) {
+          resolve(true)
+          return
+        }
+        await wait(150)
+      }
+
+      resolve(false)
+    })
+
+    req.on('error', () => resolve(false))
+    req.setTimeout(1500, () => {
+      req.destroy()
+      resolve(false)
+    })
+    req.end()
+  })
+}
+
+function forceStopCore() {
+  if (coreProcess && !coreProcess.killed) {
+    coreProcess.kill()
+  } else if (corePID > 0) {
+    try {
+      process.kill(corePID)
+    } catch {
+      // Ignore missing process errors.
+    }
+  }
+}
+
 async function startCore() {
-  const port = await getFreePort()
+  if (coreHealthy) return
+  if (coreStartPromise) return coreStartPromise
+
+  coreStartPromise = startCoreOnce()
+  try {
+    await coreStartPromise
+  } finally {
+    coreStartPromise = null
+  }
+}
+
+async function startCoreOnce() {
+  const existingCore = loadCoreState(app)
+  if (existingCore) {
+    coreAuthToken = existingCore.token
+    try {
+      await waitForCore(existingCore.baseUrl, 1500)
+      coreBaseUrl = existingCore.baseUrl
+      corePID = existingCore.pid
+      setCoreHealthy(true)
+      startCoreMonitor()
+      return
+    } catch {
+      setCoreHealthy(false)
+      clearCoreState(app)
+    }
+  }
+
+  const port = await resolveCorePort()
   coreBaseUrl = `http://127.0.0.1:${port}`
 
   const { command, args, options } = resolveCoreCommand(port)
   coreProcess = spawn(command, args, {
     ...options,
-    env: process.env,
+    detached: true,
+    env: {
+      ...process.env,
+      ...(options.env ?? {}),
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
   })
+  corePID = coreProcess.pid ?? 0
   pipeCoreLogs(coreProcess)
 
+  const spawnedPID = corePID
   coreProcess.once('exit', (code, signal) => {
     coreProcess = null
+    if (corePID === spawnedPID) {
+      corePID = 0
+      clearCoreState(app)
+      setCoreHealthy(false)
+    }
     if (!isQuitting) {
       const detail = signal ? `signal ${signal}` : `code ${code}`
-      dialog.showErrorBox('Biene core stopped', `The local core service exited unexpectedly (${detail}).`)
-      app.quit()
+      console.error(`Biene core stopped unexpectedly (${detail}).`)
     }
   })
 
   await waitForCore(coreBaseUrl)
+  saveCoreState(app, { baseUrl: coreBaseUrl, pid: corePID, token: ensureCoreAuthToken() })
+  setCoreHealthy(true)
+  startCoreMonitor()
 }
 
-function stopCore() {
-  if (!coreProcess || coreProcess.killed) return
-  coreProcess.kill()
+async function stopCore() {
+  stopCoreMonitor()
+  const stoppedGracefully = await requestCoreShutdown()
+  if (!stoppedGracefully) {
+    forceStopCore()
+  }
+  coreProcess = null
+  corePID = 0
+  clearCoreState(app)
+  setCoreHealthy(false)
+}
+
+function releaseCoreForAppExit() {
+  stopCoreMonitor()
+  if (!coreProcess) return
+  coreProcess.removeAllListeners('exit')
+  coreProcess.stdout?.destroy()
+  coreProcess.stderr?.destroy()
+  coreProcess.unref()
+  coreProcess = null
+}
+
+function showCoreMenu(event, labels) {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win || win.isDestroyed()) return
+
+  const menuLabels = normalizeCoreMenuLabels(labels)
+  const menu = Menu.buildFromTemplate([
+    {
+      label: menuLabels.killCore,
+      enabled: coreHealthy || corePID > 0 || Boolean(coreProcess),
+      click: () => {
+        void stopCore().catch((err) => {
+          dialog.showErrorBox('Failed to stop Biene core', err instanceof Error ? err.message : String(err))
+        })
+      },
+    },
+    {
+      label: menuLabels.runCore,
+      enabled: !coreHealthy && !coreStartPromise,
+      click: () => {
+        void startCore().catch((err) => {
+          dialog.showErrorBox('Failed to start Biene', err instanceof Error ? err.message : String(err))
+        })
+      },
+    },
+  ])
+
+  menu.popup({ window: win })
+}
+
+function showSettingsMenu(event, labels) {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win || win.isDestroyed()) return
+
+  const menuLabels = normalizeSettingsMenuLabels(labels)
+  const menu = Menu.buildFromTemplate([
+    {
+      label: menuLabels.settings,
+      click: () => {
+        if (!win.isDestroyed()) {
+          win.webContents.send('desktop:settingsMenuAction', { action: 'settings' })
+        }
+      },
+    },
+    {
+      label: menuLabels.about,
+      click: () => {
+        dialog.showMessageBox(win, {
+          type: 'info',
+          title: 'Biene',
+          message: 'Biene',
+          detail: `Version ${app.getVersion()}`,
+          buttons: ['OK'],
+        })
+      },
+    },
+  ])
+
+  menu.popup({ window: win })
 }
 
 function configureAppWindow(win) {
@@ -188,6 +492,7 @@ function createAppWindow(options) {
       nodeIntegration: false,
       additionalArguments: [
         `--biene-core-url=${coreBaseUrl}`,
+        `--biene-core-token=${ensureCoreAuthToken()}`,
         `--biene-window-kind=${options.windowKind ?? 'main'}`,
       ],
     },
@@ -195,6 +500,10 @@ function createAppWindow(options) {
 
   configureAppWindow(win)
   loadRendererRoute(win, options.route)
+  win.webContents.once('did-finish-load', () => {
+    if (win.isDestroyed()) return
+    win.webContents.send('desktop:coreStatus', currentCoreStatus())
+  })
 
   if (IS_DEV && options.openDevTools) {
     win.webContents.openDevTools({ mode: 'detach' })
@@ -231,11 +540,26 @@ function openAgentWindow(sessionId) {
 }
 
 function registerDesktopHandlers() {
+  ipcMain.handle('desktop:getCoreStatus', async () => currentCoreStatus())
+  ipcMain.handle('desktop:getSettings', async () => desktopSettings)
+  ipcMain.handle('desktop:updateSettings', async (_event, patch) => {
+    desktopSettings = saveDesktopSettings(app, {
+      ...desktopSettings,
+      ...(patch && typeof patch === 'object' ? patch : {}),
+    })
+    return desktopSettings
+  })
   ipcMain.handle('desktop:openExternal', async (_event, url) => {
     await shell.openExternal(url)
   })
   ipcMain.handle('desktop:openAgentWindow', async (_event, sessionId) => {
     openAgentWindow(sessionId)
+  })
+  ipcMain.handle('desktop:showCoreMenu', async (event, labels) => {
+    showCoreMenu(event, labels)
+  })
+  ipcMain.handle('desktop:showSettingsMenu', async (event, labels) => {
+    showSettingsMenu(event, labels)
   })
 }
 
@@ -258,12 +582,27 @@ function createMainWindow() {
   })
 }
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
   isQuitting = true
-  stopCore()
+  if (desktopSettings.keepCoreRunningOnExit) {
+    releaseCoreForAppExit()
+    return
+  }
+  if (quitAfterCoreStop) {
+    return
+  }
+
+  event.preventDefault()
+  quitAfterCoreStop = true
+  void stopCore().catch((err) => {
+    console.error('Failed to stop Biene core during app quit:', err)
+  }).finally(() => {
+    app.quit()
+  })
 })
 
 app.whenReady().then(async () => {
+  desktopSettings = loadDesktopSettings(app)
   registerDesktopHandlers()
 
   try {

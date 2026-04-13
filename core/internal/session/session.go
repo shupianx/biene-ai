@@ -108,6 +108,7 @@ type Session struct {
 	subscribersMu sync.RWMutex
 	cancelQuery   context.CancelFunc
 	closed        bool
+	onMetaChanged func(SessionMeta)
 	mu            sync.Mutex
 }
 
@@ -164,6 +165,12 @@ func clonePermissionPayload(in *PermissionRequestPayload) *PermissionRequestPayl
 	}
 	out := *in
 	return &out
+}
+
+func (s *Session) notifyMetaChanged(meta SessionMeta) {
+	if s.onMetaChanged != nil {
+		s.onMetaChanged(meta)
+	}
 }
 
 // ── ID helpers ────────────────────────────────────────────────────────────

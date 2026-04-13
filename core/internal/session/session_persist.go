@@ -124,15 +124,17 @@ func (s *Session) persistAfterRun(newDisplay []DisplayMessage, apiMsgs []api.Mes
 func (s *Session) persistPermissions(perms tools.PermissionSet) {
 	s.mu.Lock()
 	s.permissions = perms
-	meta := s.persistentMetaLocked()
+	meta := s.metaLocked()
+	persistedMeta := s.persistentMetaLocked()
 	s.mu.Unlock()
 
-	if s.store == nil {
-		return
+	if s.store != nil {
+		if err := s.store.SaveMeta(persistedMeta); err != nil {
+			log.Printf("persist permissions for %s: %v", s.ID, err)
+		}
 	}
-	if err := s.store.SaveMeta(meta); err != nil {
-		log.Printf("persist permissions for %s: %v", s.ID, err)
-	}
+
+	s.notifyMetaChanged(meta)
 }
 
 func (s *Session) UpdateSettings(name string, perms tools.PermissionSet, profile prompt.AgentProfile) (SessionMeta, error) {
@@ -147,13 +149,15 @@ func (s *Session) UpdateSettings(name string, perms tools.PermissionSet, profile
 	s.profile = profile
 	s.checker.SetPermissions(perms)
 	s.systemPrompt = prompt.Build(s.registry, s.WorkDir, s.profile)
-	meta := s.persistentMetaLocked()
+	meta := s.metaLocked()
+	persistedMeta := s.persistentMetaLocked()
 	s.mu.Unlock()
 
 	if s.store != nil {
-		if err := s.store.SaveMeta(meta); err != nil {
+		if err := s.store.SaveMeta(persistedMeta); err != nil {
 			return SessionMeta{}, err
 		}
 	}
+	s.notifyMetaChanged(meta)
 	return meta, nil
 }

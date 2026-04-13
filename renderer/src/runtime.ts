@@ -1,10 +1,35 @@
+export interface CoreStatus {
+  healthy: boolean
+}
+
+export interface CoreMenuLabels {
+  killCore: string
+  runCore: string
+}
+
+export interface SettingsMenuLabels {
+  settings: string
+  about: string
+}
+
+export interface DesktopSettings {
+  keepCoreRunningOnExit: boolean
+  theme: 'light' | 'dark'
+}
+
 export interface DesktopBridge {
   isElectron: boolean
   platform: string
   windowKind: string
   coreBaseUrl: string
+  coreAuthToken: string
+  getCoreStatus: () => Promise<CoreStatus>
+  getDesktopSettings: () => Promise<DesktopSettings>
+  updateDesktopSettings: (patch: Partial<DesktopSettings>) => Promise<DesktopSettings>
   openExternal: (url: string) => Promise<void>
   openAgentWindow: (sessionId: string) => Promise<void>
+  showCoreMenu: (labels: CoreMenuLabels) => Promise<void>
+  showSettingsMenu: (labels: SettingsMenuLabels) => Promise<void>
 }
 
 declare global {
@@ -29,6 +54,22 @@ export function getCoreBaseUrl() {
   return baseUrl ? normalizeBaseUrl(baseUrl) : ''
 }
 
+export function getCoreAuthToken() {
+  const desktopToken = getDesktopBridge()?.coreAuthToken ?? ''
+  const envToken = import.meta.env.VITE_CORE_TOKEN ?? ''
+  const token = desktopToken || envToken
+  return typeof token === 'string' ? token.trim() : ''
+}
+
+export function buildCoreHeaders(headers?: HeadersInit) {
+  const next = new Headers(headers)
+  const token = getCoreAuthToken()
+  if (token) {
+    next.set('X-Biene-Token', token)
+  }
+  return next
+}
+
 export function buildCoreUrl(path: string) {
   const baseUrl = getCoreBaseUrl()
   if (!baseUrl) return path
@@ -40,6 +81,10 @@ export function buildCoreWebSocketUrl(path: string) {
   const url = baseUrl
     ? new URL(path, `${baseUrl}/`)
     : new URL(path, window.location.href)
+  const token = getCoreAuthToken()
+  if (token) {
+    url.searchParams.set('token', token)
+  }
 
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   return url.toString()

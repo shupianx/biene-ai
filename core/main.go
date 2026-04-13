@@ -37,6 +37,7 @@ func main() {
 		Port:          *port,
 		Config:        loadResult.Config,
 		WorkspaceRoot: *workspace,
+		AuthToken:     os.Getenv("BIENE_CORE_TOKEN"),
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

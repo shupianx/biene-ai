@@ -11,6 +11,11 @@ export type SessionEventType =
   | 'error'
   | 'done'
 
+export type SessionListEventType =
+  | 'session_created'
+  | 'session_updated'
+  | 'session_deleted'
+
 export interface MessageAddedData {
   message: import('../api/http').DisplayMessage
 }
@@ -56,4 +61,12 @@ export interface PermissionClearedData {
 
 export interface ErrorData {
   message: string
+}
+
+export interface SessionMetaEventData {
+  session: import('../api/http').SessionMeta
+}
+
+export interface SessionDeletedData {
+  id: string
 }
