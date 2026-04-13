@@ -1,0 +1,25 @@
+{
+  "appId": "com.biene.desktop",
+  "productName": "Biene",
+  "directories": {
+    "output": "release/.tmp/default"
+  },
+  "files": [
+    "electron/**/*",
+    "renderer/dist/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "core/dist",
+      "to": "bin",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
+  "mac": {
+    "category": "public.app-category.developer-tools",
+    "identity": null
+  }
+}

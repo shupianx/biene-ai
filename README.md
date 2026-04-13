@@ -34,7 +34,8 @@ At runtime:
 - The renderer talks to that core over HTTP + WebSocket
 - Agent state is persisted on disk
 - In development, agent workspaces live under [`workspace/`](./workspace)
-- In packaged builds, workspaces are stored under Electron `userData`
+- In packaged builds on macOS, workspaces are stored under `~/Library/Application Support/Biene/workspace`
+- In packaged builds on Windows, workspaces are stored in a `workspace/` directory beside the executable
 
 ## Configuration
 
@@ -120,9 +121,25 @@ Useful subcommands:
 
 - `npm run build:renderer`
 - `npm run build:core`
-- `npm run package:desktop`
+- `npm run build:mac`
+- `npm run build:win`
 
-Packaging output is written to [`release/`](./release).
+Packaging output is written to [`release/`](./release) using a platform-specific layout:
+
+```text
+release/
+├── mac-arm64/
+│   ├── Biene-<version>-arm64.dmg
+│   └── update/
+│       ├── latest-mac.yml
+│       ├── Biene-<version>-arm64-mac.zip
+│       └── Biene-<version>-arm64-mac.zip.blockmap
+└── win-x64/
+    └── Biene-<version>-win.zip
+```
+
+The macOS `update/` folder contains the files intended for an update server.
+Windows currently ships only a manual-download ZIP package.
 
 ## Repository Layout
 

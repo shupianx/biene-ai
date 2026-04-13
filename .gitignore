@@ -10,6 +10,7 @@ coverage/
 
 # App/runtime data
 workspace/
+.cache/
 
 # Logs
 logs/

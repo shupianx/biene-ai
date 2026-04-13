@@ -31,6 +31,14 @@ function getFreePort() {
   })
 }
 
+function resolvePackagedWorkspaceDir() {
+  if (process.platform === 'darwin') {
+    return path.join(app.getPath('userData'), 'workspace')
+  }
+
+  return path.join(path.dirname(process.execPath), 'workspace')
+}
+
 function resolveCoreCommand(port) {
   if (app.isPackaged) {
     const binaryName = process.platform === 'win32' ? 'biene-core.exe' : 'biene-core'
@@ -42,7 +50,7 @@ function resolveCoreCommand(port) {
         '--port',
         String(port),
         '--workspace',
-        path.join(app.getPath('userData'), 'workspace'),
+        resolvePackagedWorkspaceDir(),
       ],
       options: { cwd: process.resourcesPath },
     }
