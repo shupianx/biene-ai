@@ -8,11 +8,11 @@
     </div>
     <div v-if="expanded" class="tool-body">
       <div v-if="tc.tool_input" class="tool-section">
-        <div class="section-label">Input</div>
+        <div class="section-label">{{ t('tool.input') }}</div>
         <pre class="code-block">{{ fmt(tc.tool_input) }}</pre>
       </div>
       <div v-if="tc.result" class="tool-section">
-        <div class="section-label">Output</div>
+        <div class="section-label">{{ t('tool.output') }}</div>
         <pre class="code-block">{{ tc.result }}</pre>
       </div>
     </div>
@@ -22,6 +22,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { DisplayTool } from '../api/http'
+import { t } from '../i18n'
 
 const props = defineProps<{ tc: DisplayTool }>()
 const expanded = ref(false)

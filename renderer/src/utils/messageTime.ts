@@ -1,9 +1,11 @@
-function pad(value: number) {
-  return String(value).padStart(2, '0')
-}
+import { getLocale, t } from '../i18n'
 
 function formatHoursAndMinutes(date: Date) {
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return new Intl.DateTimeFormat(getLocale(), {
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+  }).format(date)
 }
 
 function isSameLocalDay(a: Date, b: Date) {
@@ -26,14 +28,22 @@ export function formatMessageTime(value: string) {
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
   if (isSameLocalDay(date, yesterday)) {
-    return `昨天 ${formatHoursAndMinutes(date)}`
+    return t('time.yesterdayAt', { time: formatHoursAndMinutes(date) })
   }
-
-  const monthDay = `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  const locale = getLocale()
   const time = formatHoursAndMinutes(date)
   if (date.getFullYear() === now.getFullYear()) {
+    const monthDay = new Intl.DateTimeFormat(locale, {
+      day: '2-digit',
+      month: '2-digit',
+    }).format(date)
     return `${monthDay} ${time}`
   }
 
-  return `${date.getFullYear()}-${monthDay} ${time}`
+  const yearMonthDay = new Intl.DateTimeFormat(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
+  return `${yearMonthDay} ${time}`
 }

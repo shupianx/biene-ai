@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 export type SessionStatusTone = 'idle' | 'running' | 'error' | 'approval'
 
 export function getSessionStatusTone(session: {
@@ -10,10 +12,5 @@ export function getSessionStatusTone(session: {
 }
 
 export function getSessionStatusLabel(tone: SessionStatusTone) {
-  switch (tone) {
-    case 'approval':
-      return 'Needs Approval'
-    default:
-      return tone
-  }
+  return t(`sessionStatus.${tone}`)
 }

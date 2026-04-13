@@ -8,6 +8,7 @@ import {
   type SessionMeta, type SessionPermissions, type AgentProfile, type DisplayMessage, type DisplayTool,
 } from '../api/http'
 import { connectWS } from '../api/ws'
+import { t } from '../i18n'
 import { getCoreBaseUrl, getDesktopBridge } from '../runtime'
 import type { PermissionRequestData } from '../types/events'
 
@@ -173,7 +174,7 @@ export const useSessionsStore = defineStore('sessions', () => {
       sess.messages = sess.messages.filter(m => m.id !== messageId)
 
       const msg = _ensureAssistantTextSegment(sess)
-      msg.text += `\n\n**Error:** ${err instanceof Error ? err.message : String(err)}`
+      msg.text += `\n\n**${t('common.errorLabel')}:** ${err instanceof Error ? err.message : String(err)}`
       _finishAssistantTurn(sess)
     }
   }
@@ -335,7 +336,7 @@ export const useSessionsStore = defineStore('sessions', () => {
       onError({ message }) {
         const s = sessions.value[id]
         if (!s) return
-        _ensureAssistantTextSegment(s).text += `\n\n**Error:** ${message}`
+        _ensureAssistantTextSegment(s).text += `\n\n**${t('common.errorLabel')}:** ${message}`
       },
       onDone() {
         const s = sessions.value[id]
@@ -433,7 +434,7 @@ function _interruptAssistantTurn(sess: AgentSession) {
       if (tool.status !== 'pending' && tool.status !== 'composing') continue
       tool.status = 'cancelled'
       if (!tool.result) {
-        tool.result = 'Interrupted.'
+        tool.result = t('input.interrupted')
       }
     }
     msg.streaming = false

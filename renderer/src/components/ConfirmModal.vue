@@ -3,14 +3,15 @@
     <p class="message">{{ message }}</p>
 
     <template #footer>
-      <button class="btn-cancel" @click="emit('cancel')">Cancel</button>
-      <button class="btn-confirm" @click="emit('confirm')">{{ confirmLabel || 'Confirm' }}</button>
+      <button class="btn-cancel" @click="emit('cancel')">{{ t('common.cancel') }}</button>
+      <button class="btn-confirm" @click="emit('confirm')">{{ confirmLabel || t('common.confirm') }}</button>
     </template>
   </BaseModal>
 </template>
 
 <script setup lang="ts">
 import BaseModal from './BaseModal.vue'
+import { t } from '../i18n'
 
 defineProps<{
   title: string

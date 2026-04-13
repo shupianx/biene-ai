@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 export function normalizeAgentName(name: string) {
   return name.trim().toLowerCase()
 }
@@ -10,8 +12,8 @@ export function isAgentNameTaken(name: string, existingNames: string[]) {
 
 export function nextDefaultAgentName(existingNames: string[]) {
   let index = existingNames.length + 1
-  while (isAgentNameTaken(`Agent ${index}`, existingNames)) {
+  while (isAgentNameTaken(t('agentName.defaultName', { index }), existingNames)) {
     index += 1
   }
-  return `Agent ${index}`
+  return t('agentName.defaultName', { index })
 }

@@ -5,7 +5,7 @@
         ref="taRef"
         v-model="text"
         :disabled="disabled"
-        placeholder="Message this agent…"
+        :placeholder="t('input.placeholder')"
         rows="1"
         @keydown.enter.exact.prevent="onEnter"
         @input="resize"
@@ -16,6 +16,7 @@
         <button
           class="action-btn"
           :class="{ interrupt: interruptible }"
+          :aria-label="buttonTitle"
           :disabled="buttonDisabled"
           :title="buttonTitle"
           @click="handleAction"
@@ -47,6 +48,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue'
 import { icons as mynauiIcons } from '@iconify-json/mynaui'
+import { t } from '../i18n'
 
 const props = defineProps<{
   disabled?: boolean
@@ -73,8 +75,8 @@ const buttonDisabled = computed(() => {
 
 const buttonTitle = computed(() =>
   props.interruptible
-    ? (props.interrupting ? 'Interrupting' : 'Interrupt')
-    : 'Send message'
+    ? (props.interrupting ? t('input.interrupting') : t('input.interrupt'))
+    : t('input.send')
 )
 
 function resize() {

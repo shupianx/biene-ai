@@ -1,15 +1,15 @@
 <template>
   <div v-if="req" class="card">
     <div class="card-head">
-      <span class="state">Needs Approval</span>
+      <span class="state">{{ t('sessionStatus.approval') }}</span>
       <span class="tool-name">{{ permissionLabel }}</span>
     </div>
-    <p class="desc">This agent wants to use a protected capability.</p>
+    <p class="desc">{{ t('permissions.approvalDescription') }}</p>
     <p v-if="permissionDescription" class="permission-desc">{{ permissionDescription }}</p>
     <div class="actions">
-      <button class="btn deny"   @click="emit('resolve', 'deny')">Deny</button>
-      <button class="btn allow"  @click="emit('resolve', 'allow')">Allow Once</button>
-      <button class="btn always" @click="emit('resolve', 'always')">Always Allow</button>
+      <button class="btn deny"   @click="emit('resolve', 'deny')">{{ t('permissions.deny') }}</button>
+      <button class="btn allow"  @click="emit('resolve', 'allow')">{{ t('permissions.allowOnce') }}</button>
+      <button class="btn always" @click="emit('resolve', 'always')">{{ t('permissions.allowAlways') }}</button>
     </div>
   </div>
 </template>
@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PermissionRequest } from '../stores/sessions'
+import { t } from '../i18n'
 import { getPermissionDescription, getPermissionLabel } from '../utils/permissions'
 
 const props = defineProps<{ req: PermissionRequest | null }>()

@@ -14,8 +14,8 @@
     <div ref="listRef" class="message-list" @scroll="onListScroll">
       <div v-if="session.messages.length === 0" class="empty-chat">
         <div class="empty-icon">⚡</div>
-        <p>Agent ready. Send a message to start.</p>
-        <p class="empty-dir">Working directory: <code>{{ session.meta.work_dir }}</code></p>
+        <p>{{ t('agent.ready') }}</p>
+        <p class="empty-dir">{{ t('agent.workingDirectory') }}: <code>{{ session.meta.work_dir }}</code></p>
       </div>
       <MessageItem
         v-for="msg in session.messages"
@@ -45,6 +45,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import type { AgentSession } from '../stores/sessions'
+import { t } from '../i18n'
 import { useSessionsStore } from '../stores/sessions'
 import MessageItem from './MessageItem.vue'
 import InputBar from './InputBar.vue'

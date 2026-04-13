@@ -1,7 +1,7 @@
 <template>
-  <BaseModal title="New Agent" @close="emit('close')">
+  <BaseModal :title="t('modal.newAgentTitle')" @close="emit('close')">
     <label class="field">
-      <span class="label">Agent name</span>
+      <span class="label">{{ t('agentName.label') }}</span>
       <input
         ref="nameInput"
         v-model="name"
@@ -10,14 +10,14 @@
         :placeholder="defaultName"
         @keydown.enter="submit"
       />
-      <span v-if="nameConflict" class="error-text">Agent name already exists.</span>
+      <span v-if="nameConflict" class="error-text">{{ t('agentName.exists') }}</span>
     </label>
 
     <div class="field">
-      <span class="label">Tool permissions</span>
+      <span class="label">{{ t('modal.toolPermissions') }}</span>
       <div class="permission-list">
         <div
-          v-for="permission in permissionDefinitions"
+          v-for="permission in permissionOptions"
           :key="permission.key"
           class="permission-item"
         >
@@ -31,7 +31,7 @@
           />
         </div>
       </div>
-      <p class="hint">Closed means the agent will ask before using that permission group.</p>
+      <p class="hint">{{ t('modal.toolPermissionsHint') }}</p>
     </div>
 
     <section class="advanced-section">
@@ -41,16 +41,16 @@
         :aria-expanded="advancedOpen"
         @click="advancedOpen = !advancedOpen"
       >
-        <span class="label">Advanced settings</span>
+        <span class="label">{{ t('modal.advancedSettings') }}</span>
         <span class="advanced-arrow" :class="{ open: advancedOpen }" aria-hidden="true">⌄</span>
       </button>
 
       <div v-if="advancedOpen" class="advanced-panel">
         <div class="field">
-          <span class="label">Profile</span>
+          <span class="label">{{ t('modal.profile') }}</span>
           <div class="profile-grid">
             <label class="field">
-              <span class="sub-label">Domain</span>
+              <span class="sub-label">{{ t('modal.domain') }}</span>
               <select v-model="profile.domain" class="select">
                 <option
                   v-for="option in domainOptions"
@@ -64,7 +64,7 @@
             </label>
 
             <label class="field">
-              <span class="sub-label">Style</span>
+              <span class="sub-label">{{ t('modal.style') }}</span>
               <select v-model="profile.style" class="select">
                 <option
                   v-for="option in styleOptions"
@@ -79,11 +79,11 @@
           </div>
 
           <label class="field">
-            <span class="sub-label">Custom instructions</span>
+            <span class="sub-label">{{ t('modal.customInstructions') }}</span>
             <AutoGrowTextarea
               v-model="profile.custom_instructions"
               class="textarea"
-              placeholder="Optional agent-specific instructions"
+              :placeholder="t('modal.customInstructionsPlaceholder')"
             />
           </label>
         </div>
@@ -91,8 +91,8 @@
     </section>
 
     <template #footer>
-      <button class="btn-cancel" @click="emit('close')">Cancel</button>
-      <button class="btn-create" :disabled="nameConflict" @click="submit">Create</button>
+      <button class="btn-cancel" @click="emit('close')">{{ t('common.cancel') }}</button>
+      <button class="btn-create" :disabled="nameConflict" @click="submit">{{ t('common.create') }}</button>
     </template>
   </BaseModal>
 </template>
@@ -103,8 +103,9 @@ import type { AgentProfile, SessionPermissions } from '../api/http'
 import AutoGrowTextarea from './AutoGrowTextarea.vue'
 import BaseModal from './BaseModal.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
+import { t } from '../i18n'
 import { isAgentNameTaken } from '../utils/agentNames'
-import { defaultPermissions, permissionDefinitions } from '../utils/permissions'
+import { defaultPermissions, listPermissionDefinitions } from '../utils/permissions'
 import {
   defaultProfile,
   findDomainOption,
@@ -138,6 +139,10 @@ const domainOptions = computed(() =>
 
 const styleOptions = computed(() =>
   listStyleOptions(profile.value.style)
+)
+
+const permissionOptions = computed(() =>
+  listPermissionDefinitions()
 )
 
 const selectedDomainDescription = computed(() =>

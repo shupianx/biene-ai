@@ -1,6 +1,5 @@
 import type { AgentDomain, AgentProfile, AgentStyle } from '../api/http'
 import { t } from '../i18n'
-import type { MessageKey } from '../i18n/messages'
 
 export interface SelectOption<T extends string> {
   value: T
@@ -10,8 +9,8 @@ export interface SelectOption<T extends string> {
 
 export interface ProfileOption<T extends string> {
   value: T
-  labelKey: MessageKey
-  descriptionKey: MessageKey
+  labelKey: string
+  descriptionKey: string
   selectable?: boolean
 }
 

@@ -1,10 +1,10 @@
 <template>
   <div v-if="loading" class="agent-page state-page">
-    <p>Loading agent…</p>
+    <p>{{ t('agent.loading') }}</p>
   </div>
   <div v-else-if="!session" class="agent-page state-page">
-    <p>Agent not found.</p>
-    <button class="back-btn" @click="closeAgentView">Back</button>
+    <p>{{ t('agent.notFound') }}</p>
+    <button class="back-btn" @click="closeAgentView">{{ t('common.back') }}</button>
   </div>
   <AgentChatView
     v-else
@@ -17,6 +17,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AgentChatView from '../components/AgentChatView.vue'
+import { t } from '../i18n'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import { useSessionsStore } from '../stores/sessions'
 

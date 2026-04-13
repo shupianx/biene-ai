@@ -4,13 +4,13 @@
       <div v-if="store.sessionList.length > 0" class="grid-actions">
         <button class="new-btn" @click="showNewModal = true">
           <svg class="new-btn-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="addRoundedIconBody" />
-          <span>New Agent</span>
+          <span>{{ t('grid.newAgent') }}</span>
         </button>
       </div>
       <div v-if="store.sessionList.length === 0" class="empty-grid">
         <div class="empty-icon">⚡</div>
-        <p>No agents yet</p>
-        <button class="new-agent-btn" @click="onNew">Create one</button>
+        <p>{{ t('grid.noAgentsYet') }}</p>
+        <button class="new-agent-btn" @click="onNew">{{ t('grid.createOne') }}</button>
       </div>
       <div v-else class="agent-grid">
         <SessionCard
@@ -43,9 +43,9 @@
     />
     <ConfirmModal
       v-if="deletingSession"
-      title="Delete Agent"
-      :message="`Delete ${deletingSession.meta.name}? Its workspace and stored history will be removed from disk.`"
-      confirm-label="Delete"
+      :title="t('grid.deleteAgentTitle')"
+      :message="t('grid.deleteAgentMessage', { name: deletingSession.meta.name })"
+      :confirm-label="t('common.delete')"
       @cancel="deletingSessionId = null"
       @confirm="onConfirmDelete"
     />
@@ -55,6 +55,7 @@
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
 import type { AgentProfile, SessionPermissions } from '../api/http'
+import { t } from '../i18n'
 import { useSessionsStore } from '../stores/sessions'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import { nextDefaultAgentName } from '../utils/agentNames'

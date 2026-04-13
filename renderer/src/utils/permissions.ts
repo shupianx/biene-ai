@@ -1,23 +1,24 @@
 import type { SessionPermissions } from '../api/http'
+import { t } from '../i18n'
 
 export type PermissionKey = keyof SessionPermissions
 
 export interface PermissionDefinition {
   key: PermissionKey
-  label: string
-  description: string
+  labelKey: string
+  descriptionKey: string
 }
 
 export const permissionDefinitions: PermissionDefinition[] = [
   {
     key: 'write',
-    label: 'File changes',
-    description: 'Allows both Write and Edit tool calls.',
+    labelKey: 'permissions.write.label',
+    descriptionKey: 'permissions.write.description',
   },
   {
     key: 'send_to_agent',
-    label: 'Agent transfer',
-    description: 'Allows sending messages or files to other agents.',
+    labelKey: 'permissions.send_to_agent.label',
+    descriptionKey: 'permissions.send_to_agent.description',
   },
 ]
 
@@ -35,10 +36,20 @@ export function clonePermissions(permissions: SessionPermissions): SessionPermis
   }
 }
 
+export function listPermissionDefinitions() {
+  return permissionDefinitions.map((item) => ({
+    key: item.key,
+    label: t(item.labelKey),
+    description: t(item.descriptionKey),
+  }))
+}
+
 export function getPermissionLabel(key: string) {
-  return permissionDefinitions.find((item) => item.key === key)?.label ?? key
+  const item = permissionDefinitions.find((definition) => definition.key === key)
+  return item ? t(item.labelKey) : key
 }
 
 export function getPermissionDescription(key: string) {
-  return permissionDefinitions.find((item) => item.key === key)?.description ?? ''
+  const item = permissionDefinitions.find((definition) => definition.key === key)
+  return item ? t(item.descriptionKey) : ''
 }

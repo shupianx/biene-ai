@@ -9,10 +9,10 @@
       <span class="status-dot" />
       <span class="name">{{ session.meta.name }}</span>
       <div class="menu-wrap" @click.stop>
-        <button class="menu-btn" :class="{ open: menuOpen }" title="More" @click="menuOpen = !menuOpen">...</button>
+        <button class="menu-btn" :class="{ open: menuOpen }" :title="t('common.more')" @click="menuOpen = !menuOpen">...</button>
         <div v-if="menuOpen" class="menu">
-          <button class="menu-item" @click="onSettings">Settings</button>
-          <button class="menu-item danger" @click="onDelete">Delete</button>
+          <button class="menu-item" @click="onSettings">{{ t('common.settings') }}</button>
+          <button class="menu-item danger" @click="onDelete">{{ t('common.delete') }}</button>
         </div>
       </div>
     </div>
@@ -26,6 +26,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { AgentSession } from '../stores/sessions'
+import { t } from '../i18n'
 import { getSessionStatusLabel, getSessionStatusTone } from '../utils/sessionStatus'
 
 const props = defineProps<{ session: AgentSession }>()

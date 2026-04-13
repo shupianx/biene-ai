@@ -1,7 +1,7 @@
 <template>
-  <BaseModal title="Agent Settings" max-width="460px" :z-index="220" @close="emit('close')">
+  <BaseModal :title="t('modal.agentSettingsTitle')" max-width="460px" :z-index="220" @close="emit('close')">
     <label class="field">
-      <span class="label">Agent name</span>
+      <span class="label">{{ t('agentName.label') }}</span>
       <input
         ref="nameInput"
         v-model="name"
@@ -9,14 +9,14 @@
         :class="{ invalid: nameConflict }"
         @keydown.enter="submit"
       />
-      <span v-if="nameConflict" class="error-text">Agent name already exists.</span>
+      <span v-if="nameConflict" class="error-text">{{ t('agentName.exists') }}</span>
     </label>
 
     <div class="field">
-      <span class="label">Profile</span>
+      <span class="label">{{ t('modal.profile') }}</span>
       <div class="profile-grid">
         <label class="field">
-          <span class="sub-label">Domain</span>
+          <span class="sub-label">{{ t('modal.domain') }}</span>
           <select v-model="profile.domain" class="select">
             <option
               v-for="option in domainOptions"
@@ -30,7 +30,7 @@
         </label>
 
         <label class="field">
-          <span class="sub-label">Style</span>
+          <span class="sub-label">{{ t('modal.style') }}</span>
           <select v-model="profile.style" class="select">
             <option
               v-for="option in styleOptions"
@@ -45,20 +45,20 @@
       </div>
 
       <label class="field">
-        <span class="sub-label">Custom instructions</span>
+        <span class="sub-label">{{ t('modal.customInstructions') }}</span>
         <AutoGrowTextarea
           v-model="profile.custom_instructions"
           class="textarea"
-          placeholder="Optional agent-specific instructions"
+          :placeholder="t('modal.customInstructionsPlaceholder')"
         />
       </label>
     </div>
 
     <div class="field">
-      <span class="label">Tool permissions</span>
+      <span class="label">{{ t('modal.toolPermissions') }}</span>
       <div class="permission-list">
         <div
-          v-for="permission in permissionDefinitions"
+          v-for="permission in permissionOptions"
           :key="permission.key"
           class="permission-item"
         >
@@ -75,8 +75,8 @@
     </div>
 
     <template #footer>
-      <button class="btn-cancel" @click="emit('close')">Cancel</button>
-      <button class="btn-save" :disabled="nameConflict" @click="submit">Save</button>
+      <button class="btn-cancel" @click="emit('close')">{{ t('common.cancel') }}</button>
+      <button class="btn-save" :disabled="nameConflict" @click="submit">{{ t('common.save') }}</button>
     </template>
   </BaseModal>
 </template>
@@ -87,8 +87,9 @@ import type { AgentProfile, SessionPermissions } from '../api/http'
 import AutoGrowTextarea from './AutoGrowTextarea.vue'
 import BaseModal from './BaseModal.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
+import { t } from '../i18n'
 import { isAgentNameTaken } from '../utils/agentNames'
-import { clonePermissions, permissionDefinitions } from '../utils/permissions'
+import { clonePermissions, listPermissionDefinitions } from '../utils/permissions'
 import {
   cloneProfile,
   findDomainOption,
@@ -125,6 +126,10 @@ const domainOptions = computed(() =>
 
 const styleOptions = computed(() =>
   listStyleOptions(profile.value.style)
+)
+
+const permissionOptions = computed(() =>
+  listPermissionDefinitions()
 )
 
 const selectedDomainDescription = computed(() =>

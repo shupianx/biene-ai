@@ -4,7 +4,7 @@
       <div class="modal" :style="{ maxWidth }">
         <header class="modal-header">
           <span class="modal-title">{{ title }}</span>
-          <button class="close-btn" @click="emit('close')">✕</button>
+          <button class="close-btn" :aria-label="t('common.close')" @click="emit('close')">✕</button>
         </header>
 
         <div class="modal-body">
@@ -20,6 +20,8 @@
 </template>
 
 <script setup lang="ts">
+import { t } from '../i18n'
+
 withDefaults(defineProps<{
   title: string
   maxWidth?: string

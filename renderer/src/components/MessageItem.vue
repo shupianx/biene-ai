@@ -18,7 +18,7 @@
       <div v-if="metaLinesVisible" class="message-meta">
         <div v-if="formattedMessageTime" class="message-time">{{ formattedMessageTime }}</div>
         <div v-if="sourceAgentLabel" class="message-source">
-          <span>From </span>
+          <span>{{ t('message.from') }} </span>
           <button
             v-if="canOpenSourceAgent"
             class="message-source-link"
@@ -38,6 +38,7 @@
 import { computed } from 'vue'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import type { DisplayMessage } from '../api/http'
+import { t } from '../i18n'
 import { useSessionsStore } from '../stores/sessions'
 import ToolCallCard from './ToolCallCard.vue'
 import { renderMarkdown } from '../utils/markdown'
@@ -57,7 +58,7 @@ const sourceAgentLabel = computed(() => {
     (props.msg.author_id ? store.sessions[props.msg.author_id]?.meta.name : '') ||
     props.msg.author_name ||
     props.msg.author_id ||
-    'another agent'
+    t('agent.anotherAgent')
   )
 })
 
