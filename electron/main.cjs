@@ -36,6 +36,7 @@ let coreMonitorTimer = null
 let coreHealthy = false
 let coreStartPromise = null
 let quitAfterCoreStop = false
+let loginShellPathPromise = null
 
 function stopCoreMonitor() {
   if (coreMonitorTimer != null) {
@@ -66,6 +67,101 @@ function resolvePackagedWorkspaceDir() {
   }
 
   return path.join(path.dirname(process.execPath), 'workspace')
+}
+
+function defaultLoginShell() {
+  if (process.platform === 'darwin') return '/bin/zsh'
+  if (process.platform === 'linux') return '/bin/bash'
+  return ''
+}
+
+function mergePathValues(primary, secondary) {
+  const delimiter = path.delimiter
+  const seen = new Set()
+  const parts = []
+
+  for (const value of [primary, secondary]) {
+    if (typeof value !== 'string' || !value.trim()) continue
+    for (const entry of value.split(delimiter)) {
+      const normalized = entry.trim()
+      if (!normalized || seen.has(normalized)) continue
+      seen.add(normalized)
+      parts.push(normalized)
+    }
+  }
+
+  return parts.join(delimiter)
+}
+
+function resolveLoginShellPath() {
+  if (process.platform === 'win32') {
+    return Promise.resolve(process.env.PATH || '')
+  }
+  if (loginShellPathPromise) return loginShellPathPromise
+
+  loginShellPathPromise = new Promise((resolve) => {
+    const shellPath = (typeof process.env.SHELL === 'string' && process.env.SHELL.trim())
+      ? process.env.SHELL.trim()
+      : defaultLoginShell()
+    const marker = '__BIENE_PATH__'
+
+    if (!shellPath) {
+      resolve(process.env.PATH || '')
+      return
+    }
+
+    const child = spawn(shellPath, ['-ilc', `printf '${marker}%s' "$PATH"`], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      env: {
+        ...process.env,
+      },
+      windowsHide: true,
+    })
+
+    let stdout = ''
+    let settled = false
+    const fallback = process.env.PATH || ''
+
+    const finish = (value) => {
+      if (settled) return
+      let next = fallback
+      if (typeof value === 'string' && value.trim()) {
+        const index = value.lastIndexOf(marker)
+        if (index >= 0) {
+          next = value.slice(index + marker.length).trim()
+        } else {
+          next = value.trim()
+        }
+      }
+      settled = true
+      resolve(next || fallback)
+    }
+
+    const timeout = setTimeout(() => {
+      child.kill()
+      finish(fallback)
+    }, 2000)
+
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString()
+    })
+
+    child.on('error', () => {
+      clearTimeout(timeout)
+      finish(fallback)
+    })
+
+    child.on('exit', (code) => {
+      clearTimeout(timeout)
+      if (code === 0) {
+        finish(stdout)
+        return
+      }
+      finish(fallback)
+    })
+  })
+
+  return loginShellPathPromise
 }
 
 function resolveCoreCommand(port) {
@@ -321,6 +417,7 @@ async function startCoreOnce() {
 
   const port = await resolveCorePort()
   coreBaseUrl = `http://127.0.0.1:${port}`
+  const loginShellPath = await resolveLoginShellPath()
 
   const { command, args, options } = resolveCoreCommand(port)
   coreProcess = spawn(command, args, {
@@ -328,6 +425,7 @@ async function startCoreOnce() {
     detached: true,
     env: {
       ...process.env,
+      PATH: mergePathValues(loginShellPath, process.env.PATH || ''),
       ...(options.env ?? {}),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
