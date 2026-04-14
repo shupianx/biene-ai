@@ -1,5 +1,6 @@
 export type SessionEventType =
   | 'message_added'
+  | 'skill_activated'
   | 'status'
   | 'text_delta'
   | 'tool_compose'
@@ -22,6 +23,10 @@ export interface MessageAddedData {
 
 export interface StatusData {
   status: import('../api/http').SessionMeta['status']
+}
+
+export interface SkillActivatedData {
+  skill_name: string
 }
 
 export interface TextDeltaData {

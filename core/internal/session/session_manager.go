@@ -157,7 +157,7 @@ func (m *SessionManager) Init() {
 			provider:          provider,
 			registry:          registry,
 			checker:           checker,
-			systemPrompt:      prompt.Build(registry, workDir, profile),
+			systemPrompt:      prompt.Build(registry, workDir, profile, nil, nil),
 			maxTokens:         maxTokens,
 			apiMessages:       apiMsgs,
 			history:           history,
@@ -206,7 +206,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	registry.Register(builtins.NewListAgentsTool(m, id))
 	registry.Register(builtins.NewSendToAgentTool(m, id))
 
-	sysprompt := prompt.Build(registry, workDir, profile)
+	sysprompt := prompt.Build(registry, workDir, profile, nil, nil)
 	now := time.Now()
 	sess := &Session{
 		ID:                id,

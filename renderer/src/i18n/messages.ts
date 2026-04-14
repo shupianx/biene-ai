@@ -41,6 +41,7 @@ export const messages = {
       loading: 'Loading agent…',
       notFound: 'Agent not found.',
       ready: 'Agent ready. Send a message to start.',
+      usingSkill: 'Using skill: {name}',
       workingDirectory: 'Working directory',
     },
     input: {
@@ -52,6 +53,7 @@ export const messages = {
     },
     message: {
       from: 'From',
+      usedSkill: 'Used skill: {name}',
     },
     agentName: {
       defaultName: 'Agent {index}',
@@ -78,6 +80,10 @@ export const messages = {
       allowAlways: 'Always Allow',
       allowOnce: 'Allow Once',
       deny: 'Deny',
+      execute: {
+        description: 'Allows running workspace commands and scripts.',
+        label: 'Command execution',
+      },
       send_to_agent: {
         description: 'Allows sending messages or files to other agents.',
         label: 'Agent transfer',
@@ -177,6 +183,7 @@ export const messages = {
       loading: '正在加载智能体…',
       notFound: '未找到智能体。',
       ready: '智能体已就绪，发送一条消息开始吧。',
+      usingSkill: '正在使用 skill：{name}',
       workingDirectory: '工作目录',
     },
     input: {
@@ -188,6 +195,7 @@ export const messages = {
     },
     message: {
       from: '来自',
+      usedSkill: '使用了 skill：{name}',
     },
     agentName: {
       defaultName: '智能体 {index}',
@@ -214,6 +222,10 @@ export const messages = {
       allowAlways: '始终允许',
       allowOnce: '允许一次',
       deny: '拒绝',
+      execute: {
+        description: '允许运行工作区命令和脚本',
+        label: '命令执行',
+      },
       send_to_agent: {
         description: '允许向其他智能体发送消息或文件',
         label: '智能体协作',

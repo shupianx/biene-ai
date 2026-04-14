@@ -65,4 +65,8 @@ type errorPayload struct {
 	Message string `json:"message"`
 }
 
+type skillActivatedPayload struct {
+	SkillName string `json:"skill_name"`
+}
+
 type donePayload struct{}

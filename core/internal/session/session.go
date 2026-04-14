@@ -51,17 +51,18 @@ type DisplayTool struct {
 
 // DisplayMessage is the server-side render state of a single message.
 type DisplayMessage struct {
-	ID          string                  `json:"id"`
-	Role        string                  `json:"role"` // user | assistant
-	AuthorType  string                  `json:"author_type,omitempty"`
-	AuthorID    string                  `json:"author_id,omitempty"`
-	AuthorName  string                  `json:"author_name,omitempty"`
-	AgentMeta   *tools.AgentMessageMeta `json:"agent_meta,omitempty"`
-	Text        string                  `json:"text"`
-	Streaming   bool                    `json:"streaming,omitempty"` // true while a response is in progress
-	ToolCalls   []DisplayTool           `json:"tool_calls,omitempty"`
-	Attachments []DisplayAttachment     `json:"attachments,omitempty"`
-	CreatedAt   time.Time               `json:"created_at"`
+	ID            string                  `json:"id"`
+	Role          string                  `json:"role"` // user | assistant
+	AuthorType    string                  `json:"author_type,omitempty"`
+	AuthorID      string                  `json:"author_id,omitempty"`
+	AuthorName    string                  `json:"author_name,omitempty"`
+	AgentMeta     *tools.AgentMessageMeta `json:"agent_meta,omitempty"`
+	UsedSkillName string                  `json:"used_skill_name,omitempty"`
+	Text          string                  `json:"text"`
+	Streaming     bool                    `json:"streaming,omitempty"` // true while a response is in progress
+	ToolCalls     []DisplayTool           `json:"tool_calls,omitempty"`
+	Attachments   []DisplayAttachment     `json:"attachments,omitempty"`
+	CreatedAt     time.Time               `json:"created_at"`
 }
 
 type queuedInput struct {
@@ -84,14 +85,15 @@ type Session struct {
 	CreatedAt  time.Time     `json:"created_at"`
 	LastActive time.Time     `json:"last_active"`
 
-	provider     api.Provider
-	registry     *tools.Registry
-	checker      *webperm.Checker
-	systemPrompt string
-	maxTokens    int
-	permissions  tools.PermissionSet
-	profile      prompt.AgentProfile
-	toolMode     ToolMode
+	provider         api.Provider
+	registry         *tools.Registry
+	checker          *webperm.Checker
+	systemPrompt     string
+	currentSkillName string
+	maxTokens        int
+	permissions      tools.PermissionSet
+	profile          prompt.AgentProfile
+	toolMode         ToolMode
 
 	// apiMessages is the canonical conversation passed into the next model turn.
 	apiMessages []api.Message

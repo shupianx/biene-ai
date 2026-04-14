@@ -12,10 +12,13 @@ Each agent runs in its own workspace, has its own prompt profile and tool permis
   - style: `balanced`, `concise`, `thorough`, `skeptical`, or `proactive`
   - custom instructions
 - Control tool permissions per agent:
+  - command execution
   - file changes
   - agent-to-agent transfer
 - Let agents read, write, and edit files inside their own workspace
+- Let agents run workspace commands and scripts under approval
 - Let agents discover and message other agents, with optional file delivery and reply requests
+- Let each agent load local skills from its own `.biene/skills/` directory
 - Stream tool activity and assistant output live in the UI
 - Interrupt an in-flight agent run from the chat input
 - Render assistant output as Markdown, including code blocks, tables, lists, and task lists
@@ -156,14 +159,18 @@ Windows currently ships only a manual-download ZIP package.
 
 The current registered agent tools are:
 
-- `Read`
-- `Write`
-- `Edit`
-- `ListAgents`
-- `SendToAgent`
+- `list_files`
+- `list_skills`
+- `read_file`
+- `write_file`
+- `edit_file`
+- `run_command`
+- `list_agents`
+- `send_to_agent`
 
 The permission model currently groups tool access into:
 
+- `execute`
 - `write`
 - `send_to_agent`
 
@@ -175,6 +182,37 @@ Per-agent state is stored in each session workspace under `.biene/`, including:
 - session metadata
 - permission state
 - uploaded or transferred file references
+- optional local skills under `.biene/skills/`
+
+## Skills
+
+Each agent can load skills from its own workspace-local directory:
+
+```text
+<agent-workdir>/.biene/skills/
+```
+
+Each skill should live in its own folder and contain a `SKILL.md` file with simple frontmatter:
+
+```markdown
+---
+name: reviewer
+description: Review changes carefully and focus on correctness first
+---
+# Reviewer
+
+Instructions for the agent.
+```
+
+Notes:
+
+- `name` and `description` are required
+- startup/runtime discovery only reads skill metadata (`name` + `description`)
+- the agent keeps a lightweight catalog of installed skills in prompt context
+- on each new user turn, the harness tries to auto-activate the single best-matching skill
+- only the activated skill's full body is appended to that turn's system prompt
+- `{baseDir}` inside the body is replaced with the absolute path of that skill folder
+- skills are re-scanned when the agent starts a new run, so newly added skills are picked up without recreating the agent
 
 ## Status
 

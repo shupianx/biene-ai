@@ -150,7 +150,7 @@ func (s *Session) UpdateSettings(name string, perms tools.PermissionSet, profile
 	s.profile = profile
 	s.toolMode = toolMode
 	s.checker.SetPermissions(perms)
-	s.systemPrompt = prompt.Build(s.registry, s.WorkDir, s.profile)
+	s.systemPrompt = prompt.Build(s.registry, s.WorkDir, s.profile, nil, nil)
 	meta := s.metaLocked()
 	persistedMeta := s.persistentMetaLocked()
 	s.mu.Unlock()

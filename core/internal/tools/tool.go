@@ -9,17 +9,21 @@ type PermissionKey string
 
 const (
 	PermissionNone        PermissionKey = ""
+	PermissionExecute     PermissionKey = "execute"
 	PermissionWrite       PermissionKey = "write"
 	PermissionSendToAgent PermissionKey = "send_to_agent"
 )
 
 type PermissionSet struct {
+	Execute     bool `json:"execute"`
 	Write       bool `json:"write"`
 	SendToAgent bool `json:"send_to_agent"`
 }
 
 func (p PermissionSet) Allows(key PermissionKey) bool {
 	switch key {
+	case PermissionExecute:
+		return p.Execute
 	case PermissionWrite:
 		return p.Write
 	case PermissionSendToAgent:
@@ -31,6 +35,8 @@ func (p PermissionSet) Allows(key PermissionKey) bool {
 
 func (p PermissionSet) With(key PermissionKey, allowed bool) PermissionSet {
 	switch key {
+	case PermissionExecute:
+		p.Execute = allowed
 	case PermissionWrite:
 		p.Write = allowed
 	case PermissionSendToAgent:

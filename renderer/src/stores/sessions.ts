@@ -21,6 +21,7 @@ export interface AgentSession {
   messages: DisplayMessage[]
   isStreaming: boolean
   isInterrupting: boolean
+  activeSkillName: string | null
   pendingPermission: PermissionRequest | null
   _historyLoaded: boolean
   // cleanup fn returned by connectWS
@@ -229,6 +230,7 @@ export const useSessionsStore = defineStore('sessions', () => {
         messages: [],
         isStreaming: meta.status === 'running',
         isInterrupting: false,
+        activeSkillName: null,
         pendingPermission: meta.pending_permission ?? null,
         _historyLoaded: false,
         _disconnect: null,
@@ -271,12 +273,18 @@ export const useSessionsStore = defineStore('sessions', () => {
         }
         s.isStreaming = true
       },
+      onSkillActivated({ skill_name }) {
+        const s = sessions.value[id]
+        if (!s) return
+        s.activeSkillName = skill_name
+      },
       onStatus({ status }) {
         const s = sessions.value[id]
         if (!s) return
         s.meta.status = status
         s.isStreaming = status === 'running'
         if (status !== 'running') {
+          s.activeSkillName = null
           s.isInterrupting = false
           s.pendingPermission = null
           s.meta.pending_permission = undefined
@@ -285,7 +293,10 @@ export const useSessionsStore = defineStore('sessions', () => {
       onTextDelta({ text }) {
         const s = sessions.value[id]
         if (!s) return
-        _ensureAssistantTextSegment(s).text += text
+        const usedSkillName = s.activeSkillName ?? undefined
+        const msg = _ensureAssistantTextSegment(s, usedSkillName)
+        s.activeSkillName = null
+        msg.text += text
       },
       onToolCompose({ tool_id, tool_name, tool_summary, tool_input }) {
         const s = sessions.value[id]
@@ -297,13 +308,17 @@ export const useSessionsStore = defineStore('sessions', () => {
           tool_input,
           status: 'composing',
         }
-        _ensureAssistantToolSegment(s).tool_calls!.push(tc)
+        const usedSkillName = s.activeSkillName ?? undefined
+        const msg = _ensureAssistantToolSegment(s, usedSkillName)
+        s.activeSkillName = null
+        msg.tool_calls!.push(tc)
       },
       onToolStart({ tool_id, tool_name, tool_summary, tool_input }) {
         const s = sessions.value[id]
         if (!s) return
         const existing = _findLatestActiveTool(s, tool_id, tool_name, ['composing'])
         if (existing) {
+          s.activeSkillName = null
           existing.tool_summary = tool_summary
           existing.tool_input = tool_input
           existing.status = 'pending'
@@ -316,7 +331,10 @@ export const useSessionsStore = defineStore('sessions', () => {
           tool_input,
           status: 'pending',
         }
-        _ensureAssistantToolSegment(s).tool_calls!.push(tc)
+        const usedSkillName = s.activeSkillName ?? undefined
+        const msg = _ensureAssistantToolSegment(s, usedSkillName)
+        s.activeSkillName = null
+        msg.tool_calls!.push(tc)
       },
       onToolResult({ tool_id, tool_name, text, is_error }) {
         const s = sessions.value[id]
@@ -345,11 +363,15 @@ export const useSessionsStore = defineStore('sessions', () => {
       onError({ message }) {
         const s = sessions.value[id]
         if (!s) return
-        _ensureAssistantTextSegment(s).text += `\n\n**${t('common.errorLabel')}:** ${message}`
+        const usedSkillName = s.activeSkillName ?? undefined
+        const msg = _ensureAssistantTextSegment(s, usedSkillName)
+        s.activeSkillName = null
+        msg.text += `\n\n**${t('common.errorLabel')}:** ${message}`
       },
       onDone() {
         const s = sessions.value[id]
         if (!s) return
+        s.activeSkillName = null
         if (s.isInterrupting) {
           _interruptAssistantTurn(s)
           return
@@ -374,10 +396,11 @@ export const useSessionsStore = defineStore('sessions', () => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function _newAssistantSegment(sess: AgentSession): DisplayMessage {
+function _newAssistantSegment(sess: AgentSession, usedSkillName?: string): DisplayMessage {
   const msg: DisplayMessage = {
     id: crypto.randomUUID(),
     role: 'assistant',
+    used_skill_name: usedSkillName,
     text: '',
     created_at: new Date().toISOString(),
     streaming: true,
@@ -396,16 +419,16 @@ function _latestStreamingAssistant(sess: AgentSession): DisplayMessage | null {
   return null
 }
 
-function _ensureAssistantTextSegment(sess: AgentSession): DisplayMessage {
+function _ensureAssistantTextSegment(sess: AgentSession, usedSkillName?: string): DisplayMessage {
   const last = _latestStreamingAssistant(sess)
   if (last && (last.tool_calls?.length ?? 0) === 0) return last
-  return _newAssistantSegment(sess)
+  return _newAssistantSegment(sess, usedSkillName)
 }
 
-function _ensureAssistantToolSegment(sess: AgentSession): DisplayMessage {
+function _ensureAssistantToolSegment(sess: AgentSession, usedSkillName?: string): DisplayMessage {
   const last = _latestStreamingAssistant(sess)
   if (last && !last.text) return last
-  return _newAssistantSegment(sess)
+  return _newAssistantSegment(sess, usedSkillName)
 }
 
 function _findLatestActiveTool(

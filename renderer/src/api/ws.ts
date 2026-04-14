@@ -1,5 +1,6 @@
 import type {
   MessageAddedData,
+  SkillActivatedData,
   StatusData,
   SessionDeletedData,
   SessionListEventType,
@@ -17,6 +18,7 @@ import { buildCoreWebSocketUrl } from '../runtime'
 
 export interface WSHandlers {
   onMessageAdded: (data: MessageAddedData) => void
+  onSkillActivated: (data: SkillActivatedData) => void
   onStatus: (data: StatusData) => void
   onTextDelta: (data: TextDeltaData) => void
   onToolCompose: (data: ToolStartData) => void
@@ -53,6 +55,9 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
     switch (message.type) {
       case 'message_added':
         handlers.onMessageAdded(message.data as MessageAddedData)
+        break
+      case 'skill_activated':
+        handlers.onSkillActivated(message.data as SkillActivatedData)
         break
       case 'status':
         handlers.onStatus(message.data as StatusData)

@@ -1,11 +1,15 @@
 <template>
   <div class="message" :class="msg.role">
     <div class="bubble">
+      <div v-if="usedSkillLabel" class="message-skill-note">{{ usedSkillLabel }}</div>
       <div v-if="msg.role === 'assistant'" class="markdown" v-html="renderedText" />
       <div
         v-else
         class="user-text"
-        :class="{ 'agent-source-text': msg.author_type === 'agent' }"
+        :class="{
+          'agent-source-text': msg.author_type === 'agent',
+          'system-note-text': msg.author_type === 'system',
+        }"
         dir="auto"
       >
         {{ msg.text }}
@@ -51,6 +55,11 @@ const store = useSessionsStore()
 const renderedText = computed(() =>
   renderMarkdown(props.msg.text)
 )
+
+const usedSkillLabel = computed(() => {
+  if (props.msg.role !== 'assistant' || !props.msg.used_skill_name) return ''
+  return t('message.usedSkill', { name: props.msg.used_skill_name })
+})
 
 const sourceAgentLabel = computed(() => {
   if (props.msg.role !== 'user' || props.msg.author_type !== 'agent') return ''
@@ -105,6 +114,12 @@ async function openSourceAgent() {
   border: 1px solid var(--accent-warm-border);
 }
 
+.user-text.system-note-text {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+
 .message-meta {
   margin-top: 6px;
   margin-right: 8px;
@@ -139,6 +154,15 @@ async function openSourceAgent() {
 
 .message-source-link:hover {
   color: #1d4ed8;
+}
+
+.message-skill-note {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #6b7280;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .markdown { font-size: 14px; line-height: 1.6; color: #111827; overflow-wrap: anywhere; }

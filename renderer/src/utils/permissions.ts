@@ -11,6 +11,11 @@ export interface PermissionDefinition {
 
 export const permissionDefinitions: PermissionDefinition[] = [
   {
+    key: 'execute',
+    labelKey: 'permissions.execute.label',
+    descriptionKey: 'permissions.execute.description',
+  },
+  {
     key: 'write',
     labelKey: 'permissions.write.label',
     descriptionKey: 'permissions.write.description',
@@ -24,6 +29,7 @@ export const permissionDefinitions: PermissionDefinition[] = [
 
 export function defaultPermissions(): SessionPermissions {
   return {
+    execute: false,
     write: false,
     send_to_agent: false,
   }
@@ -31,6 +37,7 @@ export function defaultPermissions(): SessionPermissions {
 
 export function clonePermissions(permissions: SessionPermissions): SessionPermissions {
   return {
+    execute: permissions.execute,
     write: permissions.write,
     send_to_agent: permissions.send_to_agent,
   }

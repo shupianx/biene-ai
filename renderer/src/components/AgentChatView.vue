@@ -28,7 +28,10 @@
         @resolve="onResolve"
       />
       <div v-if="session.isStreaming && lastIsUser && !session.pendingPermission" class="typing">
-        <span /><span /><span />
+        <span class="typing-dot" />
+        <span class="typing-dot" />
+        <span class="typing-dot" />
+        <span v-if="activeSkillLabel" class="skill-indicator">{{ activeSkillLabel }}</span>
       </div>
     </div>
 
@@ -63,6 +66,9 @@ const stickToBottom = ref(true)
 
 const statusTone = computed(() => getSessionStatusTone(props.session))
 const statusLabel = computed(() => getSessionStatusLabel(statusTone.value))
+const activeSkillLabel = computed(() =>
+  props.session.activeSkillName ? t('agent.usingSkill', { name: props.session.activeSkillName }) : ''
+)
 const lastIsUser = computed(() => {
   const msgs = props.session.messages
   return msgs.length > 0 && msgs[msgs.length - 1].role === 'user'
@@ -262,7 +268,32 @@ function onInterrupt() {
   align-items: center;
 }
 
-.typing span {
+.skill-indicator {
+  margin-left: 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  background-image: linear-gradient(
+    100deg,
+    #525a66 0%,
+    #717a87 18%,
+    #aeb7c2 36%,
+    #c1c9d3 50%,
+    #9ea8b4 63%,
+    #78828f 81%,
+    #545d69 100%
+  );
+  background-size: 340% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
+  animation: skillGradientFlow 4.6s ease-in-out infinite;
+}
+
+.typing-dot {
   width: 7px;
   height: 7px;
   background: #9ca3af;
@@ -270,11 +301,17 @@ function onInterrupt() {
   animation: bounce .9s ease-in-out infinite;
 }
 
-.typing span:nth-child(2) { animation-delay: .15s; }
-.typing span:nth-child(3) { animation-delay: .3s; }
+.typing-dot:nth-child(2) { animation-delay: .15s; }
+.typing-dot:nth-child(3) { animation-delay: .3s; }
 
 @keyframes bounce {
   0%, 60%, 100% { transform: translateY(0); }
   30% { transform: translateY(-6px); }
+}
+
+@keyframes skillGradientFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 200% 50%; }
 }
 </style>

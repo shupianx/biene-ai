@@ -21,6 +21,7 @@ const del  = <T>(path: string)                   => request<T>('DELETE', path)
 // ── Sessions ──────────────────────────────────────────────────────────────
 
 export interface SessionPermissions {
+  execute: boolean
   write: boolean
   send_to_agent: boolean
 }
@@ -94,10 +95,11 @@ export interface AgentMessageMeta {
 export interface DisplayMessage {
   id: string
   role: 'user' | 'assistant'
-  author_type?: 'user' | 'agent'
+  author_type?: 'user' | 'agent' | 'system'
   author_id?: string
   author_name?: string
   agent_meta?: AgentMessageMeta
+  used_skill_name?: string
   text: string
   created_at: string
   streaming?: boolean
