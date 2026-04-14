@@ -19,15 +19,16 @@ type FileEditTool struct {
 func NewFileEditTool() *FileEditTool                    { return &FileEditTool{} }
 func NewFileEditToolInDir(rootDir string) *FileEditTool { return &FileEditTool{RootDir: rootDir} }
 
-func (t *FileEditTool) Name() string { return "Edit" }
+func (t *FileEditTool) Name() string { return "edit_file" }
 
 func (t *FileEditTool) PermissionKey() tools.PermissionKey { return tools.PermissionWrite }
 
 func (t *FileEditTool) Description() string {
 	return `Make a precise edit to a file by replacing old_string with new_string.
 old_string MUST appear exactly once in the file — include enough surrounding context to make it unique.
-The file must have been read with the Read tool before using Edit.
-Use Write to create new files or completely rewrite existing ones.`
+The file must have been read with the read_file tool before using edit_file.
+Use write_file to create new files or completely rewrite existing ones.
+Only use this tool when the user explicitly asks to modify a file. Do not use it to deliver answers or explanations.`
 }
 
 func (t *FileEditTool) InputSchema() json.RawMessage {
@@ -75,38 +76,38 @@ func (t *FileEditTool) Summary(raw json.RawMessage) string {
 func (t *FileEditTool) Execute(_ context.Context, raw json.RawMessage) (string, error) {
 	var in editInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return "", fmt.Errorf("invalid Edit input: %w", err)
+		return "", fmt.Errorf("invalid edit_file input: %w", err)
 	}
 	if in.FilePath == "" {
-		return "", fmt.Errorf("Edit: file_path is required")
+		return "", fmt.Errorf("edit_file: file_path is required")
 	}
 	if in.OldString == "" {
-		return "", fmt.Errorf("Edit: old_string is required")
+		return "", fmt.Errorf("edit_file: old_string is required")
 	}
 
 	resolvedPath, relPath, err := resolvePath(t.RootDir, in.FilePath)
 	if err != nil {
-		return "", fmt.Errorf("Edit: %w", err)
+		return "", fmt.Errorf("edit_file: %w", err)
 	}
 
 	data, err := os.ReadFile(resolvedPath)
 	if err != nil {
-		return "", fmt.Errorf("Edit: reading file: %w", err)
+		return "", fmt.Errorf("edit_file: reading file: %w", err)
 	}
 	content := string(data)
 
 	count := strings.Count(content, in.OldString)
 	switch count {
 	case 0:
-		return "", fmt.Errorf("Edit: old_string not found in %s. Make sure it matches the file content exactly (including whitespace and newlines)", relPath)
+		return "", fmt.Errorf("edit_file: old_string not found in %s. Make sure it matches the file content exactly (including whitespace and newlines)", relPath)
 	default:
-		return "", fmt.Errorf("Edit: old_string appears %d times in %s — add more surrounding context to make it unique", count, relPath)
+		return "", fmt.Errorf("edit_file: old_string appears %d times in %s — add more surrounding context to make it unique", count, relPath)
 	case 1:
 	}
 
 	newContent := strings.Replace(content, in.OldString, in.NewString, 1)
 	if err := os.WriteFile(resolvedPath, []byte(newContent), 0o644); err != nil {
-		return "", fmt.Errorf("Edit: writing file: %w", err)
+		return "", fmt.Errorf("edit_file: writing file: %w", err)
 	}
 
 	oldLines := strings.Count(in.OldString, "\n") + 1

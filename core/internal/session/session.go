@@ -68,6 +68,13 @@ type queuedInput struct {
 	apiMessage api.Message
 }
 
+type ToolMode string
+
+const (
+	ToolModeAnswerOnly      ToolMode = "answer_only"
+	ToolModeWorkspaceChange ToolMode = "workspace_change"
+)
+
 // Session is one agent instance with its own workspace and conversation history.
 type Session struct {
 	ID         string        `json:"id"`
@@ -84,6 +91,7 @@ type Session struct {
 	maxTokens    int
 	permissions  tools.PermissionSet
 	profile      prompt.AgentProfile
+	toolMode     ToolMode
 
 	// apiMessages is the canonical conversation passed into the next model turn.
 	apiMessages []api.Message
@@ -153,6 +161,13 @@ func (s *Session) persistentMetaLocked() SessionMeta {
 
 func normalizeProfile(profile prompt.AgentProfile) prompt.AgentProfile {
 	return prompt.NormalizeProfile(profile)
+}
+
+func normalizeToolMode(mode ToolMode) ToolMode {
+	if mode == ToolModeAnswerOnly {
+		return ToolModeAnswerOnly
+	}
+	return ToolModeWorkspaceChange
 }
 
 func normalizeAgentName(name string) string {

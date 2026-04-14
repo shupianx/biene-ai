@@ -67,9 +67,9 @@ done:
 
 func earlyToolSummary(name string) string {
 	switch name {
-	case "Write":
+	case "write_file":
 		return "prepare file write"
-	case "Edit":
+	case "edit_file":
 		return "prepare file edit"
 	default:
 		return "prepare tool call"

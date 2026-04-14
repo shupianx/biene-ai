@@ -45,7 +45,6 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if req.Profile != nil {
 		profile = *req.Profile
 	}
-
 	sess, err := s.mgr.Create(req.Name, perms, profile)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -97,7 +96,6 @@ func (s *Server) handleUpdateSession(w http.ResponseWriter, r *http.Request) {
 	if req.Profile != nil {
 		profile = *req.Profile
 	}
-
 	meta, err := sess.UpdateSettings(name, perms, profile)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

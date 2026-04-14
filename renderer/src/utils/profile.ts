@@ -64,7 +64,7 @@ const styleCatalog: ProfileOption<AgentStyle>[] = [
 
 export function defaultProfile(): AgentProfile {
   return {
-    domain: 'coding',
+    domain: 'general',
     style: 'balanced',
     custom_instructions: '',
   }

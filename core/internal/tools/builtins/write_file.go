@@ -18,14 +18,15 @@ type FileWriteTool struct {
 func NewFileWriteTool() *FileWriteTool                    { return &FileWriteTool{} }
 func NewFileWriteToolInDir(rootDir string) *FileWriteTool { return &FileWriteTool{RootDir: rootDir} }
 
-func (t *FileWriteTool) Name() string { return "Write" }
+func (t *FileWriteTool) Name() string { return "write_file" }
 
 func (t *FileWriteTool) PermissionKey() tools.PermissionKey { return tools.PermissionWrite }
 
 func (t *FileWriteTool) Description() string {
 	return `Write content to a file, creating it (and any missing parent directories) if necessary.
 This completely overwrites the existing file content.
-Prefer Edit for making targeted changes to existing files.`
+Prefer edit_file for making targeted changes to existing files.
+Only use this tool when the user explicitly asks to create or write a file. Do not use it to deliver answers, explanations, or analysis — respond with text instead.`
 }
 
 func (t *FileWriteTool) InputSchema() json.RawMessage {
@@ -64,25 +65,25 @@ func (t *FileWriteTool) Summary(raw json.RawMessage) string {
 func (t *FileWriteTool) Execute(_ context.Context, raw json.RawMessage) (string, error) {
 	var in writeInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return "", fmt.Errorf("invalid Write input: %w", err)
+		return "", fmt.Errorf("invalid write_file input: %w", err)
 	}
 	if in.FilePath == "" {
-		return "", fmt.Errorf("Write: file_path is required")
+		return "", fmt.Errorf("write_file: file_path is required")
 	}
 
 	resolvedPath, relPath, err := resolvePath(t.RootDir, in.FilePath)
 	if err != nil {
-		return "", fmt.Errorf("Write: %w", err)
+		return "", fmt.Errorf("write_file: %w", err)
 	}
 
 	if dir := filepath.Dir(resolvedPath); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return "", fmt.Errorf("Write: creating directories: %w", err)
+			return "", fmt.Errorf("write_file: creating directories: %w", err)
 		}
 	}
 
 	if err := os.WriteFile(resolvedPath, []byte(in.FileText), 0o644); err != nil {
-		return "", fmt.Errorf("Write: %w", err)
+		return "", fmt.Errorf("write_file: %w", err)
 	}
 
 	return fmt.Sprintf("Successfully wrote %d bytes to %s", len(in.FileText), relPath), nil

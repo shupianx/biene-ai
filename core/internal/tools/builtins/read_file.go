@@ -18,14 +18,15 @@ type FileReadTool struct {
 func NewFileReadTool() *FileReadTool                    { return &FileReadTool{} }
 func NewFileReadToolInDir(rootDir string) *FileReadTool { return &FileReadTool{RootDir: rootDir} }
 
-func (t *FileReadTool) Name() string { return "Read" }
+func (t *FileReadTool) Name() string { return "read_file" }
 
 func (t *FileReadTool) PermissionKey() tools.PermissionKey { return tools.PermissionNone }
 
 func (t *FileReadTool) Description() string {
 	return `Read the contents of a file.
 Returns the file content with line numbers prefixed (format: "N\tcontent").
-Use offset and limit to read a specific range of lines.`
+Use offset and limit to read a specific range of lines.
+Only use this tool when your answer depends on the actual file contents.`
 }
 
 func (t *FileReadTool) InputSchema() json.RawMessage {
@@ -66,20 +67,28 @@ func (t *FileReadTool) Summary(raw json.RawMessage) string {
 func (t *FileReadTool) Execute(_ context.Context, raw json.RawMessage) (string, error) {
 	var in readInput
 	if err := json.Unmarshal(raw, &in); err != nil {
-		return "", fmt.Errorf("invalid Read input: %w", err)
+		return "", fmt.Errorf("invalid read_file input: %w", err)
 	}
 	if in.FilePath == "" {
-		return "", fmt.Errorf("Read: file_path is required")
+		return "", fmt.Errorf("read_file: file_path is required")
 	}
 
 	resolvedPath, _, err := resolvePath(t.RootDir, in.FilePath)
 	if err != nil {
-		return "", fmt.Errorf("Read: %w", err)
+		return "", fmt.Errorf("read_file: %w", err)
+	}
+
+	info, err := os.Stat(resolvedPath)
+	if err != nil {
+		return "", fmt.Errorf("read_file: %w", err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("read_file: %s is a directory; use list_files to inspect it first", in.FilePath)
 	}
 
 	data, err := os.ReadFile(resolvedPath)
 	if err != nil {
-		return "", fmt.Errorf("Read: %w", err)
+		return "", fmt.Errorf("read_file: %w", err)
 	}
 
 	lines := strings.Split(string(data), "\n")

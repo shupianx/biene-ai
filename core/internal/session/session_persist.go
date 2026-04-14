@@ -140,6 +140,7 @@ func (s *Session) persistPermissions(perms tools.PermissionSet) {
 func (s *Session) UpdateSettings(name string, perms tools.PermissionSet, profile prompt.AgentProfile) (SessionMeta, error) {
 	name = strings.TrimSpace(name)
 	profile = normalizeProfile(profile)
+	toolMode := defaultToolModeForProfile(profile)
 
 	s.mu.Lock()
 	if name != "" {
@@ -147,6 +148,7 @@ func (s *Session) UpdateSettings(name string, perms tools.PermissionSet, profile
 	}
 	s.permissions = perms
 	s.profile = profile
+	s.toolMode = toolMode
 	s.checker.SetPermissions(perms)
 	s.systemPrompt = prompt.Build(s.registry, s.WorkDir, s.profile)
 	meta := s.metaLocked()

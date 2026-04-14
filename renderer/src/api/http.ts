@@ -89,8 +89,6 @@ export interface AgentMessageMeta {
   thread_id: string
   message_id: string
   in_reply_to?: string
-  requires_reply?: boolean
-  reply_sent?: boolean
 }
 
 export interface DisplayMessage {

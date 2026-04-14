@@ -8,6 +8,7 @@ import (
 	"biene/internal/agentloop"
 	"biene/internal/api"
 	"biene/internal/permission"
+	"biene/internal/prompt"
 	"biene/internal/tools"
 )
 
@@ -137,11 +138,16 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 	meta := s.metaLocked()
 
 	messages := append([]api.Message(nil), s.apiMessages...)
+	registry, filtered := registryForToolMode(s.registry, s.toolMode)
+	systemPrompt := s.systemPrompt
+	if filtered {
+		systemPrompt = prompt.Build(registry, s.WorkDir, s.profile)
+	}
 	cfg := &agentloop.Config{
 		Provider:     s.provider,
-		Registry:     s.registry,
+		Registry:     registry,
 		Checker:      s.checker,
-		SystemPrompt: s.systemPrompt,
+		SystemPrompt: systemPrompt,
 		Messages:     messages,
 		MaxTokens:    s.maxTokens,
 	}

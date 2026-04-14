@@ -125,6 +125,7 @@ func (m *SessionManager) Init() {
 
 		perms := meta.Permissions
 		profile := normalizeProfile(meta.Profile)
+		toolMode := defaultToolModeForProfile(profile)
 
 		// Rebuild provider / registry / checker from current config.
 		modelEntry, err := m.cfg.GetModel("")
@@ -150,6 +151,7 @@ func (m *SessionManager) Init() {
 			Status:            StatusIdle,
 			permissions:       perms,
 			profile:           profile,
+			toolMode:          toolMode,
 			CreatedAt:         meta.CreatedAt,
 			LastActive:        meta.LastActive,
 			provider:          provider,
@@ -186,6 +188,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		return nil, fmt.Errorf("creating workspace: %w", err)
 	}
 	profile = normalizeProfile(profile)
+	toolMode := defaultToolModeForProfile(profile)
 
 	modelEntry, err := m.cfg.GetModel("")
 	if err != nil {
@@ -212,6 +215,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		Status:            StatusIdle,
 		permissions:       permissions,
 		profile:           profile,
+		toolMode:          toolMode,
 		CreatedAt:         now,
 		LastActive:        now,
 		provider:          provider,
@@ -350,23 +354,19 @@ func (m *SessionManager) DeliverFromAgent(ctx context.Context, fromAgentID strin
 		return tools.DeliveryResult{}, fmt.Errorf("cannot send to the same agent")
 	}
 
-	delivery := fromSess.prepareOutboundAgentDelivery(req.TargetAgentID, req.RequiresReply)
+	messageMeta := fromSess.prepareOutboundAgentDelivery(req.TargetAgentID)
 
 	attachments, err := copyFilesBetweenWorkspaces(ctx, fromSess.WorkDir, toSess.WorkDir, "inbox", fromSess.ID, req.FilePaths)
 	if err != nil {
 		return tools.DeliveryResult{}, err
 	}
 
-	toSess.enqueueAgentInput(fromSess.ID, fromSess.Name, req.Message, attachments, delivery.MessageMeta)
-	if delivery.IsReply {
-		fromSess.markAgentReplySent(delivery.ReplySourceDisplayID)
-	}
+	toSess.enqueueAgentInput(fromSess.ID, fromSess.Name, req.Message, attachments, messageMeta)
 	return tools.DeliveryResult{
 		TargetID:    toSess.ID,
 		TargetName:  toSess.Name,
 		StoredPaths: attachmentPaths(attachments),
-		MessageMeta: delivery.MessageMeta,
-		IsReply:     delivery.IsReply,
+		MessageMeta: messageMeta,
 	}, nil
 }
 
