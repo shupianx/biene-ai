@@ -1,6 +1,6 @@
 <template>
   <div class="app-shell">
-    <AppTitleBar v-if="showTitleBar" />
+    <AppTitleBar v-if="showDesktopChrome" />
     <div class="app-main-shell" :class="{ offline: !isCoreHealthy }">
       <main class="app-content">
         <RouterView />
@@ -16,18 +16,20 @@
         </div>
       </div>
     </div>
+    <AppFooter v-if="showDesktopChrome" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import AppTitleBar from './components/AppTitleBar.vue'
+import AppFooter from './components/AppFooter.vue'
 import { useCoreHeartbeat } from './composables/useCoreHeartbeat'
 import { t } from './i18n'
 import { getDesktopBridge } from './runtime'
 
 const { isCoreHealthy } = useCoreHeartbeat()
-const showTitleBar = computed(() => {
+const showDesktopChrome = computed(() => {
   const bridge = getDesktopBridge()
   return Boolean(bridge?.isElectron && bridge.windowKind === 'main')
 })

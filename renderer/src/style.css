@@ -3,13 +3,15 @@
 
 :root {
   --app-bg: #fffaf5;
-  --titlebar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 250, 245, 0.95));
+  --titlebar-bg: linear-gradient(180deg, rgba(255, 248, 240, 0.98), rgba(255, 238, 222, 0.96));
   --titlebar-border: #e5e7eb;
   --titlebar-text: #0f172a;
   --titlebar-text-strong: #111827;
   --titlebar-text-muted: #94a3b8;
   --titlebar-icon: #64748b;
   --titlebar-hover: #fff2e8;
+  --footer-action-hover-bg: rgba(15, 23, 42, 0.14);
+  --footer-action-hover-text: #0f172a;
   --menu-bg: rgba(255, 255, 255, 0.98);
   --menu-text: #334155;
   --menu-hover: #fff4ea;
@@ -34,13 +36,15 @@
 
 :root[data-theme='dark'] {
   --app-bg: #1e1e1e;
-  --titlebar-bg: linear-gradient(180deg, rgba(30, 30, 30, 0.98), rgba(24, 24, 24, 0.96));
+  --titlebar-bg: linear-gradient(180deg, rgba(42, 42, 42, 0.98), rgba(34, 34, 34, 0.96));
   --titlebar-border: #2d2d30;
   --titlebar-text: #cccccc;
   --titlebar-text-strong: #f3f3f3;
   --titlebar-text-muted: #9d9d9d;
   --titlebar-icon: #b8b8b8;
   --titlebar-hover: #2a2d2e;
+  --footer-action-hover-bg: rgba(255, 255, 255, 0.14);
+  --footer-action-hover-text: #f3f3f3;
   --menu-bg: rgba(37, 37, 38, 0.98);
   --menu-text: #cccccc;
   --menu-hover: #2a2d2e;
