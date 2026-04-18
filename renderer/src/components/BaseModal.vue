@@ -40,21 +40,23 @@ const emit = defineEmits<{
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--overlay);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  animation: bieneFadeIn .15s ease-out;
 }
 
 .modal {
   width: 100%;
   max-height: calc(100dvh - 48px);
-  background: #fff;
-  border-radius: 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--rule);
+  box-shadow: 4px 4px 0 0 var(--rule);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
@@ -62,40 +64,47 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 20px 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
   flex: 0 0 auto;
 }
 
 .modal-title {
-  font-size: 16px;
-  font-weight: bold;
-  color: #111827;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink);
 }
 
 .close-btn {
   background: none;
   border: none;
   cursor: pointer;
-  color: #9ca3af;
-  font-size: 16px;
-  padding: 4px 6px;
-  border-radius: 6px;
+  color: var(--ink-4);
+  font-size: 14px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
   line-height: 1;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.12s, color 0.12s;
 }
 
 .close-btn:hover {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-2);
+  color: var(--ink);
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 18px;
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -104,7 +113,9 @@ const emit = defineEmits<{
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 0 20px 20px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--rule);
+  background: var(--panel);
   flex: 0 0 auto;
 }
 
@@ -118,15 +129,15 @@ const emit = defineEmits<{
   }
 
   .modal-header {
-    padding: 16px 16px 0;
+    padding: 12px 14px;
   }
 
   .modal-body {
-    padding: 16px;
+    padding: 14px;
   }
 
   .modal-footer {
-    padding: 0 16px 16px;
+    padding: 10px 14px;
   }
 }
 </style>

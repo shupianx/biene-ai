@@ -28,20 +28,42 @@ const emit = defineEmits<{
 <style scoped>
 .message {
   margin: 0;
-  color: #4b5563;
-  font-size: 14px;
-  line-height: 1.5;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  line-height: 1.55;
 }
-.btn-cancel {
-  padding: 8px 16px; border-radius: 8px; border: 1.5px solid #e5e7eb;
-  background: #fff; color: #374151; font-size: 13px; font-weight: bold;
-  cursor: pointer;
-}
-.btn-cancel:hover { background: #f9fafb; }
+
+.btn-cancel,
 .btn-confirm {
-  padding: 8px 18px; border-radius: 8px; border: none;
-  background: #ef4444; color: #fff; font-size: 13px; font-weight: bold;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--rule);
+  background: var(--panel-2);
+  color: var(--ink-2);
   cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: transform .12s, box-shadow .12s;
 }
-.btn-confirm:hover { background: #dc2626; }
+
+.btn-cancel:hover,
+.btn-confirm:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 0 var(--rule);
+}
+
+.btn-cancel:active,
+.btn-confirm:active {
+  transform: translate(0, 0);
+  box-shadow: none;
+}
+
+.btn-confirm {
+  background: var(--err);
+  border-color: var(--err);
+  color: var(--panel-2);
+}
 </style>

@@ -1,6 +1,10 @@
 <template>
   <div class="input-bar">
-    <div class="composer" :class="{ disabled }">
+    <div class="composer" :class="{ disabled, focused: focused }">
+      <div class="composer-head">
+        <span class="head-label">{{ t('input.placeholder') }}</span>
+        <span class="head-hint">⏎ {{ t('input.send') }}</span>
+      </div>
       <textarea
         ref="taRef"
         v-model="text"
@@ -9,6 +13,8 @@
         rows="1"
         @keydown.enter.exact.prevent="onEnter"
         @input="resize"
+        @focus="focused = true"
+        @blur="focused = false"
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"
       />
@@ -31,14 +37,15 @@
           <span v-else-if="interrupting" class="interrupt-spinner" aria-hidden="true" />
           <svg
             v-else
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="currentColor"
             aria-hidden="true"
           >
-            <rect x="6" y="6" width="12" height="12" rx="2" />
+            <rect x="6" y="6" width="12" height="12" />
           </svg>
+          <span class="action-label">{{ actionLabel }}</span>
         </button>
       </div>
     </div>
@@ -63,6 +70,7 @@ const emit  = defineEmits<{
 const text  = ref('')
 const taRef = ref<HTMLTextAreaElement | null>(null)
 const isComposing = ref(false)
+const focused = ref(false)
 const sendIconBody = mynauiIcons.icons.send.body
 let compositionLockedUntil = 0
 
@@ -79,6 +87,13 @@ const buttonTitle = computed(() =>
     : t('input.send')
 )
 
+const actionLabel = computed(() => {
+  if (props.interruptible) {
+    return props.interrupting ? t('input.interrupting') : t('input.interrupt')
+  }
+  return t('input.send')
+})
+
 function resize() {
   const el = taRef.value
   if (!el) return
@@ -92,7 +107,6 @@ function onCompositionStart() {
 
 function onCompositionEnd() {
   isComposing.value = false
-  // Some IMEs emit an immediate Enter right after composition ends.
   compositionLockedUntil = Date.now() + 30
 }
 
@@ -112,121 +126,152 @@ function handleAction() {
 }
 
 async function submit() {
-  const t = text.value.trim()
-  if (!t || props.disabled) return
+  const value = text.value.trim()
+  if (!value || props.disabled) return
   text.value = ''
   await nextTick()
   if (taRef.value) taRef.value.style.height = 'auto'
-  emit('send', t)
+  emit('send', value)
 }
 </script>
 
 <style scoped>
 .input-bar {
-  padding: 0 15px 15px;
-  background: var(--app-bg);
+  padding: 12px 16px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--rule);
 }
 
 .composer {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
   width: 100%;
-  min-height: 102px;
-  padding: 18px 18px 14px 20px;
-  border: 1px solid #ddd6cf;
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
-  transition: border-color .2s, box-shadow .2s, background .2s;
+  padding: 10px 12px 10px;
+  border: 1px solid var(--rule-soft);
+  background: var(--panel-2);
+  transition: border-color .15s, box-shadow .15s;
 }
 
-.composer:focus-within {
-  border-color: #d6d3d1;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, .06);
+.composer.focused {
+  border-color: var(--rule);
+  box-shadow: 2px 2px 0 0 var(--rule);
 }
 
 .composer.disabled {
-  background: #fffcf8;
+  background: var(--bg-2);
+}
+
+.composer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.head-label {
+  opacity: 0.7;
+}
+
+.head-hint {
+  opacity: 0.6;
 }
 
 textarea {
   width: 100%;
-  min-height: 42px;
+  min-height: 40px;
   resize: none;
   border: none;
   padding: 0;
-  font-size: 15px;
-  font-family: inherit;
+  font-size: 14px;
+  font-family: var(--sans);
   line-height: 1.55;
   outline: none;
-  transition: background .2s;
   background: transparent;
-  color: #0f172a;
-  max-height: 160px; overflow-y: auto;
+  color: var(--ink);
+  max-height: 160px;
+  overflow-y: auto;
 }
+
 textarea::placeholder {
-  color: #78716c;
+  color: var(--ink-4);
 }
-textarea:focus {
-  background: transparent;
+
+textarea:disabled {
+  color: var(--ink-4);
 }
-textarea:disabled { color: #9ca3af; }
 
 .composer-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: auto;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px dashed var(--rule-softer);
 }
 
 .action-btn {
-  flex-shrink: 0; width: 40px; height: 40px; border-radius: 10px;
-  border: 1px solid #ea580c;
-  background: #ea580c;
-  color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: background .2s, border-color .2s, color .2s, opacity .2s;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--panel-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: transform .12s, box-shadow .12s, opacity .15s;
 }
+
 .action-btn:hover:not(:disabled) {
-  background: #c2410c;
-  border-color: #c2410c;
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 0 var(--rule);
 }
+
 .action-btn:active:not(:disabled) {
-  background: #9a3412;
-  border-color: #9a3412;
+  transform: translate(0, 0);
+  box-shadow: none;
 }
-.action-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .action-btn:focus-visible {
-  outline: 2px solid var(--accent-warm-ring);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
 .send-icon {
-  width: 18px;
-  height: 18px;
-  overflow: visible;
+  width: 13px;
+  height: 13px;
   flex-shrink: 0;
 }
+
 .action-btn.interrupt {
-  border-color: #e11d48;
-  background: #e11d48;
-  color: #fff;
-}
-.action-btn.interrupt:hover:not(:disabled) {
-  border-color: #be123c;
-  background: #be123c;
+  border-color: var(--err);
+  background: var(--err);
+  color: var(--panel-2);
 }
 
 .interrupt-spinner {
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  border: 2px solid rgba(255, 255, 255, .35);
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, .3);
   border-top-color: #fff;
-  animation: spin .8s linear infinite;
+  animation: bieneSpin .8s linear infinite;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.action-label {
+  line-height: 1;
 }
 </style>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>BIENE · Workspace</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ---------- tokens ---------- */
+    :root {
+      /* warm paper / graphite palette */
+      --bg:        #EDE8DF;        /* canvas — warm linen */
+      --bg-2:      #E5DFD4;        /* deeper warm */
+      --panel:     #F6F2EA;        /* card surface */
+      --panel-2:   #FBF8F2;        /* elevated */
+      --ink:       #14120F;        /* near-black graphite */
+      --ink-2:     #2A2722;
+      --ink-3:     #55504A;
+      --ink-4:     #8A857C;
+      --rule:      #2A2722;        /* structural hairlines */
+      --rule-soft: #CFC7B8;
+      --rule-softer: #DDD5C6;
+      /* single warm-industrial accent */
+      --accent:    oklch(68% 0.14 58);    /* rust / amber */
+      --accent-2:  oklch(62% 0.16 52);
+      --accent-ink:#2A1608;
+      --ok:        oklch(64% 0.15 145);
+      --warn:      oklch(72% 0.14 85);
+      --err:       oklch(58% 0.18 25);
+
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: var(--sans);
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* subtle paper grain */
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background-image:
+        radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px),
+        radial-gradient(rgba(0,0,0,0.015) 1px, transparent 1px);
+      background-size: 3px 3px, 7px 7px;
+      background-position: 0 0, 1px 2px;
+      pointer-events: none;
+      mix-blend-mode: multiply;
+      z-index: 1;
+    }
+
+    #root { position: relative; z-index: 2; height: 100%; }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="src/icons.jsx"></script>
+  <script type="text/babel" src="src/data.jsx"></script>
+  <script type="text/babel" src="src/window-chrome.jsx"></script>
+  <script type="text/babel" src="src/agent-card.jsx"></script>
+  <script type="text/babel" src="src/new-instance-modal.jsx"></script>
+  <script type="text/babel" src="src/settings-modal.jsx"></script>
+  <script type="text/babel" src="src/tweaks.jsx"></script>
+  <script type="text/babel" src="src/app.jsx"></script>
+</body>
+</html>

@@ -61,7 +61,7 @@ function onKeepCoreRunningOnExitChange(value: boolean) {
 .setting-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .setting-row {
@@ -69,10 +69,9 @@ function onKeepCoreRunningOnExitChange(value: boolean) {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #fff;
+  padding: 12px 14px;
+  border: 1px solid var(--rule-softer);
+  background: var(--panel);
 }
 
 .setting-copy {
@@ -83,33 +82,42 @@ function onKeepCoreRunningOnExitChange(value: boolean) {
 }
 
 .setting-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
 }
 
 .setting-hint {
   font-size: 12px;
   line-height: 1.45;
-  color: #6b7280;
+  color: var(--ink-4);
 }
 
 .btn-close {
-  min-width: 88px;
-  height: 36px;
+  height: 30px;
   padding: 0 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  background: #fff;
-  color: #374151;
-  font-size: 13px;
-  font-weight: 700;
+  border: 1px solid var(--rule);
+  background: var(--panel-2);
+  color: var(--ink-2);
   cursor: pointer;
-  transition: background .15s, border-color .15s, color .15s;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: transform .12s, box-shadow .12s;
 }
 
 .btn-close:hover {
-  background: #f9fafb;
-  border-color: #cbd5e1;
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 0 var(--rule);
+}
+
+.btn-close:active {
+  transform: translate(0, 0);
+  box-shadow: none;
 }
 </style>

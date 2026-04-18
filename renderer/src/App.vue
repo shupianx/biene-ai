@@ -40,7 +40,8 @@ const showDesktopChrome = computed(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--app-bg);
+  background: var(--bg);
+  color: var(--ink);
 }
 
 .app-main-shell {
@@ -63,41 +64,41 @@ const showDesktopChrome = computed(() => {
 
 .core-offline-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   z-index: 30;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(248, 250, 252, 0.24);
+  background: var(--overlay);
   backdrop-filter: blur(2px);
 }
 
 .core-offline-message {
-  min-width: 220px;
-  max-width: 320px;
-  padding: 14px 16px;
+  min-width: 240px;
+  max-width: 340px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  border: 1px solid rgba(226, 232, 240, 0.92);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  gap: 6px;
+  border: 1px solid var(--rule);
+  background: var(--panel-2);
+  box-shadow: 3px 3px 0 0 var(--rule);
   text-align: center;
-  color: #334155;
+  color: var(--ink-2);
 }
 
 .core-offline-message strong {
-  font-size: 13px;
-  color: #0f172a;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
 }
 
 .core-offline-message span {
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.55;
+  color: var(--ink-3);
 }
 </style>

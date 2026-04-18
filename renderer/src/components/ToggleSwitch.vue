@@ -8,7 +8,9 @@
       :disabled="disabled"
       @change="onChange"
     />
-    <span class="switch-track" />
+    <span class="switch-track">
+      <span class="switch-knob" />
+    </span>
   </label>
 </template>
 
@@ -31,8 +33,8 @@ function onChange(event: Event) {
 <style scoped>
 .switch {
   position: relative;
-  width: 46px;
-  height: 28px;
+  width: 40px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
@@ -49,43 +51,40 @@ function onChange(event: Event) {
 
 .switch-track {
   position: relative;
-  width: 46px;
-  height: 28px;
-  border-radius: 999px;
-  background: #d1d5db;
-  transition: background .18s ease, box-shadow .18s ease;
-  box-shadow: inset 0 0 0 1px rgba(17, 24, 39, .06);
+  width: 40px;
+  height: 22px;
+  background: var(--bg-2);
+  border: 1px solid var(--rule-soft);
+  transition: background .15s ease, border-color .15s ease;
 }
 
-.switch-track::after {
-  content: '';
+.switch-knob {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, .18);
-  transition: transform .18s ease;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--ink-4);
+  transition: transform .15s ease, background .15s ease;
 }
 
 .switch-input:checked + .switch-track {
-  background: var(--accent-warm-bg-active);
-  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, .28);
+  background: var(--ink);
+  border-color: var(--ink);
 }
 
-.switch-input:checked + .switch-track::after {
+.switch-input:checked + .switch-track .switch-knob {
+  background: var(--panel-2);
   transform: translateX(18px);
 }
 
 .switch-input:focus-visible + .switch-track {
-  outline: 2px solid var(--accent-warm-ring);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 .switch-input:disabled + .switch-track {
-  opacity: .55;
+  opacity: .5;
 }
 
 .switch-input:disabled,

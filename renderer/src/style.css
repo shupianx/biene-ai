@@ -1,70 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
 @import "highlight.js/styles/github.css";
 @import "tailwindcss";
 
 :root {
-  --app-bg: #fffaf5;
-  --titlebar-bg: linear-gradient(180deg, rgba(255, 248, 240, 0.98), rgba(255, 238, 222, 0.96));
-  --titlebar-border: #e5e7eb;
-  --titlebar-text: #0f172a;
-  --titlebar-text-strong: #111827;
-  --titlebar-text-muted: #94a3b8;
-  --titlebar-icon: #64748b;
-  --titlebar-hover: #fff2e8;
-  --footer-action-hover-bg: rgba(15, 23, 42, 0.14);
-  --footer-action-hover-text: #0f172a;
-  --menu-bg: rgba(255, 255, 255, 0.98);
-  --menu-text: #334155;
-  --menu-hover: #fff4ea;
-  --menu-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
-  --accent-soft-bg: #dbeafe;
-  --accent-soft-bg-hover: #bfdbfe;
-  --accent-soft-bg-active: #93c5fd;
-  --accent-soft-border: #bfdbfe;
-  --accent-soft-border-strong: #60a5fa;
-  --accent-soft-text: #1d4ed8;
-  --accent-soft-ring: rgba(96, 165, 250, 0.32);
-  --accent-soft-focus: rgba(191, 219, 254, 0.48);
-  --accent-warm-bg: #fff4ea;
-  --accent-warm-bg-hover: #ffe9d6;
-  --accent-warm-bg-active: #ffd7b5;
-  --accent-warm-border: #fed7aa;
-  --accent-warm-border-strong: #fdba74;
-  --accent-warm-text: #c2410c;
-  --accent-warm-ring: rgba(251, 146, 60, 0.28);
-  --accent-warm-focus: rgba(254, 215, 170, 0.45);
+  /* ── Warm paper / graphite palette (light) ───────────────────────── */
+  --bg:           #EDE8DF;
+  --bg-2:         #E5DFD4;
+  --panel:        #F6F2EA;
+  --panel-2:      #FBF8F2;
+  --ink:          #14120F;
+  --ink-2:        #2A2722;
+  --ink-3:        #55504A;
+  --ink-4:        #8A857C;
+  --rule:         #2A2722;
+  --rule-soft:    #CFC7B8;
+  --rule-softer:  #DDD5C6;
+
+  /* Single warm-industrial accent */
+  --accent:       oklch(68% 0.14 58);
+  --accent-2:     oklch(62% 0.16 52);
+  --accent-ink:   #2A1608;
+
+  /* Semantic */
+  --ok:           oklch(64% 0.15 145);
+  --warn:         oklch(72% 0.14 85);
+  --err:          oklch(58% 0.18 25);
+
+  /* Selection / interaction tints */
+  --sel-bg:       rgba(196, 134, 72, 0.28);
+  --overlay:      rgba(20, 18, 15, 0.38);
+  --hover-soft:   rgba(20, 18, 15, 0.04);
+  --paper-grain-opacity: 1;
+
+  /* Typography */
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: 'Inter', 'Noto Sans SC', 'HarmonyOS Sans SC', 'PingFang SC', system-ui, sans-serif;
+
+  /* App-level */
+  --app-bg: var(--bg);
 }
 
 :root[data-theme='dark'] {
-  --app-bg: #1e1e1e;
-  --titlebar-bg: linear-gradient(180deg, rgba(42, 42, 42, 0.98), rgba(34, 34, 34, 0.96));
-  --titlebar-border: #2d2d30;
-  --titlebar-text: #cccccc;
-  --titlebar-text-strong: #f3f3f3;
-  --titlebar-text-muted: #9d9d9d;
-  --titlebar-icon: #b8b8b8;
-  --titlebar-hover: #2a2d2e;
-  --footer-action-hover-bg: rgba(255, 255, 255, 0.14);
-  --footer-action-hover-text: #f3f3f3;
-  --menu-bg: rgba(37, 37, 38, 0.98);
-  --menu-text: #cccccc;
-  --menu-hover: #2a2d2e;
-  --menu-shadow: 0 20px 44px rgba(0, 0, 0, 0.38);
-}
+  /* ── Dark paper / graphite palette ────────────────────────────────── */
+  --bg:           #1A1814;
+  --bg-2:         #14120F;
+  --panel:        #1F1C17;
+  --panel-2:      #26221C;
+  --ink:          #F0EBE1;
+  --ink-2:        #D9D3C6;
+  --ink-3:        #A59F92;
+  --ink-4:        #6F695F;
+  --rule:         #524C42;
+  --rule-soft:    #3A342C;
+  --rule-softer:  #2C2720;
 
-@font-face {
-  font-family: 'HarmonyOS Sans SC';
-  src: url('./assets/fonts/HarmonyOS_SansSC_Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
+  --accent:       oklch(72% 0.14 60);
+  --accent-2:     oklch(66% 0.16 54);
+  --accent-ink:   #12080A;
 
-@font-face {
-  font-family: 'HarmonyOS Sans SC';
-  src: url('./assets/fonts/HarmonyOS_SansSC_Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
+  --ok:           oklch(70% 0.15 145);
+  --warn:         oklch(76% 0.14 85);
+  --err:          oklch(66% 0.18 25);
+
+  --sel-bg:       rgba(214, 150, 82, 0.38);
+  --overlay:      rgba(0, 0, 0, 0.62);
+  --hover-soft:   rgba(240, 235, 225, 0.05);
+  --paper-grain-opacity: 0.55;
+
+  --app-bg: var(--bg);
+  color-scheme: dark;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -75,14 +79,72 @@ html, body {
 
 body {
   margin: 0;
-  font-family: 'HarmonyOS Sans SC', 'PingFang SC', 'Noto Sans SC', system-ui, sans-serif;
+  font-family: var(--sans);
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
-  background: var(--app-bg);
+  color: var(--ink);
+  background: var(--bg);
   overflow: hidden;
 }
 
+/* Subtle paper grain texture over the whole window */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px),
+    radial-gradient(rgba(0,0,0,0.015) 1px, transparent 1px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 1px 2px;
+  mix-blend-mode: multiply;
+  opacity: var(--paper-grain-opacity);
+  z-index: 1;
+}
+
+:root[data-theme='dark'] body::before {
+  background-image:
+    radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    radial-gradient(rgba(255,255,255,0.015) 1px, transparent 1px);
+  mix-blend-mode: screen;
+}
+
 #app {
+  position: relative;
+  z-index: 2;
   height: 100%;
   overflow: hidden;
+}
+
+::selection {
+  background: var(--sel-bg);
+  color: var(--ink);
+}
+
+/* Unified focus ring hint for inputs/textareas/selects */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+}
+
+/* Keyframes shared across components */
+@keyframes bieneBlink {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 1; }
+}
+
+@keyframes bienePulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+@keyframes bieneSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bieneFadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: none; }
 }

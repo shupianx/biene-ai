@@ -1,7 +1,10 @@
 <template>
   <div class="message" :class="msg.role">
     <div class="bubble">
-      <div v-if="usedSkillLabel" class="message-skill-note">{{ usedSkillLabel }}</div>
+      <div v-if="msg.role === 'assistant'" class="assistant-head">
+        <span class="role-tag">AGENT</span>
+        <span v-if="usedSkillLabel" class="skill-note">⚡ {{ usedSkillLabel }}</span>
+      </div>
       <div v-if="msg.role === 'assistant'" class="markdown" v-html="renderedText" />
       <div
         v-else
@@ -12,7 +15,10 @@
         }"
         dir="auto"
       >
-        {{ msg.text }}
+        <div class="user-head">
+          <span class="role-tag">{{ userRoleTag }}</span>
+        </div>
+        <div class="user-body">{{ msg.text }}</div>
       </div>
       <ToolCallCard
         v-for="(tc, i) in (msg.tool_calls ?? [])"
@@ -61,6 +67,12 @@ const usedSkillLabel = computed(() => {
   return t('message.usedSkill', { name: props.msg.used_skill_name })
 })
 
+const userRoleTag = computed(() => {
+  if (props.msg.author_type === 'agent') return 'AGENT'
+  if (props.msg.author_type === 'system') return 'SYSTEM'
+  return 'USER'
+})
+
 const sourceAgentLabel = computed(() => {
   if (props.msg.role !== 'user' || props.msg.author_type !== 'agent') return ''
   return (
@@ -91,10 +103,21 @@ async function openSourceAgent() {
 </script>
 
 <style scoped>
-.message { display: flex; gap: 0; padding: 12px 0; }
+.message {
+  display: flex;
+  padding: 10px 0;
+}
 
-.bubble { max-width: 72%; min-width: 0; }
-.message.assistant .bubble { width: 100%; max-width: none; }
+.bubble {
+  max-width: 78%;
+  min-width: 0;
+}
+
+.message.assistant .bubble {
+  width: 100%;
+  max-width: none;
+}
+
 .message.user .bubble {
   margin-left: auto;
   display: flex;
@@ -102,41 +125,87 @@ async function openSourceAgent() {
   align-items: flex-end;
 }
 
+.assistant-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.user-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+
+.role-tag {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--ink-4);
+  padding: 1px 6px;
+  border: 1px solid var(--rule-softer);
+}
+
+.skill-note {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
 .user-text {
-  display: inline-block; background: #eceef1; color: #111827;
-  padding: 10px 14px; border-radius: 16px;
+  display: inline-block;
+  background: var(--panel-2);
+  border: 1px solid var(--rule-soft);
+  color: var(--ink);
+  padding: 8px 12px;
+  max-width: 100%;
+}
+
+.user-body {
   text-align: start;
-  font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .user-text.agent-source-text {
-  background: var(--accent-warm-bg);
-  border: 1px solid var(--accent-warm-border);
+  background: var(--panel-2);
+  border-color: var(--accent);
+}
+
+.user-text.agent-source-text .role-tag {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .user-text.system-note-text {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1d4ed8;
+  background: var(--bg-2);
+  border-color: var(--rule-soft);
+  color: var(--ink-3);
 }
 
 .message-meta {
   margin-top: 6px;
-  margin-right: 8px;
   display: flex;
   flex-direction: row;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
   user-select: none;
   -webkit-user-select: none;
 }
 
 .message-source,
 .message-time {
-  font-size: 11px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
   line-height: 1.3;
-  color: #9ca3af;
+  color: var(--ink-4);
   text-align: right;
 }
 
@@ -145,102 +214,132 @@ async function openSourceAgent() {
   padding: 0;
   margin: 0;
   background: transparent;
-  color: #2563eb;
+  color: var(--accent);
   font: inherit;
-  font-weight: bold;
   cursor: pointer;
-  text-decoration: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .message-source-link:hover {
-  color: #1d4ed8;
+  color: var(--ink);
 }
 
-.message-skill-note {
-  margin: 0 0 8px;
-  font-size: 12px;
-  line-height: 1.35;
-  color: #6b7280;
-  user-select: none;
-  -webkit-user-select: none;
+.markdown {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
-.markdown { font-size: 14px; line-height: 1.6; color: #111827; overflow-wrap: anywhere; }
 .markdown :deep(h1),
 .markdown :deep(h2),
 .markdown :deep(h3),
 .markdown :deep(h4),
 .markdown :deep(h5),
 .markdown :deep(h6) {
-  margin: 0 0 12px;
+  margin: 0 0 10px;
   line-height: 1.25;
-  color: #0f172a;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
-.markdown :deep(h1) { font-size: 1.5rem; }
-.markdown :deep(h2) { font-size: 1.3rem; }
-.markdown :deep(h3) { font-size: 1.15rem; }
+
+.markdown :deep(h1) { font-size: 1.4rem; }
+.markdown :deep(h2) { font-size: 1.2rem; }
+.markdown :deep(h3) { font-size: 1.05rem; }
 .markdown :deep(h4),
 .markdown :deep(h5),
-.markdown :deep(h6) { font-size: 1rem; }
-.markdown :deep(p)            { margin: 0 0 10px; }
+.markdown :deep(h6) { font-size: 0.98rem; }
+
+.markdown :deep(p) { margin: 0 0 10px; }
 .markdown :deep(p:last-child) { margin-bottom: 0; }
+
 .markdown :deep(blockquote) {
   margin: 0 0 12px;
-  padding: 10px 14px;
-  border-left: 3px solid #cbd5e1;
-  background: #f8fafc;
-  color: #475569;
-  border-radius: 0 12px 12px 0;
+  padding: 8px 14px;
+  border-left: 3px solid var(--rule);
+  background: var(--panel);
+  color: var(--ink-3);
 }
+
 .markdown :deep(hr) {
   border: 0;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px dashed var(--rule-soft);
   margin: 16px 0;
 }
+
 .markdown :deep(pre) {
   margin: 0 0 12px;
-  background: #f3f4f6; border-radius: 8px; padding: 12px;
-  overflow-x: auto; font-size: 13px;
+  background: var(--panel);
+  border: 1px solid var(--rule-soft);
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12.5px;
+  font-family: var(--mono);
 }
+
 .markdown :deep(code) {
-  background: #f3f4f6; border-radius: 4px; padding: 1px 5px; font-size: 13px;
+  background: var(--bg-2);
+  border: 1px solid var(--rule-softer);
+  padding: 0 4px;
+  font-size: 12.5px;
+  font-family: var(--mono);
 }
-.markdown :deep(pre code) { background: none; padding: 0; white-space: pre; word-break: normal; }
+
+.markdown :deep(pre code) {
+  background: none;
+  border: none;
+  padding: 0;
+  white-space: pre;
+  word-break: normal;
+}
+
 .markdown :deep(pre code.hljs) { background: transparent; }
+
 .markdown :deep(ul),
 .markdown :deep(ol) {
   margin: 0 0 12px;
   padding-left: 20px;
   list-style-position: outside;
 }
+
 .markdown :deep(ul) { list-style-type: disc; }
 .markdown :deep(ol) { list-style-type: decimal; }
 .markdown :deep(ul ul) { list-style-type: circle; }
 .markdown :deep(ul ul ul) { list-style-type: square; }
 .markdown :deep(ol ol) { list-style-type: lower-alpha; }
 .markdown :deep(ol ol ol) { list-style-type: lower-roman; }
+
 .markdown :deep(li) { margin: 4px 0; }
-.markdown :deep(li::marker) { color: #475569; }
+.markdown :deep(li::marker) { color: var(--ink-4); }
+
 .markdown :deep(.task-list) {
   padding-left: 0;
   list-style: none;
 }
+
 .markdown :deep(.task-list-item) {
   list-style: none;
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
+
 .markdown :deep(input[type="checkbox"]) {
   margin-top: 0.25rem;
-  accent-color: #6366f1;
+  accent-color: var(--accent);
 }
+
 .markdown :deep(a) {
-  color: #2563eb;
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.markdown :deep(a:hover) { color: #1d4ed8; }
+
+.markdown :deep(a:hover) { color: var(--ink); }
+
 .markdown :deep(table) {
   display: block;
   width: max-content;
@@ -248,22 +347,30 @@ async function openSourceAgent() {
   margin: 0 0 12px;
   overflow-x: auto;
   border-collapse: collapse;
+  border: 1px solid var(--rule-soft);
 }
+
 .markdown :deep(th),
 .markdown :deep(td) {
-  padding: 8px 10px;
-  border: 1px solid #e5e7eb;
+  padding: 6px 10px;
+  border: 1px solid var(--rule-softer);
   vertical-align: top;
 }
+
 .markdown :deep(th) {
-  background: #f8fafc;
-  font-weight: bold;
+  background: var(--panel);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
 }
+
 .markdown :deep(img) {
   display: block;
   max-width: 100%;
   height: auto;
   margin: 0 0 12px;
-  border-radius: 10px;
+  border: 1px solid var(--rule-softer);
 }
 </style>
