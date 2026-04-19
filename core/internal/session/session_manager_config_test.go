@@ -38,6 +38,36 @@ func TestCreatePinsSelectedModel(t *testing.T) {
 	}
 }
 
+func TestCreateDefaultsThinkingOffWhenModelSupportsIt(t *testing.T) {
+	cfg := &config.Config{
+		DefaultModel: "main",
+		ModelList: []config.ModelEntry{
+			{
+				ID:                "main",
+				Name:              "Main",
+				Provider:          "openai_compatible",
+				Model:             "qwen3.6-plus",
+				ThinkingAvailable: true,
+			},
+		},
+		Settings: config.Settings{MaxTokens: 4096},
+	}
+	mgr := NewSessionManager(t.TempDir(), cfg)
+
+	sess, err := mgr.Create("Agent", tools.PermissionSet{}, prompt.DefaultProfile(), "")
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+
+	meta := sess.Meta()
+	if !meta.ThinkingAvailable {
+		t.Fatal("expected thinking to be available")
+	}
+	if meta.ThinkingEnabled {
+		t.Fatal("expected new session thinking to default to disabled")
+	}
+}
+
 func TestUpdateConfigRefreshesPinnedModelName(t *testing.T) {
 	cfg := &config.Config{
 		DefaultModel: "main",

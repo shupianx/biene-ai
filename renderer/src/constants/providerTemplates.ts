@@ -1,6 +1,6 @@
 import type { ConfigModelEntry } from '../api/http'
 
-type ProviderTemplateDefinition = Pick<ConfigModelEntry, 'name' | 'provider' | 'model' | 'base_url' | 'enable_thinking'> & {
+type ProviderTemplateDefinition = Pick<ConfigModelEntry, 'name' | 'provider' | 'model' | 'base_url' | 'thinking_available'> & {
   id: string
 }
 
@@ -11,7 +11,7 @@ export const providerTemplateList = [
     provider: 'openai_compatible',
     model: 'deepseek-chat',
     base_url: 'https://api.deepseek.com',
-    enable_thinking: false,
+    thinking_available: false,
   },
   {
     id: 'qwen3-6-plus',
@@ -19,7 +19,7 @@ export const providerTemplateList = [
     provider: 'openai_compatible',
     model: 'qwen3.6-plus',
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    enable_thinking: true,
+    thinking_available: true,
   },
 ] as const satisfies readonly ProviderTemplateDefinition[]
 

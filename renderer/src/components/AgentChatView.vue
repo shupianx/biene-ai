@@ -48,7 +48,6 @@
         <span class="typing-dot" />
         <span class="typing-dot" />
         <span class="typing-dot" />
-        <span v-if="activeSkillLabel" class="skill-indicator">{{ activeSkillLabel }}</span>
       </div>
     </div>
 
@@ -100,9 +99,6 @@ let interactionTimer: number | null = null
 const statusTone = computed(() => getSessionStatusTone(props.session))
 const statusLabel = computed(() => getSessionStatusLabel(statusTone.value))
 
-const activeSkillLabel = computed(() =>
-  props.session.activeSkillName ? t('agent.usingSkill', { name: props.session.activeSkillName }) : ''
-)
 const lastIsUser = computed(() => {
   const msgs = props.session.messages
   return msgs.length > 0 && msgs[msgs.length - 1].role === 'user'
@@ -493,10 +489,4 @@ watch(inputOverlayHeight, () => {
 .typing-dot:nth-child(2) { animation-delay: .15s; }
 .typing-dot:nth-child(3) { animation-delay: .30s; }
 
-.skill-indicator {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--accent);
-  letter-spacing: 0.08em;
-}
 </style>

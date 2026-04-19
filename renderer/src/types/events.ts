@@ -1,6 +1,5 @@
 export type SessionEventType =
   | 'message_added'
-  | 'skill_activated'
   | 'status'
   | 'reasoning_delta'
   | 'text_delta'
@@ -10,6 +9,7 @@ export type SessionEventType =
   | 'tool_denied'
   | 'permission_request'
   | 'permission_cleared'
+  | 'skill_activated'
   | 'error'
   | 'done'
 
@@ -24,10 +24,6 @@ export interface MessageAddedData {
 
 export interface StatusData {
   status: import('../api/http').SessionMeta['status']
-}
-
-export interface SkillActivatedData {
-  skill_name: string
 }
 
 export interface TextDeltaData {
@@ -68,6 +64,10 @@ export interface PermissionRequestData {
 
 export interface PermissionClearedData {
   request_id?: string
+}
+
+export interface SkillActivatedData {
+  skill_name: string
 }
 
 export interface ErrorData {

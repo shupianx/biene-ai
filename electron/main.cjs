@@ -1,7 +1,6 @@
 const { Menu, app, BrowserWindow, dialog, ipcMain, screen, shell } = require('electron')
 const { spawn } = require('child_process')
 const { randomBytes } = require('crypto')
-const fs = require('fs')
 const http = require('http')
 const net = require('net')
 const path = require('path')
@@ -41,7 +40,6 @@ let loginShellPathPromise = null
 const windowAppearanceOptions = new WeakMap()
 let mainWindowSkillsSidebarCompensation = 0
 let mainWindowSkillsSidebarCompensationLeft = 0
-let skillConfig = defaultSkillConfig()
 
 function currentTheme() {
   return desktopSettings.theme === 'dark' ? 'dark' : 'light'
@@ -118,133 +116,6 @@ function resolvePackagedWorkspaceDir() {
   }
 
   return path.join(path.dirname(process.execPath), 'workspace')
-}
-
-function resolveBieneHomeDir() {
-  return path.join(app.getPath('home'), '.biene')
-}
-
-function resolveGlobalSkillsDir() {
-  return path.join(resolveBieneHomeDir(), 'skills')
-}
-
-function resolveSkillConfigPath() {
-  return path.join(resolveBieneHomeDir(), 'skill-config.json')
-}
-
-function defaultSkillConfig() {
-  return {
-    defaultEnabledSkillDirs: [],
-  }
-}
-
-function normalizeSkillConfig(value) {
-  const next = value && typeof value === 'object' ? value : {}
-  const legacyDefaultSkillDir = typeof next.defaultSkillDir === 'string' ? next.defaultSkillDir.trim() : ''
-  const defaultEnabledSkillDirs = Array.isArray(next.defaultEnabledSkillDirs)
-    ? [...new Set(next.defaultEnabledSkillDirs
-      .map((item) => typeof item === 'string' ? item.trim() : '')
-      .filter(Boolean))]
-    : []
-
-  if (legacyDefaultSkillDir && !defaultEnabledSkillDirs.includes(legacyDefaultSkillDir)) {
-    defaultEnabledSkillDirs.push(legacyDefaultSkillDir)
-  }
-
-  return {
-    defaultEnabledSkillDirs,
-  }
-}
-
-function loadSkillConfig() {
-  try {
-    const raw = JSON.parse(fs.readFileSync(resolveSkillConfigPath(), 'utf8'))
-    return normalizeSkillConfig(raw)
-  } catch {
-    return saveSkillConfig(defaultSkillConfig())
-  }
-}
-
-function saveSkillConfig(nextConfig) {
-  const normalized = normalizeSkillConfig(nextConfig)
-  fs.mkdirSync(resolveBieneHomeDir(), { recursive: true })
-  fs.writeFileSync(resolveSkillConfigPath(), `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
-  return normalized
-}
-
-function ensureSkillDirWithinGlobalRoot(skillDir) {
-  const root = fs.realpathSync.native(resolveGlobalSkillsDir())
-  const target = fs.realpathSync.native(path.resolve(String(skillDir || '')))
-  if (target === root || !target.startsWith(`${root}${path.sep}`)) {
-    throw new Error('Skill path is outside the global skills directory.')
-  }
-  return target
-}
-
-function removeSkillDir(skillDir) {
-  const target = ensureSkillDirWithinGlobalRoot(skillDir)
-  fs.rmSync(target, { recursive: true, force: false })
-
-  skillConfig = saveSkillConfig({
-    defaultEnabledSkillDirs: skillConfig.defaultEnabledSkillDirs.filter((entry) => entry !== target),
-  })
-
-  return skillConfig
-}
-
-function containsSkillFile(root) {
-  const entries = fs.readdirSync(root, { withFileTypes: true })
-  for (const entry of entries) {
-    const nextPath = path.join(root, entry.name)
-    if (entry.isFile() && entry.name === 'SKILL.md') {
-      return true
-    }
-    if (entry.isDirectory() && containsSkillFile(nextPath)) {
-      return true
-    }
-  }
-  return false
-}
-
-function uniqueImportDir(root, baseName) {
-  const normalized = (typeof baseName === 'string' && baseName.trim()) ? baseName.trim() : 'skill'
-  let candidate = normalized
-  for (let i = 2; ; i += 1) {
-    const fullPath = path.join(root, candidate)
-    if (!fs.existsSync(fullPath)) {
-      return fullPath
-    }
-    candidate = `${normalized}-${i}`
-  }
-}
-
-async function importSkillFolder() {
-  const targetRoot = resolveGlobalSkillsDir()
-  fs.mkdirSync(targetRoot, { recursive: true })
-
-  const owner = (!mainWindow || mainWindow.isDestroyed()) ? undefined : mainWindow
-  const result = await dialog.showOpenDialog(owner, {
-    properties: ['openDirectory', 'multiSelections'],
-    title: 'Import Skill Folders',
-  })
-
-  if (result.canceled || result.filePaths.length === 0) {
-    return 0
-  }
-
-  for (const sourceDir of result.filePaths) {
-    if (!containsSkillFile(sourceDir)) {
-      throw new Error(`Selected folder "${path.basename(sourceDir)}" does not contain a SKILL.md file.`)
-    }
-  }
-
-  let importedCount = 0
-  for (const sourceDir of result.filePaths) {
-    const destDir = uniqueImportDir(targetRoot, path.basename(sourceDir))
-    fs.cpSync(sourceDir, destDir, { recursive: true, errorOnExist: true })
-    importedCount += 1
-  }
-  return importedCount
 }
 
 function defaultLoginShell() {
@@ -927,16 +798,6 @@ function registerDesktopHandlers() {
   ipcMain.handle('desktop:openAgentWindow', async (_event, sessionId) => {
     openAgentWindow(sessionId)
   })
-  ipcMain.handle('desktop:importSkillFolder', async () => importSkillFolder())
-  ipcMain.handle('desktop:getSkillConfig', async () => skillConfig)
-  ipcMain.handle('desktop:updateSkillConfig', async (_event, patch) => {
-    skillConfig = saveSkillConfig({
-      ...skillConfig,
-      ...(patch && typeof patch === 'object' ? patch : {}),
-    })
-    return skillConfig
-  })
-  ipcMain.handle('desktop:deleteSkill', async (_event, skillDir) => removeSkillDir(skillDir))
   ipcMain.handle('desktop:setSkillsSidebarOpen', async (_event, payload) => {
     const nextOpen = Boolean(payload?.open)
     const nextWidth = Number(payload?.width) || 0
@@ -992,7 +853,6 @@ app.on('before-quit', (event) => {
 
 app.whenReady().then(async () => {
   desktopSettings = loadDesktopSettings(app)
-  skillConfig = loadSkillConfig()
   registerDesktopHandlers()
 
   try {

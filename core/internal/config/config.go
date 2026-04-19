@@ -4,21 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
-)
 
-const configFileName = ".biene/config.json"
+	"biene/internal/bienehome"
+)
 
 // ModelEntry holds one selectable model configuration.
 type ModelEntry struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Provider       string `json:"provider"` // "anthropic" | "openai_compatible"
-	APIKey         string `json:"api_key"`
-	Model          string `json:"model"`
-	BaseURL        string `json:"base_url"`
-	EnableThinking bool   `json:"enable_thinking,omitempty"`
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	Provider          string `json:"provider"` // "anthropic" | "openai_compatible"
+	APIKey            string `json:"api_key"`
+	Model             string `json:"model"`
+	BaseURL           string `json:"base_url"`
+	ThinkingAvailable bool   `json:"thinking_available,omitempty"`
 }
 
 // Settings holds global behavior settings.
@@ -60,24 +59,15 @@ func TemplateConfig() *Config {
 	}
 }
 
-// configPath returns the path to the config file.
-func configPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("cannot determine home directory: %w", err)
-	}
-	return filepath.Join(home, configFileName), nil
-}
-
 // Path returns the path to ~/.biene/config.json.
 func Path() (string, error) {
-	return configPath()
+	return bienehome.ConfigPath()
 }
 
 // Load reads the config file from ~/.biene/config.json.
 // If the file does not exist, an empty template config is written and returned.
 func Load() (*LoadResult, error) {
-	path, err := configPath()
+	path, err := bienehome.ConfigPath()
 	if err != nil {
 		return nil, err
 	}
@@ -117,18 +107,14 @@ func Load() (*LoadResult, error) {
 // Save writes the config to ~/.biene/config.json, creating directories as needed.
 func Save(cfg *Config) error {
 	Normalize(cfg)
-	path, err := configPath()
+	path, err := bienehome.ConfigPath()
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return fmt.Errorf("creating config directory: %w", err)
+	if err := bienehome.WriteJSON(path, cfg, 0o700, 0o600); err != nil {
+		return fmt.Errorf("saving config file: %w", err)
 	}
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return fmt.Errorf("serializing config: %w", err)
-	}
-	return os.WriteFile(path, append(data, '\n'), 0o600)
+	return nil
 }
 
 // Normalize fills defaults, migrates legacy name-based configs to id-based
@@ -192,8 +178,8 @@ func Normalize(cfg *Config) bool {
 			changed = true
 		}
 
-		if shouldAutoEnableThinking(*entry) && !entry.EnableThinking {
-			entry.EnableThinking = true
+		if shouldAutoEnableThinking(*entry) && !entry.ThinkingAvailable {
+			entry.ThinkingAvailable = true
 			changed = true
 		}
 

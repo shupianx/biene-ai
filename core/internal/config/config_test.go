@@ -77,7 +77,7 @@ func TestNormalizeAutoEnablesThinkingForQwen36Plus(t *testing.T) {
 	if !changed {
 		t.Fatalf("expected normalization to add thinking support")
 	}
-	if !cfg.ModelList[0].EnableThinking {
+	if !cfg.ModelList[0].ThinkingAvailable {
 		t.Fatal("expected qwen3.6-plus entry to enable thinking support")
 	}
 }

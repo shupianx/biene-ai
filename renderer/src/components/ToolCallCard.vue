@@ -188,11 +188,4 @@ function fmt(v: unknown) {
 .status-denied    .tool-icon { color: var(--ink-4); }
 .status-cancelled .tool-icon { color: var(--ink-3); }
 
-.status-error .tool-header {
-  border-left: 2px solid var(--err);
-}
-
-.status-pending .tool-header {
-  border-left: 2px solid var(--warn);
-}
 </style>

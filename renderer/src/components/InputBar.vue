@@ -192,8 +192,9 @@ textarea:disabled {
 
 .composer-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   padding-top: 6px;
   border-top: 1px dashed var(--rule-softer);
@@ -204,15 +205,17 @@ textarea:disabled {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  --toggle-track-on: color-mix(in srgb, #84befe 72%, var(--panel-2));
+  --toggle-track-on-border: color-mix(in srgb, #67a8f4 68%, var(--rule-soft));
+  --toggle-knob-on: #f7fbff;
 }
 
 .thinking-label {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-4);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--ink-4) 78%, var(--panel-2));
   white-space: nowrap;
 }
 

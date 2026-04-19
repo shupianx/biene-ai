@@ -1,6 +1,5 @@
 import type {
   MessageAddedData,
-  SkillActivatedData,
   StatusData,
   SessionDeletedData,
   SessionListEventType,
@@ -12,6 +11,7 @@ import type {
   ToolDeniedData,
   PermissionRequestData,
   PermissionClearedData,
+  SkillActivatedData,
   ErrorData,
   SessionEventType,
 } from '../types/events'
@@ -19,7 +19,6 @@ import { buildCoreWebSocketUrl } from '../runtime'
 
 export interface WSHandlers {
   onMessageAdded: (data: MessageAddedData) => void
-  onSkillActivated: (data: SkillActivatedData) => void
   onStatus: (data: StatusData) => void
   onReasoningDelta: (data: ReasoningDeltaData) => void
   onTextDelta: (data: TextDeltaData) => void
@@ -29,6 +28,7 @@ export interface WSHandlers {
   onToolDenied: (data: ToolDeniedData) => void
   onPermissionRequest: (data: PermissionRequestData) => void
   onPermissionCleared: (data: PermissionClearedData) => void
+  onSkillActivated: (data: SkillActivatedData) => void
   onError: (data: ErrorData) => void
   onDone: () => void
   onReconnect?: () => void
@@ -58,9 +58,6 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
       case 'message_added':
         handlers.onMessageAdded(message.data as MessageAddedData)
         break
-      case 'skill_activated':
-        handlers.onSkillActivated(message.data as SkillActivatedData)
-        break
       case 'status':
         handlers.onStatus(message.data as StatusData)
         break
@@ -87,6 +84,9 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
         break
       case 'permission_cleared':
         handlers.onPermissionCleared(message.data as PermissionClearedData)
+        break
+      case 'skill_activated':
+        handlers.onSkillActivated(message.data as SkillActivatedData)
         break
       case 'error':
         handlers.onError(message.data as ErrorData)

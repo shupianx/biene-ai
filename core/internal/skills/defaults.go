@@ -7,40 +7,32 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"biene/internal/bienehome"
 )
 
-const skillConfigFile = ".biene/skill-config.json"
-
-type globalSkillConfig struct {
+type skillRepositoryConfig struct {
 	DefaultEnabledSkillDirs []string `json:"defaultEnabledSkillDirs"`
 	DefaultSkillDir         string   `json:"defaultSkillDir,omitempty"`
 }
 
-func skillConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
+func loadSkillRepositoryConfig() (skillRepositoryConfig, error) {
+	path, err := bienehome.SkillConfigPath()
 	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, skillConfigFile), nil
-}
-
-func loadGlobalSkillConfig() (globalSkillConfig, error) {
-	path, err := skillConfigPath()
-	if err != nil {
-		return globalSkillConfig{}, err
+		return skillRepositoryConfig{}, err
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return globalSkillConfig{}, nil
+			return skillRepositoryConfig{}, nil
 		}
-		return globalSkillConfig{}, err
+		return skillRepositoryConfig{}, err
 	}
 
-	var cfg globalSkillConfig
+	var cfg skillRepositoryConfig
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return globalSkillConfig{}, err
+		return skillRepositoryConfig{}, err
 	}
 
 	cfg.DefaultEnabledSkillDirs = normalizeDefaultEnabledSkillDirs(cfg.DefaultEnabledSkillDirs, cfg.DefaultSkillDir)
@@ -70,10 +62,10 @@ func normalizeDefaultEnabledSkillDirs(items []string, legacy string) []string {
 	return out
 }
 
-// InstallDefaultEnabled copies globally configured default-enabled skills into
-// a new agent workspace under <workDir>/.biene/skills.
+// InstallDefaultEnabled copies repository-configured default-enabled skills
+// into a new agent workspace under <workDir>/.biene/skills.
 func InstallDefaultEnabled(workDir string) error {
-	cfg, err := loadGlobalSkillConfig()
+	cfg, err := loadSkillRepositoryConfig()
 	if err != nil {
 		return err
 	}
@@ -81,7 +73,7 @@ func InstallDefaultEnabled(workDir string) error {
 		return nil
 	}
 
-	root, err := EnsureGlobalRoot()
+	root, err := EnsureRepositoryRoot()
 	if err != nil {
 		return err
 	}
@@ -93,7 +85,7 @@ func InstallDefaultEnabled(workDir string) error {
 		return err
 	}
 
-	destRoot := filepath.Join(workDir, ".biene", "skills")
+	destRoot := filepath.Join(workDir, bienehome.DirName, "skills")
 	if err := os.MkdirAll(destRoot, 0o755); err != nil {
 		return err
 	}
@@ -120,7 +112,7 @@ func InstallDefaultEnabled(workDir string) error {
 	return nil
 }
 
-func resolveConfiguredSkillDir(globalRootReal, configured string) (string, bool, error) {
+func resolveConfiguredSkillDir(repositoryRootReal, configured string) (string, bool, error) {
 	if configured == "" {
 		return "", false, nil
 	}
@@ -133,7 +125,7 @@ func resolveConfiguredSkillDir(globalRootReal, configured string) (string, bool,
 		return "", false, err
 	}
 
-	if srcReal == globalRootReal || !hasPathPrefix(srcReal, globalRootReal) {
+	if srcReal == repositoryRootReal || !hasPathPrefix(srcReal, repositoryRootReal) {
 		return "", false, nil
 	}
 

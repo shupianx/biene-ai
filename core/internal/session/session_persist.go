@@ -182,7 +182,7 @@ func (s *Session) UpdateSettings(name string, perms tools.PermissionSet, profile
 		ID:      s.ID,
 		Name:    s.Name,
 		WorkDir: s.WorkDir,
-	}, nil, nil)
+	}, nil)
 	meta := s.metaLocked()
 	persistedMeta := s.persistentMetaLocked()
 	s.mu.Unlock()

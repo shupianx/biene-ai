@@ -9,13 +9,13 @@ import (
 )
 
 type editableModelEntry struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Provider       string `json:"provider"`
-	APIKey         string `json:"api_key"`
-	Model          string `json:"model"`
-	BaseURL        string `json:"base_url"`
-	EnableThinking bool   `json:"enable_thinking,omitempty"`
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	Provider          string `json:"provider"`
+	APIKey            string `json:"api_key"`
+	Model             string `json:"model"`
+	BaseURL           string `json:"base_url"`
+	ThinkingAvailable bool   `json:"thinking_available,omitempty"`
 }
 
 type editableConfig struct {
@@ -52,13 +52,13 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	for i, entry := range req.ModelList {
 		cfg.ModelList[i] = config.ModelEntry{
-			ID:             entry.ID,
-			Name:           entry.Name,
-			Provider:       entry.Provider,
-			APIKey:         entry.APIKey,
-			Model:          entry.Model,
-			BaseURL:        entry.BaseURL,
-			EnableThinking: entry.EnableThinking,
+			ID:                entry.ID,
+			Name:              entry.Name,
+			Provider:          entry.Provider,
+			APIKey:            entry.APIKey,
+			Model:             entry.Model,
+			BaseURL:           entry.BaseURL,
+			ThinkingAvailable: entry.ThinkingAvailable,
 		}
 	}
 
@@ -131,13 +131,13 @@ func configResponse(cfg *config.Config) editableConfig {
 	entries := make([]editableModelEntry, len(cfg.ModelList))
 	for i, e := range cfg.ModelList {
 		entries[i] = editableModelEntry{
-			ID:             e.ID,
-			Name:           e.Name,
-			Provider:       e.Provider,
-			APIKey:         e.APIKey,
-			Model:          e.Model,
-			BaseURL:        e.BaseURL,
-			EnableThinking: e.EnableThinking,
+			ID:                e.ID,
+			Name:              e.Name,
+			Provider:          e.Provider,
+			APIKey:            e.APIKey,
+			Model:             e.Model,
+			BaseURL:           e.BaseURL,
+			ThinkingAvailable: e.ThinkingAvailable,
 		}
 	}
 

@@ -265,7 +265,7 @@ function emptyProviderDraft(): ConfigModelEntry {
     api_key: '',
     model: '',
     base_url: '',
-    enable_thinking: false,
+    thinking_available: false,
   }
 }
 
@@ -277,7 +277,7 @@ function cloneProvider(entry: ConfigModelEntry): ConfigModelEntry {
     api_key: entry.api_key,
     model: entry.model,
     base_url: entry.base_url,
-    enable_thinking: Boolean(entry.enable_thinking),
+    thinking_available: Boolean(entry.thinking_available),
   }
 }
 
@@ -338,7 +338,7 @@ function detectProviderTemplate(entry: ConfigModelEntry): ProviderTemplateID {
       entry.provider === template.provider &&
       entry.model === template.model &&
       entry.base_url === template.base_url &&
-      Boolean(entry.enable_thinking) === Boolean(template.enable_thinking)
+      Boolean(entry.thinking_available) === Boolean(template.thinking_available)
     ) {
       return id as ProviderTemplateID
     }
@@ -355,7 +355,7 @@ function applyProviderTemplate(templateID: ProviderTemplateID) {
   providerDraft.provider = template.provider
   providerDraft.model = template.model
   providerDraft.base_url = template.base_url
-  providerDraft.enable_thinking = Boolean(template.enable_thinking)
+  providerDraft.thinking_available = Boolean(template.thinking_available)
 }
 
 async function loadCoreConfig() {
@@ -431,7 +431,7 @@ async function saveProviderDraft() {
     api_key: providerDraft.api_key.trim(),
     model: providerDraft.model.trim(),
     base_url: providerDraft.base_url.trim(),
-    enable_thinking: Boolean(providerDraft.enable_thinking),
+    thinking_available: Boolean(providerDraft.thinking_available),
   }
 
   if (!nextEntry.name) {

@@ -2,7 +2,6 @@ package api
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,37 +10,36 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sashabaranov/go-openai"
+	openai "github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
-// OpenAIProvider implements Provider using the OpenAI-compatible API.
-// It works with OpenAI, Ollama, 豆包, Gemini OpenAI-compat, DeepSeek, etc.
-// by setting BaseURL in the client config.
+const defaultOpenAIBaseURL = "https://api.openai.com/v1"
+
+// OpenAIProvider implements Provider using the official OpenAI Go SDK and a
+// small Chat Completions compatibility layer for OpenAI-compatible backends.
 type OpenAIProvider struct {
-	client     *openai.Client
-	httpClient openai.HTTPDoer
-	apiKey     string
-	baseURL    string
-	model      string
+	client *openai.Client
+	model  string
 }
 
 // NewOpenAIProvider creates a new OpenAI-compatible provider.
 // Set baseURL to "" to use the official OpenAI API.
 func NewOpenAIProvider(apiKey, model, baseURL string) *OpenAIProvider {
-	cfg := openai.DefaultConfig(apiKey)
-	if baseURL != "" {
-		cfg.BaseURL = baseURL
+	if strings.TrimSpace(baseURL) == "" {
+		baseURL = defaultOpenAIBaseURL
 	}
-	httpClient := cfg.HTTPClient
-	if httpClient == nil {
-		httpClient = http.DefaultClient
+
+	opts := []option.RequestOption{
+		option.WithBaseURL(strings.TrimRight(baseURL, "/")),
 	}
+	if apiKey != "" {
+		opts = append(opts, option.WithAPIKey(apiKey))
+	}
+
 	return &OpenAIProvider{
-		client:     openai.NewClientWithConfig(cfg),
-		httpClient: httpClient,
-		apiKey:     apiKey,
-		baseURL:    strings.TrimRight(cfg.BaseURL, "/"),
-		model:      model,
+		client: &openai.Client{Options: opts},
+		model:  model,
 	}
 }
 
@@ -61,7 +59,7 @@ func (p *OpenAIProvider) Stream(
 		return nil, fmt.Errorf("converting messages: %w", err)
 	}
 
-	req := openai.ChatCompletionRequest{
+	req := openAIChatCompletionRequest{
 		Model:     p.model,
 		Messages:  apiMessages,
 		MaxTokens: maxTokens,
@@ -81,7 +79,6 @@ func (p *OpenAIProvider) Stream(
 		defer close(ch)
 		defer stream.Close()
 
-		// Accumulate tool call deltas by index
 		type toolAccum struct {
 			id      string
 			name    string
@@ -104,23 +101,23 @@ func (p *OpenAIProvider) Stream(
 			}
 			delta := resp.Choices[0].Delta
 
-			// Reasoning content for providers like Qwen / DeepSeek.
-			if delta.ReasoningContent != "" {
-				ch <- StreamEvent{Type: EventReasoningDelta, Text: delta.ReasoningContent}
+			reasoningText := delta.ReasoningContent
+			if reasoningText == "" {
+				reasoningText = delta.Reasoning
+			}
+			if reasoningText != "" {
+				ch <- StreamEvent{Type: EventReasoningDelta, Text: reasoningText}
 			}
 
-			// Text content
 			if delta.Content != "" {
 				ch <- StreamEvent{Type: EventTextDelta, Text: delta.Content}
 			}
 
-			// Tool call deltas
 			for _, tc := range delta.ToolCalls {
-				idx := tc.Index
-				if idx == nil {
+				if tc.Index == nil {
 					continue
 				}
-				i := *idx
+				i := *tc.Index
 				if _, ok := toolAccums[i]; !ok {
 					toolAccums[i] = &toolAccum{
 						id: fmt.Sprintf("openai_tool_%d", i),
@@ -146,8 +143,7 @@ func (p *OpenAIProvider) Stream(
 				acc.args = append(acc.args, tc.Function.Arguments...)
 			}
 
-			// Emit complete tool uses when finish_reason arrives
-			if resp.Choices[0].FinishReason == openai.FinishReasonToolCalls {
+			if resp.Choices[0].FinishReason == openAIChatFinishReasonToolCalls {
 				for _, acc := range toolAccums {
 					input := json.RawMessage(acc.args)
 					if len(input) == 0 {
@@ -166,7 +162,6 @@ func (p *OpenAIProvider) Stream(
 			}
 		}
 
-		// Emit any remaining tool uses (some providers don't send finish_reason=tool_calls)
 		for _, acc := range toolAccums {
 			if acc.id == "" && acc.name == "" {
 				continue
@@ -192,79 +187,36 @@ func (p *OpenAIProvider) Stream(
 }
 
 type chatCompletionStream interface {
-	Recv() (openai.ChatCompletionStreamResponse, error)
+	Recv() (openAIChatCompletionStreamResponse, error)
 	Close() error
 }
 
 func (p *OpenAIProvider) openStream(
 	ctx context.Context,
-	req openai.ChatCompletionRequest,
+	req openAIChatCompletionRequest,
 	opts RequestOptions,
 ) (chatCompletionStream, error) {
-	if opts.EnableThinking == nil {
-		return p.client.CreateChatCompletionStream(ctx, req)
+	var resp *http.Response
+	reqOpts := []option.RequestOption{
+		option.WithHeader("Accept", "text/event-stream"),
+		option.WithHeader("Cache-Control", "no-cache"),
+		option.WithHeader("Connection", "keep-alive"),
+	}
+	if opts.EnableThinking != nil {
+		reqOpts = append(reqOpts, option.WithJSONSet("enable_thinking", *opts.EnableThinking))
 	}
 
-	body, err := marshalChatCompletionRequest(req, map[string]any{
-		"enable_thinking": *opts.EnableThinking,
-	})
-	if err != nil {
+	if err := p.client.Post(ctx, "chat/completions", req, &resp, reqOpts...); err != nil {
 		return nil, err
 	}
-
-	httpReq, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		p.baseURL+"/chat/completions",
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "text/event-stream")
-	httpReq.Header.Set("Cache-Control", "no-cache")
-	httpReq.Header.Set("Connection", "keep-alive")
-	if p.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
-	}
-
-	resp, err := p.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
-		defer resp.Body.Close()
-		bodyText, _ := io.ReadAll(resp.Body)
-		if len(bodyText) == 0 {
-			return nil, fmt.Errorf("unexpected status: %s", resp.Status)
-		}
-		return nil, fmt.Errorf("%s", strings.TrimSpace(string(bodyText)))
+	if resp == nil || resp.Body == nil {
+		return nil, errors.New("empty streaming response")
 	}
 
 	return &manualChatCompletionStream{
 		body:   resp.Body,
 		reader: bufio.NewReader(resp.Body),
 	}, nil
-}
-
-func marshalChatCompletionRequest(req openai.ChatCompletionRequest, extra map[string]any) ([]byte, error) {
-	body, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	if len(extra) == 0 {
-		return body, nil
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, err
-	}
-	for key, value := range extra {
-		payload[key] = value
-	}
-	return json.Marshal(payload)
 }
 
 type manualChatCompletionStream struct {
@@ -276,9 +228,9 @@ func (s *manualChatCompletionStream) Close() error {
 	return s.body.Close()
 }
 
-func (s *manualChatCompletionStream) Recv() (openai.ChatCompletionStreamResponse, error) {
+func (s *manualChatCompletionStream) Recv() (openAIChatCompletionStreamResponse, error) {
 	var (
-		resp      openai.ChatCompletionStreamResponse
+		resp      openAIChatCompletionStreamResponse
 		dataLines []string
 	)
 
@@ -319,28 +271,87 @@ func (s *manualChatCompletionStream) Recv() (openai.ChatCompletionStreamResponse
 	return resp, nil
 }
 
+type openAIChatCompletionRequest struct {
+	Model     string                        `json:"model"`
+	Messages  []openAIChatCompletionMessage `json:"messages"`
+	MaxTokens int                           `json:"max_tokens,omitempty"`
+	Stream    bool                          `json:"stream,omitempty"`
+	Tools     []openAIChatCompletionTool    `json:"tools,omitempty"`
+}
+
+type openAIChatCompletionMessage struct {
+	Role       string                         `json:"role"`
+	Content    string                         `json:"content,omitempty"`
+	ToolCallID string                         `json:"tool_call_id,omitempty"`
+	ToolCalls  []openAIChatCompletionToolCall `json:"tool_calls,omitempty"`
+}
+
+type openAIChatCompletionTool struct {
+	Type     string                                  `json:"type"`
+	Function *openAIChatCompletionFunctionDefinition `json:"function,omitempty"`
+}
+
+type openAIChatCompletionFunctionDefinition struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Parameters  json.RawMessage `json:"parameters,omitempty"`
+}
+
+type openAIChatCompletionToolCall struct {
+	ID       string                           `json:"id,omitempty"`
+	Type     string                           `json:"type"`
+	Function openAIChatCompletionFunctionCall `json:"function"`
+}
+
+type openAIChatCompletionFunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type openAIChatCompletionStreamResponse struct {
+	Choices []openAIChatCompletionStreamChoice `json:"choices"`
+}
+
+type openAIChatCompletionStreamChoice struct {
+	Delta        openAIChatCompletionStreamChoiceDelta `json:"delta"`
+	FinishReason string                                `json:"finish_reason"`
+}
+
+type openAIChatCompletionStreamChoiceDelta struct {
+	Content          string                              `json:"content"`
+	Reasoning        string                              `json:"reasoning"`
+	ReasoningContent string                              `json:"reasoning_content"`
+	ToolCalls        []openAIChatCompletionDeltaToolCall `json:"tool_calls"`
+}
+
+type openAIChatCompletionDeltaToolCall struct {
+	Index    *int                             `json:"index"`
+	ID       string                           `json:"id"`
+	Function openAIChatCompletionFunctionCall `json:"function"`
+}
+
+const openAIChatFinishReasonToolCalls = "tool_calls"
+
 // ─── Conversion helpers ───────────────────────────────────────────────────
 
-func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openai.ChatCompletionMessage, error) {
-	out := []openai.ChatCompletionMessage{
-		{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
+func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openAIChatCompletionMessage, error) {
+	out := []openAIChatCompletionMessage{
+		{Role: "system", Content: systemPrompt},
 	}
 
 	for _, m := range msgs {
 		switch m.Role {
 		case RoleUser:
-			// User messages may contain text and tool_result blocks.
-			// OpenAI encodes tool results as separate "tool" role messages.
 			for _, b := range m.Content {
 				switch v := b.(type) {
 				case TextBlock:
-					out = append(out, openai.ChatCompletionMessage{
-						Role:    openai.ChatMessageRoleUser,
+					out = append(out, openAIChatCompletionMessage{
+						Role:    "user",
 						Content: v.Text,
 					})
 				case ToolResultBlock:
-					out = append(out, openai.ChatCompletionMessage{
-						Role:       openai.ChatMessageRoleTool,
+					out = append(out, openAIChatCompletionMessage{
+						Role:       "tool",
 						Content:    v.Content,
 						ToolCallID: v.ToolUseID,
 					})
@@ -348,17 +359,17 @@ func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openai.Chat
 			}
 
 		case RoleAssistant:
-			msg := openai.ChatCompletionMessage{Role: openai.ChatMessageRoleAssistant}
-			var toolCalls []openai.ToolCall
+			msg := openAIChatCompletionMessage{Role: "assistant"}
+			var toolCalls []openAIChatCompletionToolCall
 			for _, b := range m.Content {
 				switch v := b.(type) {
 				case TextBlock:
 					msg.Content = v.Text
 				case ToolUseBlock:
-					toolCalls = append(toolCalls, openai.ToolCall{
+					toolCalls = append(toolCalls, openAIChatCompletionToolCall{
 						ID:   v.ID,
-						Type: openai.ToolTypeFunction,
-						Function: openai.FunctionCall{
+						Type: "function",
+						Function: openAIChatCompletionFunctionCall{
 							Name:      v.Name,
 							Arguments: string(v.Input),
 						},
@@ -377,17 +388,17 @@ func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openai.Chat
 	return out, nil
 }
 
-func convertToolsToOpenAI(tools []ToolDefinition) []openai.Tool {
-	out := make([]openai.Tool, 0, len(tools))
+func convertToolsToOpenAI(tools []ToolDefinition) []openAIChatCompletionTool {
+	out := make([]openAIChatCompletionTool, 0, len(tools))
 	for _, t := range tools {
 		var params interface{}
 		if len(t.InputSchema) > 0 {
 			_ = json.Unmarshal(t.InputSchema, &params)
 		}
 		paramBytes, _ := json.Marshal(params)
-		out = append(out, openai.Tool{
-			Type: openai.ToolTypeFunction,
-			Function: &openai.FunctionDefinition{
+		out = append(out, openAIChatCompletionTool{
+			Type: "function",
+			Function: &openAIChatCompletionFunctionDefinition{
 				Name:        t.Name,
 				Description: t.Description,
 				Parameters:  json.RawMessage(paramBytes),

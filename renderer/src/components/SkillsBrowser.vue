@@ -1,5 +1,14 @@
 <template>
   <section class="skills-browser" :class="{ embedded }">
+    <input
+      ref="importInputRef"
+      class="skills-import-input"
+      type="file"
+      multiple
+      directory
+      webkitdirectory
+      @change="onImportSelected"
+    >
     <header class="skills-topbar">
       <div class="skills-topbar-actions">
         <button class="skills-action skills-action-import" type="button" :disabled="importing" @click="onImport">
@@ -36,7 +45,7 @@
       <div class="skills-list" aria-label="Skills">
         <div
           v-for="skill in catalog.skills"
-          :key="skill.file_path"
+          :key="skill.id"
           class="skill-list-item"
         >
           <span class="skill-list-name">{{ skill.name }}</span>
@@ -47,7 +56,7 @@
               type="button"
               :title="t('skillsBrowser.defaultEnabledLabel')"
               :aria-label="t('skillsBrowser.defaultEnabledLabel')"
-              :disabled="busySkillDir === skill.dir"
+              :disabled="busySkillID === skill.id"
               @click="onToggleDefaultEnabled(skill)"
             >
               <DefaultOnIcon v-if="isDefaultEnabledSkill(skill)" class="skill-action-icon" />
@@ -59,19 +68,19 @@
                 type="button"
                 :title="t('skillsBrowser.deleteLabel')"
                 :aria-label="t('skillsBrowser.deleteLabel')"
-                :disabled="busySkillDir === skill.dir"
+                :disabled="busySkillID === skill.id"
                 @click="onToggleDeletePopover(skill)"
               >
                 <DeleteIcon class="skill-action-icon" />
               </button>
               <div
-                v-if="deleteConfirmSkillDir === skill.dir"
+                v-if="deleteConfirmSkillID === skill.id"
                 class="skill-delete-popover"
               >
                 <button
                   class="skill-delete-popover-btn is-danger"
                   type="button"
-                  :disabled="busySkillDir === skill.dir"
+                  :disabled="busySkillID === skill.id"
                   @click="onDeleteSkill(skill)"
                 >
                   {{ t('skillsBrowser.confirmDeleteLabel') }}
@@ -91,9 +100,16 @@ import FolderOpenIcon from '~icons/material-symbols/folder-open-outline'
 import DeleteIcon from '~icons/material-symbols/delete-forever-outline-sharp'
 import DefaultOffIcon from '~icons/tabler/file'
 import DefaultOnIcon from '~icons/tabler/file-power'
-import { listSkills, type SkillCatalogEntry, type SkillsCatalog } from '../api/http'
+import {
+  deleteSkill,
+  importSkillFolder,
+  listSkills,
+  saveSkillsConfig,
+  type SkillCatalogEntry,
+  type SkillsCatalog,
+} from '../api/http'
 import { t } from '../i18n'
-import { getDesktopBridge, type SkillConfig } from '../runtime'
+import { getDesktopBridge } from '../runtime'
 
 const props = withDefaults(defineProps<{
   embedded?: boolean
@@ -108,53 +124,24 @@ const emit = defineEmits<{
 }>()
 
 const catalog = ref<SkillsCatalog | null>(null)
+const importInputRef = ref<HTMLInputElement | null>(null)
 const loading = ref(false)
 const importing = ref(false)
 const error = ref('')
-const busySkillDir = ref('')
-const deleteConfirmSkillDir = ref('')
+const busySkillID = ref('')
+const deleteConfirmSkillID = ref('')
+const defaultEnabledSkillIDs = ref<string[]>([])
 const rootFallback = '~/.biene/skills'
 
-function defaultSkillConfig(): SkillConfig {
-  return {
-    defaultEnabledSkillDirs: [],
-  }
-}
-
-const skillConfig = ref<SkillConfig>(defaultSkillConfig())
-
 function isDefaultEnabledSkill(skill: SkillCatalogEntry) {
-  return skillConfig.value.defaultEnabledSkillDirs.includes(skill.dir)
-}
-
-async function loadSkillConfig() {
-  const bridge = getDesktopBridge()
-  if (!bridge?.getSkillConfig) {
-    skillConfig.value = defaultSkillConfig()
-    return
-  }
-
-  skillConfig.value = await bridge.getSkillConfig()
-}
-
-async function updateSkillConfig(patch: Partial<SkillConfig>) {
-  const bridge = getDesktopBridge()
-  if (!bridge?.updateSkillConfig) {
-    skillConfig.value = {
-      ...skillConfig.value,
-      ...patch,
-    }
-    return
-  }
-
-  skillConfig.value = await bridge.updateSkillConfig(patch)
+  return defaultEnabledSkillIDs.value.includes(skill.id)
 }
 
 async function loadSkills() {
   loading.value = true
   error.value = ''
   try {
-    catalog.value = await listSkills()
+    applyCatalog(await listSkills())
   } catch (nextError) {
     error.value = nextError instanceof Error ? nextError.message : String(nextError)
   } finally {
@@ -163,20 +150,26 @@ async function loadSkills() {
 }
 
 async function onImport() {
-  const bridge = getDesktopBridge()
-  if (!bridge?.importSkillFolder) return
+  error.value = ''
+  if (!importInputRef.value) return
+  importInputRef.value.value = ''
+  importInputRef.value.click()
+}
 
+async function onImportSelected(event: Event) {
+  const target = event.target
+  if (!(target instanceof HTMLInputElement) || !target.files || target.files.length === 0) return
+
+  const files = Array.from(target.files)
   importing.value = true
   error.value = ''
   try {
-    const importedCount = await bridge.importSkillFolder()
-    if (importedCount > 0) {
-      await loadSkills()
-    }
+    applyCatalog(await importSkillFolder(files))
   } catch (nextError) {
     error.value = nextError instanceof Error ? nextError.message : String(nextError)
   } finally {
     importing.value = false
+    target.value = ''
   }
 }
 
@@ -192,60 +185,58 @@ async function onOpenFolder() {
 }
 
 async function onToggleDefaultEnabled(skill: SkillCatalogEntry) {
-  busySkillDir.value = skill.dir
+  busySkillID.value = skill.id
   error.value = ''
   try {
-    const next = new Set(skillConfig.value.defaultEnabledSkillDirs)
-    if (next.has(skill.dir)) {
-      next.delete(skill.dir)
+    const next = new Set(defaultEnabledSkillIDs.value)
+    if (next.has(skill.id)) {
+      next.delete(skill.id)
     } else {
-      next.add(skill.dir)
+      next.add(skill.id)
     }
-
-    await updateSkillConfig({
-      defaultEnabledSkillDirs: [...next],
-    })
+    applyCatalog(await saveSkillsConfig([...next]))
   } catch (nextError) {
     error.value = nextError instanceof Error ? nextError.message : String(nextError)
   } finally {
-    busySkillDir.value = ''
+    busySkillID.value = ''
   }
 }
 
 async function onDeleteSkill(skill: SkillCatalogEntry) {
-  const bridge = getDesktopBridge()
-  if (!bridge?.deleteSkill) return
-
-  busySkillDir.value = skill.dir
+  busySkillID.value = skill.id
   error.value = ''
   try {
-    skillConfig.value = await bridge.deleteSkill(skill.dir)
-    deleteConfirmSkillDir.value = ''
-    await loadSkills()
+    applyCatalog(await deleteSkill(skill.id))
+    deleteConfirmSkillID.value = ''
   } catch (nextError) {
     error.value = nextError instanceof Error ? nextError.message : String(nextError)
   } finally {
-    busySkillDir.value = ''
+    busySkillID.value = ''
   }
 }
 
 function onToggleDeletePopover(skill: SkillCatalogEntry) {
-  deleteConfirmSkillDir.value = deleteConfirmSkillDir.value === skill.dir ? '' : skill.dir
+  deleteConfirmSkillID.value = deleteConfirmSkillID.value === skill.id ? '' : skill.id
 }
 
 function onDocumentPointerDown(event: PointerEvent) {
   const target = event.target
   if (!(target instanceof Element)) {
-    deleteConfirmSkillDir.value = ''
+    deleteConfirmSkillID.value = ''
     return
   }
   if (target.closest('.skill-delete-shell')) return
-  deleteConfirmSkillDir.value = ''
+  deleteConfirmSkillID.value = ''
+}
+
+function applyCatalog(nextCatalog: SkillsCatalog) {
+  catalog.value = nextCatalog
+  defaultEnabledSkillIDs.value = [...nextCatalog.default_enabled_skill_ids]
 }
 
 onMounted(() => {
   document.addEventListener('pointerdown', onDocumentPointerDown)
-  void Promise.all([loadSkills(), loadSkillConfig()])
+  void loadSkills()
 })
 
 onBeforeUnmount(() => {
@@ -254,6 +245,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.skills-import-input {
+  display: none;
+}
+
 .skills-browser {
   height: 100%;
   min-height: 0;

@@ -94,6 +94,9 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("GET /api/config", s.handleConfig)
 	mux.HandleFunc("POST /api/config", s.handleUpdateConfig)
 	mux.HandleFunc("GET /api/skills", s.handleListSkills)
+	mux.HandleFunc("POST /api/skills/config", s.handleUpdateSkillsConfig)
+	mux.HandleFunc("POST /api/skills/import", s.handleImportSkills)
+	mux.HandleFunc("DELETE /api/skills/{id}", s.handleDeleteSkill)
 
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
 	fmt.Printf("biene-core listening on http://%s\n", addr)

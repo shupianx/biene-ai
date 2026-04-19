@@ -82,14 +82,14 @@ Check correctness first.
 	}
 }
 
-func TestScanGlobalCreatesRootAndLoadsSkills(t *testing.T) {
+func TestScanRepositoryCreatesRootAndLoadsSkills(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	root, err := EnsureGlobalRoot()
+	root, err := EnsureRepositoryRoot()
 	if err != nil {
-		t.Fatalf("EnsureGlobalRoot returned error: %v", err)
+		t.Fatalf("EnsureRepositoryRoot returned error: %v", err)
 	}
 
 	skillDir := filepath.Join(root, "triage")
@@ -107,9 +107,9 @@ Look at urgency first.
 		t.Fatal(err)
 	}
 
-	metas, scanRoot, err := ScanGlobal()
+	metas, scanRoot, err := ScanRepository()
 	if err != nil {
-		t.Fatalf("ScanGlobal returned error: %v", err)
+		t.Fatalf("ScanRepository returned error: %v", err)
 	}
 	if scanRoot != root {
 		t.Fatalf("expected root %q, got %q", root, scanRoot)

@@ -9,34 +9,16 @@ import (
 // ── Display history helpers ───────────────────────────────────────────────
 
 func (s *Session) appendAssistantSegmentLocked() *DisplayMessage {
-	usedSkillName := s.currentTurnSkillLabelLocked()
 	s.history = append(s.history, DisplayMessage{
-		ID:            newMsgID(),
-		Role:          "assistant",
-		AuthorType:    authorTypeAgent,
-		AuthorID:      s.ID,
-		AuthorName:    s.Name,
-		UsedSkillName: usedSkillName,
-		Streaming:     true,
-		CreatedAt:     time.Now(),
+		ID:         newMsgID(),
+		Role:       "assistant",
+		AuthorType: authorTypeAgent,
+		AuthorID:   s.ID,
+		AuthorName: s.Name,
+		Streaming:  true,
+		CreatedAt:  time.Now(),
 	})
 	return &s.history[len(s.history)-1]
-}
-
-func (s *Session) currentTurnSkillLabelLocked() string {
-	if s.currentSkillName == "" {
-		return ""
-	}
-	for i := len(s.history) - 1; i >= 0; i-- {
-		msg := s.history[i]
-		if msg.Role != "assistant" || !msg.Streaming {
-			break
-		}
-		if msg.UsedSkillName != "" {
-			return ""
-		}
-	}
-	return s.currentSkillName
 }
 
 func (s *Session) latestStreamingAssistantLocked() *DisplayMessage {

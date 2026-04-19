@@ -50,9 +50,6 @@
         <div v-if="session.meta.model_name" class="model-tag" :title="session.meta.model_name">
           {{ session.meta.model_name }}
         </div>
-        <div v-if="session.activeSkillName" class="skill-tag">
-          ⚡ {{ session.activeSkillName }}
-        </div>
         <div class="updated">{{ updatedAt }}</div>
       </div>
     </div>
@@ -370,16 +367,6 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
 .status-tag.running .status-dot,
 .status-tag.approval .status-dot {
   animation: bienePulse 1.6s ease-in-out infinite;
-}
-
-.skill-tag {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  padding: 2px 6px;
-  white-space: nowrap;
 }
 
 .model-tag {

@@ -64,7 +64,6 @@ type DisplayMessage struct {
 	AuthorID      string                  `json:"author_id,omitempty"`
 	AuthorName    string                  `json:"author_name,omitempty"`
 	AgentMeta     *tools.AgentMessageMeta `json:"agent_meta,omitempty"`
-	UsedSkillName string                  `json:"used_skill_name,omitempty"`
 	Text          string                  `json:"text"`
 	Streaming     bool                    `json:"streaming,omitempty"` // true while a response is in progress
 	ToolCalls     []DisplayTool           `json:"tool_calls,omitempty"`
@@ -97,7 +96,6 @@ type Session struct {
 	registry          *tools.Registry
 	checker           *webperm.Checker
 	systemPrompt      string
-	currentSkillName  string
 	maxTokens         int
 	permissions       tools.PermissionSet
 	profile           prompt.AgentProfile
@@ -106,6 +104,10 @@ type Session struct {
 	modelName         string
 	thinkingAvailable bool
 	thinkingEnabled   bool
+
+	// activeSkills tracks skills that have been loaded via use_skill during
+	// this session. Names are unique and kept in activation order.
+	activeSkills []string
 
 	// apiMessages is the canonical conversation passed into the next model turn.
 	apiMessages []api.Message
@@ -148,6 +150,7 @@ type SessionMeta struct {
 	Permissions       tools.PermissionSet       `json:"permissions"`
 	Profile           prompt.AgentProfile       `json:"profile"`
 	PendingPermission *PermissionRequestPayload `json:"pending_permission,omitempty"`
+	ActiveSkills      []string                  `json:"active_skills,omitempty"`
 	CreatedAt         time.Time                 `json:"created_at"`
 	LastActive        time.Time                 `json:"last_active"`
 }
@@ -171,6 +174,7 @@ func (s *Session) metaLocked() SessionMeta {
 		Permissions:       s.permissions,
 		Profile:           s.profile,
 		PendingPermission: clonePermissionPayload(s.pendingPermission),
+		ActiveSkills:      append([]string(nil), s.activeSkills...),
 		CreatedAt:         s.CreatedAt,
 		LastActive:        s.LastActive,
 	}

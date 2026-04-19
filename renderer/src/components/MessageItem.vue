@@ -3,7 +3,6 @@
     <div class="bubble">
       <div v-if="msg.role === 'assistant'" class="assistant-head">
         <span class="role-tag">AGENT</span>
-        <span v-if="usedSkillLabel" class="skill-note">⚡ {{ usedSkillLabel }}</span>
       </div>
       <div v-if="reasoningText" class="reasoning-block" :class="{ complete: reasoningComplete }">
         <button
@@ -23,6 +22,7 @@
           />
         </button>
         <div
+          ref="reasoningContentRef"
           class="reasoning-content"
           :class="{
             complete: reasoningComplete,
@@ -30,6 +30,9 @@
             streaming: !reasoningComplete,
           }"
           :style="reasoningContentStyle"
+          @scroll="onReasoningScroll"
+          @wheel.passive="onReasoningUserScrollIntent"
+          @touchmove.passive="onReasoningUserScrollIntent"
         >
           <div ref="reasoningBodyRef" class="reasoning-body" dir="auto">
             {{ reasoningText }}
@@ -76,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import MaterialSymbolsArrowForwardIosRounded from '~icons/material-symbols/arrow-forward-ios-rounded'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import type { DisplayMessage } from '../api/http'
@@ -89,6 +92,8 @@ import { formatMessageTime } from '../utils/messageTime'
 const props = defineProps<{ msg: DisplayMessage }>()
 const { openAgent } = useAgentNavigation()
 const store = useSessionsStore()
+const REASONING_AUTO_SCROLL_THRESHOLD = 12
+const REASONING_AUTO_SCROLL_DURATION_MS = 180
 
 const renderedText = computed(() =>
   renderMarkdown(props.msg.text)
@@ -97,14 +102,16 @@ const renderedText = computed(() =>
 const assistantHasText = computed(() =>
   props.msg.role === 'assistant' && Boolean(props.msg.text.trim())
 )
-
-const usedSkillLabel = computed(() => {
-  if (props.msg.role !== 'assistant' || !props.msg.used_skill_name) return ''
-  return t('message.usedSkill', { name: props.msg.used_skill_name })
-})
 const reasoningCollapsed = ref(false)
+const reasoningContentRef = ref<HTMLElement | null>(null)
 const reasoningBodyRef = ref<HTMLElement | null>(null)
 const reasoningExpandedHeight = ref(0)
+const reasoningPinnedToBottom = ref(true)
+let reasoningAutoScrollFrame: number | null = null
+let reasoningAutoScrollStart = 0
+let reasoningAutoScrollFrom = 0
+let reasoningAutoScrollTarget = 0
+let reasoningAutoScrolling = false
 
 const reasoningText = computed(() =>
   props.msg.role === 'assistant' ? props.msg.reasoning?.text ?? '' : ''
@@ -184,14 +191,104 @@ watch(
   () => {
     void nextTick(() => {
       reasoningExpandedHeight.value = reasoningBodyRef.value?.scrollHeight ?? 0
+      if (!reasoningComplete.value && reasoningPinnedToBottom.value) {
+        scrollReasoningToBottom()
+      }
     })
   },
   { immediate: true },
 )
 
+watch(
+  () => props.msg.id,
+  () => {
+    stopReasoningAutoScroll()
+    reasoningPinnedToBottom.value = true
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  stopReasoningAutoScroll()
+})
+
 async function openSourceAgent() {
   if (!props.msg.author_id) return
   await openAgent(props.msg.author_id)
+}
+
+function scrollReasoningToBottom() {
+  const el = reasoningContentRef.value
+  if (!el) return
+  const target = Math.max(0, el.scrollHeight - el.clientHeight)
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+  if (prefersReducedMotion || Math.abs(target - el.scrollTop) <= 1) {
+    stopReasoningAutoScroll()
+    el.scrollTop = target
+    reasoningPinnedToBottom.value = true
+    return
+  }
+
+  reasoningAutoScrollStart = performance.now()
+  reasoningAutoScrollFrom = el.scrollTop
+  reasoningAutoScrollTarget = target
+  if (reasoningAutoScrollFrame != null) return
+  reasoningAutoScrolling = true
+  reasoningAutoScrollFrame = window.requestAnimationFrame(stepReasoningAutoScroll)
+}
+
+function onReasoningScroll() {
+  if (reasoningComplete.value || !reasoningContentRef.value || reasoningAutoScrolling) return
+  const { scrollHeight, scrollTop, clientHeight } = reasoningContentRef.value
+  reasoningPinnedToBottom.value =
+    scrollHeight - scrollTop - clientHeight <= REASONING_AUTO_SCROLL_THRESHOLD
+}
+
+function onReasoningUserScrollIntent() {
+  stopReasoningAutoScroll()
+}
+
+function stepReasoningAutoScroll(timestamp: number) {
+  const el = reasoningContentRef.value
+  if (!el) {
+    stopReasoningAutoScroll()
+    return
+  }
+
+  const latestTarget = Math.max(0, el.scrollHeight - el.clientHeight)
+  if (latestTarget > reasoningAutoScrollTarget) {
+    reasoningAutoScrollTarget = latestTarget
+  }
+
+  const progress = Math.min(1, (timestamp - reasoningAutoScrollStart) / REASONING_AUTO_SCROLL_DURATION_MS)
+  const eased = 1 - Math.pow(1 - progress, 3)
+  el.scrollTop = reasoningAutoScrollFrom + (reasoningAutoScrollTarget - reasoningAutoScrollFrom) * eased
+
+  if (progress < 1) {
+    reasoningAutoScrollFrame = window.requestAnimationFrame(stepReasoningAutoScroll)
+    return
+  }
+
+  const remaining = reasoningAutoScrollTarget - el.scrollTop
+  if (remaining > 1) {
+    reasoningAutoScrollStart = timestamp
+    reasoningAutoScrollFrom = el.scrollTop
+    reasoningAutoScrollFrame = window.requestAnimationFrame(stepReasoningAutoScroll)
+    return
+  }
+
+  el.scrollTop = reasoningAutoScrollTarget
+  stopReasoningAutoScroll()
+  reasoningPinnedToBottom.value = true
+}
+
+function stopReasoningAutoScroll() {
+  if (reasoningAutoScrollFrame != null) {
+    window.cancelAnimationFrame(reasoningAutoScrollFrame)
+    reasoningAutoScrollFrame = null
+  }
+  reasoningAutoScrolling = false
 }
 
 function toggleReasoning() {
@@ -244,13 +341,6 @@ function toggleReasoning() {
   color: var(--ink-4);
   padding: 1px 6px;
   border: 1px solid var(--rule-softer);
-}
-
-.skill-note {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--accent);
 }
 
 .reasoning-block {

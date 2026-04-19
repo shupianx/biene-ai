@@ -22,7 +22,6 @@ func Build(
 	profile AgentProfile,
 	self AgentIdentity,
 	installedSkills []skills.Metadata,
-	activatedSkills []skills.Definition,
 ) string {
 	profile = NormalizeProfile(profile)
 	catalog := CurrentCatalog()
@@ -35,7 +34,7 @@ func Build(
 		"You are an AI assistant running inside a desktop workspace.",
 		"Help solve the user's task clearly, accurately, and with useful next steps.",
 		"Your default response mode is plain text. Do not call tools unless they are necessary to complete the task or the current message gives an explicit instruction that requires a tool-mediated action.",
-		"If this agent has installed skills relevant to the current task, follow any activated skill instructions as part of your normal behavior.",
+		"If this agent has installed skills relevant to the current task, call use_skill to load the relevant skill, then follow its instructions as part of your normal behavior.",
 		"When the user asks what skills are installed or available for this agent, use list_skills instead of guessing from memory.",
 		"Use run_command only when command output is actually needed, such as running tests, builds, linters, generators, or project CLIs. Prefer direct file tools when a command is not necessary.",
 		"Use write_file or edit_file only when the user gives a concrete instruction to create or modify workspace files. Answering a question by writing the answer into a file is incorrect.",
@@ -63,26 +62,13 @@ func Build(
 	}
 
 	if len(installedSkills) > 0 {
-		skillLines := make([]string, 0, len(installedSkills)+1)
-		skillLines = append(skillLines, "This agent has the following installed skills available in its own workspace. Only load the full instructions for the skill(s) activated for the current request.")
+		skillLines := make([]string, 0, len(installedSkills)+2)
+		skillLines = append(skillLines, "This agent has the following installed skills available in its own workspace. Each entry shows the skill's name and a short description.")
+		skillLines = append(skillLines, "When an installed skill looks relevant to the user's request, call use_skill with its exact name to load its full instructions. Do not pre-load a skill that is not clearly relevant. Once a skill has been loaded in this conversation, its guidance remains available — do not re-load it for follow-up turns.")
 		for _, skill := range installedSkills {
 			skillLines = append(skillLines, fmt.Sprintf("**%s**: %s", skill.Name, firstLine(skill.Description)))
 		}
 		writeSection(&sb, "Installed Skills", skillLines)
-	}
-
-	if len(activatedSkills) > 0 {
-		activationLines := make([]string, 0, len(activatedSkills))
-		for _, skill := range activatedSkills {
-			activationLines = append(activationLines, fmt.Sprintf("%s: %s", skill.Name, firstLine(skill.Description)))
-		}
-		writeSection(&sb, "Activated Skills", activationLines)
-
-		for _, skill := range activatedSkills {
-			fmt.Fprintf(&sb, "## Skill: %s\n", skill.Name)
-			sb.WriteString(skill.Instructions)
-			sb.WriteString("\n\n")
-		}
 	}
 
 	writeSection(&sb, "Environment", []string{

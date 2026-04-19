@@ -76,7 +76,7 @@ func (m *SessionManager) UpdateConfig(cfg *config.Config) error {
 		}
 
 		sess.mu.Lock()
-		thinkingAvailable := modelEntry.EnableThinking
+		thinkingAvailable := modelEntry.ThinkingAvailable
 		thinkingEnabled := thinkingAvailable
 		if sess.thinkingAvailable {
 			thinkingEnabled = thinkingAvailable && sess.thinkingEnabled

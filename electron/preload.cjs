@@ -39,18 +39,6 @@ const desktopBridge = Object.freeze({
   openAgentWindow(sessionId) {
     return ipcRenderer.invoke('desktop:openAgentWindow', sessionId)
   },
-  importSkillFolder() {
-    return ipcRenderer.invoke('desktop:importSkillFolder')
-  },
-  getSkillConfig() {
-    return ipcRenderer.invoke('desktop:getSkillConfig')
-  },
-  updateSkillConfig(patch) {
-    return ipcRenderer.invoke('desktop:updateSkillConfig', patch)
-  },
-  deleteSkill(skillDir) {
-    return ipcRenderer.invoke('desktop:deleteSkill', skillDir)
-  },
   setSkillsSidebarOpen(open, width) {
     return ipcRenderer.invoke('desktop:setSkillsSidebarOpen', { open, width })
   },

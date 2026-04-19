@@ -70,8 +70,8 @@ type errorPayload struct {
 	Message string `json:"message"`
 }
 
+type donePayload struct{}
+
 type skillActivatedPayload struct {
 	SkillName string `json:"skill_name"`
 }
-
-type donePayload struct{}

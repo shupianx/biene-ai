@@ -8,10 +8,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"biene/internal/bienehome"
 )
 
 const skillFileName = "SKILL.md"
-const globalSkillsDir = ".biene/skills"
 
 // Metadata is the lightweight catalog entry loaded during discovery.
 type Metadata struct {
@@ -29,34 +30,23 @@ type Definition struct {
 
 // ScanForWorkDir discovers skill metadata under <workDir>/.biene/skills.
 func ScanForWorkDir(workDir string) ([]Metadata, error) {
-	root := filepath.Join(workDir, ".biene", "skills")
+	root := filepath.Join(workDir, bienehome.DirName, "skills")
 	return ScanFromDir(root)
 }
 
-// GlobalRoot returns the global skill directory under ~/.biene/skills.
-func GlobalRoot() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, globalSkillsDir), nil
+// RepositoryRoot returns the skill repository directory under ~/.biene/skills.
+func RepositoryRoot() (string, error) {
+	return bienehome.SkillRepositoryRoot()
 }
 
-// EnsureGlobalRoot creates the global skill directory when it does not exist.
-func EnsureGlobalRoot() (string, error) {
-	root, err := GlobalRoot()
-	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return "", err
-	}
-	return root, nil
+// EnsureRepositoryRoot creates the skill repository directory when it does not exist.
+func EnsureRepositoryRoot() (string, error) {
+	return bienehome.EnsureSkillRepositoryRoot()
 }
 
-// ScanGlobal discovers valid skill metadata under ~/.biene/skills.
-func ScanGlobal() ([]Metadata, string, error) {
-	root, err := EnsureGlobalRoot()
+// ScanRepository discovers valid skill metadata under ~/.biene/skills.
+func ScanRepository() ([]Metadata, string, error) {
+	root, err := EnsureRepositoryRoot()
 	if err != nil {
 		return nil, "", err
 	}

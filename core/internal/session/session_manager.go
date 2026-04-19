@@ -148,7 +148,7 @@ func (m *SessionManager) Init() {
 				log.Printf("init: save normalized model state %s: %v", id, err)
 			}
 		}
-		thinkingAvailable := modelEntry.EnableThinking
+		thinkingAvailable := modelEntry.ThinkingAvailable
 		thinkingEnabled := thinkingAvailable
 		if meta.ThinkingAvailable {
 			thinkingEnabled = thinkingAvailable && meta.ThinkingEnabled
@@ -184,11 +184,7 @@ func (m *SessionManager) Init() {
 			modelName:         modelEntry.Name,
 			thinkingAvailable: thinkingAvailable,
 			thinkingEnabled:   thinkingEnabled,
-			systemPrompt: prompt.Build(registry, workDir, profile, prompt.AgentIdentity{
-				ID:      id,
-				Name:    meta.Name,
-				WorkDir: workDir,
-			}, nil, nil),
+			activeSkills:      append([]string(nil), meta.ActiveSkills...),
 			maxTokens:         maxTokens,
 			apiMessages:       apiMsgs,
 			history:           history,
@@ -197,6 +193,12 @@ func (m *SessionManager) Init() {
 			subscribers:       make(map[int]chan Frame),
 			store:             st,
 		}
+		registry.Register(builtins.NewUseSkillTool(sess))
+		sess.systemPrompt = prompt.Build(registry, workDir, profile, prompt.AgentIdentity{
+			ID:      id,
+			Name:    meta.Name,
+			WorkDir: workDir,
+		}, nil)
 		sess.onMetaChanged = m.emitSessionUpdated
 		checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
 			payload := sess.setPendingPermission(req)
@@ -237,11 +239,6 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	registry.Register(builtins.NewListAgentsTool(m, id))
 	registry.Register(builtins.NewSendToAgentTool(m, id))
 
-	sysprompt := prompt.Build(registry, workDir, profile, prompt.AgentIdentity{
-		ID:      id,
-		Name:    name,
-		WorkDir: workDir,
-	}, nil, nil)
 	now := time.Now()
 	sess := &Session{
 		ID:                id,
@@ -258,15 +255,20 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		checker:           checker,
 		modelID:           resolvedModelID,
 		modelName:         modelEntry.Name,
-		thinkingAvailable: modelEntry.EnableThinking,
-		thinkingEnabled:   modelEntry.EnableThinking,
-		systemPrompt:      sysprompt,
+		thinkingAvailable: modelEntry.ThinkingAvailable,
+		thinkingEnabled:   false,
 		maxTokens:         maxTokens,
 		apiMessages:       []api.Message{},
 		history:           []DisplayMessage{},
 		pendingPermission: nil,
 		subscribers:       make(map[int]chan Frame),
 	}
+	registry.Register(builtins.NewUseSkillTool(sess))
+	sess.systemPrompt = prompt.Build(registry, workDir, profile, prompt.AgentIdentity{
+		ID:      id,
+		Name:    name,
+		WorkDir: workDir,
+	}, nil)
 	sess.onMetaChanged = m.emitSessionUpdated
 	checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
 		payload := sess.setPendingPermission(req)

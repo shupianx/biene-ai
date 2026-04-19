@@ -1,11 +1,14 @@
 import { buildCoreHeaders, buildCoreUrl } from '../runtime'
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const headers = buildCoreHeaders(body ? { 'Content-Type': 'application/json' } : undefined)
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+  const headers = buildCoreHeaders(body && !isFormData ? { 'Content-Type': 'application/json' } : undefined)
   const res = await fetch(buildCoreUrl(path), {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body
+      ? (isFormData ? body : JSON.stringify(body))
+      : undefined,
   })
   if (!res.ok) {
     const text = await res.text()
@@ -47,6 +50,7 @@ export interface SessionMeta {
   permissions: SessionPermissions
   profile: AgentProfile
   pending_permission?: import('../types/events').PermissionRequestData
+  active_skills?: string[]
   created_at: string
   last_active: string
 }
@@ -110,7 +114,6 @@ export interface DisplayMessage {
   author_id?: string
   author_name?: string
   agent_meta?: AgentMessageMeta
-  used_skill_name?: string
   text: string
   created_at: string
   streaming?: boolean
@@ -156,7 +159,7 @@ export interface ConfigModelEntry {
   api_key: string
   model: string
   base_url: string
-  enable_thinking?: boolean
+  thinking_available?: boolean
 }
 
 export interface CoreConfig {
@@ -176,18 +179,37 @@ export function saveConfig(config: CoreConfig) {
 // ── Skills ────────────────────────────────────────────────────────────────
 
 export interface SkillCatalogEntry {
+  id: string
   name: string
   description: string
-  dir: string
-  file_path: string
   instructions: string
 }
 
 export interface SkillsCatalog {
   root: string
   skills: SkillCatalogEntry[]
+  default_enabled_skill_ids: string[]
 }
 
 export function listSkills() {
   return get<SkillsCatalog>('/api/skills')
+}
+
+export function saveSkillsConfig(defaultEnabledSkillIDs: string[]) {
+  return post<SkillsCatalog>('/api/skills/config', {
+    default_enabled_skill_ids: defaultEnabledSkillIDs,
+  })
+}
+
+export function deleteSkill(id: string) {
+  return del<SkillsCatalog>(`/api/skills/${encodeURIComponent(id)}`)
+}
+
+export function importSkillFolder(files: File[]) {
+  const form = new FormData()
+  for (const file of files) {
+    const relativePath = file.webkitRelativePath || file.name
+    form.append('files', file, relativePath)
+  }
+  return post<SkillsCatalog>('/api/skills/import', form)
 }

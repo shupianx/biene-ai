@@ -137,16 +137,13 @@ func (s *Session) enqueueInput(display DisplayMessage, apiMessage api.Message) {
 	} else {
 		s.apiMessages = append(s.apiMessages, apiMessage)
 	}
-	ctx, cfg, meta, activatedSkillName, runDone := s.prepareRunLocked(!running)
+	ctx, cfg, meta, runDone := s.prepareRunLocked(!running)
 	s.mu.Unlock()
 	if meta != nil {
 		s.notifyMetaChanged(*meta)
 	}
 
 	s.send(makeFrame("message_added", messageAddedPayload{Message: display}))
-	if activatedSkillName != "" {
-		s.send(makeFrame("skill_activated", skillActivatedPayload{SkillName: activatedSkillName}))
-	}
 
 	// Persist the user display message outside the lock.
 	s.persistDisplayMessage(display)
@@ -156,9 +153,9 @@ func (s *Session) enqueueInput(display DisplayMessage, apiMessage api.Message) {
 	}
 }
 
-func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloop.Config, *SessionMeta, string, chan struct{}) {
+func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloop.Config, *SessionMeta, chan struct{}) {
 	if !shouldStart {
-		return nil, nil, nil, "", nil
+		return nil, nil, nil, nil
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -171,17 +168,12 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 
 	messages := append([]api.Message(nil), s.apiMessages...)
 	registry, _ := registryForToolMode(s.registry, s.toolMode)
-	installedSkills, activatedSkills := resolveSkillsForPrompt(s.WorkDir, s.history)
+	installedSkills := resolveSkillsForPrompt(s.WorkDir)
 	systemPrompt := prompt.Build(registry, s.WorkDir, s.profile, prompt.AgentIdentity{
 		ID:      s.ID,
 		Name:    s.Name,
 		WorkDir: s.WorkDir,
-	}, installedSkills, activatedSkills)
-	activatedSkillName := ""
-	if len(activatedSkills) > 0 {
-		activatedSkillName = activatedSkills[0].Name
-	}
-	s.currentSkillName = activatedSkillName
+	}, installedSkills)
 	cfg := &agentloop.Config{
 		Provider:     s.provider,
 		Registry:     registry,
@@ -193,7 +185,7 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 			EnableThinking: thinkingOption(s.thinkingAvailable, s.thinkingEnabled),
 		},
 	}
-	return ctx, cfg, &meta, activatedSkillName, runDone
+	return ctx, cfg, &meta, runDone
 }
 
 func thinkingOption(available, enabled bool) *bool {
@@ -204,41 +196,12 @@ func thinkingOption(available, enabled bool) *bool {
 	return &value
 }
 
-func resolveSkillsForPrompt(workDir string, history []DisplayMessage) ([]skills.Metadata, []skills.Definition) {
+func resolveSkillsForPrompt(workDir string) []skills.Metadata {
 	installedSkills, err := skills.ScanForWorkDir(workDir)
-	if err != nil || len(installedSkills) == 0 {
-		return nil, nil
-	}
-
-	userText := latestUserText(history)
-	if userText == "" {
-		return installedSkills, nil
-	}
-
-	match := skills.SelectForText(userText, installedSkills)
-	if match == nil {
-		return installedSkills, nil
-	}
-
-	def, err := skills.LoadDefinition(*match)
 	if err != nil {
-		return installedSkills, nil
+		return nil
 	}
-	return installedSkills, []skills.Definition{def}
-}
-
-func latestUserText(history []DisplayMessage) string {
-	for i := len(history) - 1; i >= 0; i-- {
-		msg := history[i]
-		if msg.Role != "user" {
-			continue
-		}
-		if msg.AuthorType != authorTypeUser {
-			return ""
-		}
-		return msg.Text
-	}
-	return ""
+	return installedSkills
 }
 
 // ── Agent loop ────────────────────────────────────────────────────────────
@@ -250,7 +213,6 @@ func (s *Session) runQuery(ctx context.Context, cfg *agentloop.Config, runDone c
 			fmt.Printf("[session %s] panic in runQuery: %v\n", s.ID, r)
 			s.mu.Lock()
 			s.cancelQuery = nil
-			s.currentSkillName = ""
 			s.Status = StatusError
 			s.LastActive = time.Now()
 			s.mu.Unlock()
@@ -338,13 +300,10 @@ func (s *Session) finishRun(cfg *agentloop.Config, hadError bool, interrupted bo
 		}
 		if !interrupted {
 			s.pendingInputs = nil
-			ctxNext, cfgNext, metaNext, activatedSkillName, nextRunDone := s.prepareRunLocked(true)
+			ctxNext, cfgNext, metaNext, nextRunDone := s.prepareRunLocked(true)
 			s.mu.Unlock()
 			if metaNext != nil {
 				s.notifyMetaChanged(*metaNext)
-			}
-			if activatedSkillName != "" {
-				s.send(makeFrame("skill_activated", skillActivatedPayload{SkillName: activatedSkillName}))
 			}
 			go s.runQuery(ctxNext, cfgNext, nextRunDone)
 			return
@@ -359,7 +318,6 @@ func (s *Session) finishRun(cfg *agentloop.Config, hadError bool, interrupted bo
 	} else {
 		s.Status = StatusIdle
 	}
-	s.currentSkillName = ""
 	s.LastActive = time.Now()
 	status := s.Status
 	// Snapshot what needs persisting while still holding the lock.

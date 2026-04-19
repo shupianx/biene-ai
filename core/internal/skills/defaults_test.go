@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"biene/internal/bienehome"
 )
 
 func TestInstallDefaultEnabledCopiesConfiguredGlobalSkills(t *testing.T) {
@@ -11,13 +13,13 @@ func TestInstallDefaultEnabledCopiesConfiguredGlobalSkills(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	globalRoot, err := EnsureGlobalRoot()
+	repositoryRoot, err := EnsureRepositoryRoot()
 	if err != nil {
-		t.Fatalf("EnsureGlobalRoot returned error: %v", err)
+		t.Fatalf("EnsureRepositoryRoot returned error: %v", err)
 	}
 
-	firstDir := filepath.Join(globalRoot, "reviewer")
-	secondDir := filepath.Join(globalRoot, "release-notes")
+	firstDir := filepath.Join(repositoryRoot, "reviewer")
+	secondDir := filepath.Join(repositoryRoot, "release-notes")
 	for _, dir := range []string{firstDir, secondDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -33,9 +35,9 @@ Use this skill.
 		}
 	}
 
-	configPath, err := skillConfigPath()
+	configPath, err := bienehome.SkillConfigPath()
 	if err != nil {
-		t.Fatalf("skillConfigPath returned error: %v", err)
+		t.Fatalf("SkillConfigPath returned error: %v", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -62,19 +64,19 @@ func TestLoadGlobalSkillConfigMigratesLegacyDefaultSkillDir(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	globalRoot, err := EnsureGlobalRoot()
+	repositoryRoot, err := EnsureRepositoryRoot()
 	if err != nil {
-		t.Fatalf("EnsureGlobalRoot returned error: %v", err)
+		t.Fatalf("EnsureRepositoryRoot returned error: %v", err)
 	}
 
-	legacyDir := filepath.Join(globalRoot, "triage")
+	legacyDir := filepath.Join(repositoryRoot, "triage")
 	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	configPath, err := skillConfigPath()
+	configPath, err := bienehome.SkillConfigPath()
 	if err != nil {
-		t.Fatalf("skillConfigPath returned error: %v", err)
+		t.Fatalf("SkillConfigPath returned error: %v", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -83,9 +85,9 @@ func TestLoadGlobalSkillConfigMigratesLegacyDefaultSkillDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := loadGlobalSkillConfig()
+	cfg, err := loadSkillRepositoryConfig()
 	if err != nil {
-		t.Fatalf("loadGlobalSkillConfig returned error: %v", err)
+		t.Fatalf("loadSkillRepositoryConfig returned error: %v", err)
 	}
 	if len(cfg.DefaultEnabledSkillDirs) != 1 || cfg.DefaultEnabledSkillDirs[0] != filepath.Clean(legacyDir) {
 		t.Fatalf("expected migrated legacy dir, got %#v", cfg.DefaultEnabledSkillDirs)
