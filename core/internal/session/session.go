@@ -39,6 +39,13 @@ type DisplayAttachment struct {
 	Size int64  `json:"size"`
 }
 
+// DisplayReasoning stores a persisted reasoning trace for one assistant message.
+type DisplayReasoning struct {
+	Text       string    `json:"text"`
+	StartedAt  time.Time `json:"started_at"`
+	DurationMS int64     `json:"duration_ms,omitempty"`
+}
+
 // DisplayTool mirrors a tool call in the display layer.
 type DisplayTool struct {
 	ToolID      string          `json:"tool_id,omitempty"`
@@ -62,6 +69,7 @@ type DisplayMessage struct {
 	Streaming     bool                    `json:"streaming,omitempty"` // true while a response is in progress
 	ToolCalls     []DisplayTool           `json:"tool_calls,omitempty"`
 	Attachments   []DisplayAttachment     `json:"attachments,omitempty"`
+	Reasoning     *DisplayReasoning       `json:"reasoning,omitempty"`
 	CreatedAt     time.Time               `json:"created_at"`
 }
 
@@ -85,15 +93,19 @@ type Session struct {
 	CreatedAt  time.Time     `json:"created_at"`
 	LastActive time.Time     `json:"last_active"`
 
-	provider         api.Provider
-	registry         *tools.Registry
-	checker          *webperm.Checker
-	systemPrompt     string
-	currentSkillName string
-	maxTokens        int
-	permissions      tools.PermissionSet
-	profile          prompt.AgentProfile
-	toolMode         ToolMode
+	provider          api.Provider
+	registry          *tools.Registry
+	checker           *webperm.Checker
+	systemPrompt      string
+	currentSkillName  string
+	maxTokens         int
+	permissions       tools.PermissionSet
+	profile           prompt.AgentProfile
+	toolMode          ToolMode
+	modelID           string
+	modelName         string
+	thinkingAvailable bool
+	thinkingEnabled   bool
 
 	// apiMessages is the canonical conversation passed into the next model turn.
 	apiMessages []api.Message
@@ -115,11 +127,12 @@ type Session struct {
 	// persistedCount tracks how many history entries have been written to the store.
 	persistedCount int
 
-	subscribersMu sync.RWMutex
-	cancelQuery   context.CancelFunc
-	closed        bool
-	onMetaChanged func(SessionMeta)
-	mu            sync.Mutex
+	subscribersMu  sync.RWMutex
+	cancelQuery    context.CancelFunc
+	currentRunDone chan struct{}
+	closed         bool
+	onMetaChanged  func(SessionMeta)
+	mu             sync.Mutex
 }
 
 // SessionMeta is the public view of a Session returned by the list endpoint.
@@ -128,6 +141,10 @@ type SessionMeta struct {
 	Name              string                    `json:"name"`
 	WorkDir           string                    `json:"work_dir"`
 	Status            SessionStatus             `json:"status"`
+	ModelID           string                    `json:"model_id"`
+	ModelName         string                    `json:"model_name"`
+	ThinkingAvailable bool                      `json:"thinking_available,omitempty"`
+	ThinkingEnabled   bool                      `json:"thinking_enabled,omitempty"`
 	Permissions       tools.PermissionSet       `json:"permissions"`
 	Profile           prompt.AgentProfile       `json:"profile"`
 	PendingPermission *PermissionRequestPayload `json:"pending_permission,omitempty"`
@@ -147,6 +164,10 @@ func (s *Session) metaLocked() SessionMeta {
 		Name:              s.Name,
 		WorkDir:           s.WorkDir,
 		Status:            s.Status,
+		ModelID:           s.modelID,
+		ModelName:         s.modelName,
+		ThinkingAvailable: s.thinkingAvailable,
+		ThinkingEnabled:   s.thinkingEnabled,
 		Permissions:       s.permissions,
 		Profile:           s.profile,
 		PendingPermission: clonePermissionPayload(s.pendingPermission),
@@ -156,9 +177,7 @@ func (s *Session) metaLocked() SessionMeta {
 }
 
 func (s *Session) persistentMetaLocked() SessionMeta {
-	meta := s.metaLocked()
-	meta.PendingPermission = nil
-	return meta
+	return s.metaLocked()
 }
 
 func normalizeProfile(profile prompt.AgentProfile) prompt.AgentProfile {

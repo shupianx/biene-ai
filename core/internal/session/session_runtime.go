@@ -27,6 +27,15 @@ func (s *Session) CancelCurrentQuery() {
 
 // ResolvePermission resolves a pending permission request and returns fresh session metadata.
 func (s *Session) ResolvePermission(requestID string, decision permission.Decision) (SessionMeta, error) {
+	s.mu.Lock()
+	expired := s.pendingPermission != nil &&
+		s.pendingPermission.RequestID == requestID &&
+		s.pendingPermission.Expired
+	s.mu.Unlock()
+	if expired {
+		s.clearPendingPermission(requestID)
+		return s.Meta(), nil
+	}
 	if err := s.checker.Resolve(requestID, decision); err != nil {
 		return SessionMeta{}, err
 	}
@@ -35,11 +44,28 @@ func (s *Session) ResolvePermission(requestID string, decision permission.Decisi
 
 func (s *Session) close() {
 	s.mu.Lock()
-	s.closed = true
-	if s.cancelQuery != nil {
-		s.cancelQuery()
-		s.cancelQuery = nil
+	if s.closed {
+		s.mu.Unlock()
+		return
 	}
+	cancel := s.cancelQuery
+	runDone := s.currentRunDone
+	s.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	if runDone != nil {
+		select {
+		case <-runDone:
+		case <-time.After(5 * time.Second):
+		}
+	}
+
+	s.mu.Lock()
+	s.closed = true
+	s.cancelQuery = nil
+	s.currentRunDone = nil
 	s.mu.Unlock()
 
 	s.subscribersMu.Lock()
@@ -111,7 +137,7 @@ func (s *Session) enqueueInput(display DisplayMessage, apiMessage api.Message) {
 	} else {
 		s.apiMessages = append(s.apiMessages, apiMessage)
 	}
-	ctx, cfg, meta, activatedSkillName := s.prepareRunLocked(!running)
+	ctx, cfg, meta, activatedSkillName, runDone := s.prepareRunLocked(!running)
 	s.mu.Unlock()
 	if meta != nil {
 		s.notifyMetaChanged(*meta)
@@ -126,17 +152,19 @@ func (s *Session) enqueueInput(display DisplayMessage, apiMessage api.Message) {
 	s.persistDisplayMessage(display)
 
 	if cfg != nil {
-		go s.runQuery(ctx, cfg)
+		go s.runQuery(ctx, cfg, runDone)
 	}
 }
 
-func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloop.Config, *SessionMeta, string) {
+func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloop.Config, *SessionMeta, string, chan struct{}) {
 	if !shouldStart {
-		return nil, nil, nil, ""
+		return nil, nil, nil, "", nil
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	runDone := make(chan struct{})
 	s.cancelQuery = cancel
+	s.currentRunDone = runDone
 	s.Status = StatusRunning
 	s.send(makeFrame("status", statusPayload{Status: s.Status}))
 	meta := s.metaLocked()
@@ -161,8 +189,19 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 		SystemPrompt: systemPrompt,
 		Messages:     messages,
 		MaxTokens:    s.maxTokens,
+		RequestOpts: api.RequestOptions{
+			EnableThinking: thinkingOption(s.thinkingAvailable, s.thinkingEnabled),
+		},
 	}
-	return ctx, cfg, &meta, activatedSkillName
+	return ctx, cfg, &meta, activatedSkillName, runDone
+}
+
+func thinkingOption(available, enabled bool) *bool {
+	if !available {
+		return nil
+	}
+	value := enabled
+	return &value
 }
 
 func resolveSkillsForPrompt(workDir string, history []DisplayMessage) ([]skills.Metadata, []skills.Definition) {
@@ -204,7 +243,8 @@ func latestUserText(history []DisplayMessage) string {
 
 // ── Agent loop ────────────────────────────────────────────────────────────
 
-func (s *Session) runQuery(ctx context.Context, cfg *agentloop.Config) {
+func (s *Session) runQuery(ctx context.Context, cfg *agentloop.Config, runDone chan struct{}) {
+	defer close(runDone)
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("[session %s] panic in runQuery: %v\n", s.ID, r)
@@ -232,6 +272,8 @@ func (s *Session) runQuery(ctx context.Context, cfg *agentloop.Config) {
 
 		s.applyEvent(ev)
 		switch ev.Kind {
+		case agentloop.KindReasoningDelta:
+			s.send(makeFrame("reasoning_delta", reasoningDeltaPayload{Text: ev.Text}))
 		case agentloop.KindTextDelta:
 			s.send(makeFrame("text_delta", textDeltaPayload{Text: ev.Text}))
 		case agentloop.KindToolCompose:
@@ -296,7 +338,7 @@ func (s *Session) finishRun(cfg *agentloop.Config, hadError bool, interrupted bo
 		}
 		if !interrupted {
 			s.pendingInputs = nil
-			ctxNext, cfgNext, metaNext, activatedSkillName := s.prepareRunLocked(true)
+			ctxNext, cfgNext, metaNext, activatedSkillName, nextRunDone := s.prepareRunLocked(true)
 			s.mu.Unlock()
 			if metaNext != nil {
 				s.notifyMetaChanged(*metaNext)
@@ -304,7 +346,7 @@ func (s *Session) finishRun(cfg *agentloop.Config, hadError bool, interrupted bo
 			if activatedSkillName != "" {
 				s.send(makeFrame("skill_activated", skillActivatedPayload{SkillName: activatedSkillName}))
 			}
-			go s.runQuery(ctxNext, cfgNext)
+			go s.runQuery(ctxNext, cfgNext, nextRunDone)
 			return
 		}
 	}

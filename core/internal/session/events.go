@@ -22,6 +22,10 @@ type textDeltaPayload struct {
 	Text string `json:"text"`
 }
 
+type reasoningDeltaPayload struct {
+	Text string `json:"text"`
+}
+
 type toolStartPayload struct {
 	ToolID      string          `json:"tool_id,omitempty"`
 	ToolName    string          `json:"tool_name"`
@@ -47,6 +51,7 @@ type PermissionRequestPayload struct {
 	ToolName    string          `json:"tool_name"`
 	ToolSummary string          `json:"tool_summary"`
 	ToolInput   json.RawMessage `json:"tool_input"`
+	Expired     bool            `json:"expired,omitempty"`
 }
 
 type permissionClearedPayload struct {

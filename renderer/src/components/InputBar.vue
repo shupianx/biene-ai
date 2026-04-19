@@ -15,6 +15,14 @@
         @compositionend="onCompositionEnd"
       />
       <div class="composer-actions">
+        <div v-if="thinkingAvailable" class="thinking-control">
+          <span class="thinking-label">{{ t('input.thinkingToggle') }}</span>
+          <ToggleSwitch
+            :model-value="thinkingEnabled"
+            :label="t('input.thinkingToggle')"
+            @update:model-value="emit('update:thinkingEnabled', $event)"
+          />
+        </div>
         <button
           class="action-btn"
           :class="{ interrupt: interruptible }"
@@ -49,15 +57,19 @@
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue'
 import MynauiSend from '~icons/mynaui/send'
+import ToggleSwitch from './ToggleSwitch.vue'
 import { t } from '../i18n'
 
 const props = defineProps<{
   disabled?: boolean
   interruptible?: boolean
   interrupting?: boolean
+  thinkingAvailable?: boolean
+  thinkingEnabled?: boolean
 }>()
 const emit  = defineEmits<{
   (e: 'send', text: string): void
+  (e: 'update:thinkingEnabled', value: boolean): void
   (e: 'interrupt'): void
 }>()
 
@@ -180,10 +192,28 @@ textarea:disabled {
 
 .composer-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding-top: 6px;
   border-top: 1px dashed var(--rule-softer);
+}
+
+.thinking-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.thinking-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  white-space: nowrap;
 }
 
 .action-btn {

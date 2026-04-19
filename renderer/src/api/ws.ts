@@ -5,6 +5,7 @@ import type {
   SessionDeletedData,
   SessionListEventType,
   SessionMetaEventData,
+  ReasoningDeltaData,
   TextDeltaData,
   ToolStartData,
   ToolResultData,
@@ -20,6 +21,7 @@ export interface WSHandlers {
   onMessageAdded: (data: MessageAddedData) => void
   onSkillActivated: (data: SkillActivatedData) => void
   onStatus: (data: StatusData) => void
+  onReasoningDelta: (data: ReasoningDeltaData) => void
   onTextDelta: (data: TextDeltaData) => void
   onToolCompose: (data: ToolStartData) => void
   onToolStart: (data: ToolStartData) => void
@@ -61,6 +63,9 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
         break
       case 'status':
         handlers.onStatus(message.data as StatusData)
+        break
+      case 'reasoning_delta':
+        handlers.onReasoningDelta(message.data as ReasoningDeltaData)
         break
       case 'text_delta':
         handlers.onTextDelta(message.data as TextDeltaData)

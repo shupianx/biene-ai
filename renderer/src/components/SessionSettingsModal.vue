@@ -12,6 +12,12 @@
       <span v-if="nameConflict" class="error-text">{{ t('agentName.exists') }}</span>
     </label>
 
+    <label class="field">
+      <span class="label">{{ t('modal.agentModel') }}</span>
+      <input :value="modelName" class="input" disabled />
+      <span class="field-hint">{{ t('modal.agentModelLockedHint') }}</span>
+    </label>
+
     <div class="field">
       <span class="label">{{ t('modal.profile') }}</span>
       <div class="profile-grid">
@@ -100,6 +106,7 @@ import {
 
 const props = defineProps<{
   name: string
+  modelName: string
   existingNames: string[]
   permissions: SessionPermissions
   profile: AgentProfile
@@ -111,6 +118,7 @@ const emit = defineEmits<{
 }>()
 
 const name = ref(props.name)
+const modelName = computed(() => props.modelName)
 const permissions = ref<SessionPermissions>(clonePermissions(props.permissions))
 const profile = ref<AgentProfile>(cloneProfile(props.profile))
 const nameInput = ref<HTMLInputElement | null>(null)
@@ -217,6 +225,15 @@ function submit() {
 .textarea:focus {
   border-color: var(--ink);
   box-shadow: 2px 2px 0 0 var(--rule);
+}
+
+.input:disabled,
+.select:disabled,
+.textarea:disabled {
+  color: var(--ink-3);
+  background: color-mix(in srgb, var(--panel-2) 76%, var(--bg));
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 .input.invalid {

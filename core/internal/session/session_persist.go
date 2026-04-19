@@ -97,6 +97,15 @@ func (s *Session) updatePersistedDisplayMessage(msg DisplayMessage) {
 	}
 }
 
+func (s *Session) persistMetaSnapshot(meta SessionMeta) {
+	if s.store == nil {
+		return
+	}
+	if err := s.store.SaveMeta(meta); err != nil {
+		log.Printf("persist meta for %s: %v", s.ID, err)
+	}
+}
+
 func (s *Session) persistAfterRun(newDisplay []DisplayMessage, apiMsgs []api.Message, meta SessionMeta) {
 	if s.store == nil {
 		return
@@ -135,6 +144,25 @@ func (s *Session) persistPermissions(perms tools.PermissionSet) {
 	}
 
 	s.notifyMetaChanged(meta)
+}
+
+func (s *Session) SetThinkingEnabled(enabled bool) (SessionMeta, error) {
+	s.mu.Lock()
+	if !s.thinkingAvailable {
+		enabled = false
+	}
+	s.thinkingEnabled = enabled
+	meta := s.metaLocked()
+	persistedMeta := s.persistentMetaLocked()
+	s.mu.Unlock()
+
+	if s.store != nil {
+		if err := s.store.SaveMeta(persistedMeta); err != nil {
+			return SessionMeta{}, err
+		}
+	}
+	s.notifyMetaChanged(meta)
+	return meta, nil
 }
 
 func (s *Session) UpdateSettings(name string, perms tools.PermissionSet, profile prompt.AgentProfile) (SessionMeta, error) {

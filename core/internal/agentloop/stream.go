@@ -28,6 +28,8 @@ done:
 				break done
 			}
 			switch ev.Type {
+			case api.EventReasoningDelta:
+				ch <- Event{Kind: KindReasoningDelta, Text: ev.Text}
 			case api.EventTextDelta:
 				text.WriteString(ev.Text)
 				ch <- Event{Kind: KindTextDelta, Text: ev.Text}

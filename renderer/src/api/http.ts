@@ -40,6 +40,10 @@ export interface SessionMeta {
   name: string
   work_dir: string
   status: 'idle' | 'running' | 'error'
+  model_id: string
+  model_name: string
+  thinking_available?: boolean
+  thinking_enabled?: boolean
   permissions: SessionPermissions
   profile: AgentProfile
   pending_permission?: import('../types/events').PermissionRequestData
@@ -53,6 +57,7 @@ export function listSessions() {
 
 export interface CreateSessionOptions {
   name: string
+  model_id?: string
   permissions?: SessionPermissions
   profile?: AgentProfile
 }
@@ -86,6 +91,12 @@ export interface DisplayTool {
   result?: string
 }
 
+export interface DisplayReasoning {
+  text: string
+  started_at: string
+  duration_ms?: number
+}
+
 export interface AgentMessageMeta {
   thread_id: string
   message_id: string
@@ -104,16 +115,24 @@ export interface DisplayMessage {
   created_at: string
   streaming?: boolean
   tool_calls?: DisplayTool[]
+  reasoning?: DisplayReasoning
 }
 
 export function getSessionHistory(sessionId: string) {
   return get<DisplayMessage[]>(`/api/sessions/${sessionId}/history`)
 }
 
-export function sendMessage(sessionId: string, text: string, clientMessageId?: string) {
+export function sendMessage(sessionId: string, text: string, clientMessageId?: string, thinkingEnabled?: boolean) {
   return post<{ ok: boolean }>(`/api/sessions/${sessionId}/send`, {
     text,
     client_message_id: clientMessageId,
+    thinking_enabled: thinkingEnabled,
+  })
+}
+
+export function setThinkingEnabled(sessionId: string, enabled: boolean) {
+  return post<SessionMeta>(`/api/sessions/${sessionId}/thinking`, {
+    enabled,
   })
 }
 
@@ -130,10 +149,45 @@ export function resolvePermission(sessionId: string, requestId: string, decision
 
 // ── Config ────────────────────────────────────────────────────────────────
 
+export interface ConfigModelEntry {
+  id: string
+  name: string
+  provider: string
+  api_key: string
+  model: string
+  base_url: string
+  enable_thinking?: boolean
+}
+
+export interface CoreConfig {
+  default_model: string
+  model_list: ConfigModelEntry[]
+  max_tokens: number
+}
+
 export function fetchConfig() {
-  return get<{
-    default_model: string
-    model_list: { name: string; provider: string; model: string; base_url: string }[]
-    max_tokens: number
-  }>('/api/config')
+  return get<CoreConfig>('/api/config')
+}
+
+export function saveConfig(config: CoreConfig) {
+  return post<CoreConfig>('/api/config', config)
+}
+
+// ── Skills ────────────────────────────────────────────────────────────────
+
+export interface SkillCatalogEntry {
+  name: string
+  description: string
+  dir: string
+  file_path: string
+  instructions: string
+}
+
+export interface SkillsCatalog {
+  root: string
+  skills: SkillCatalogEntry[]
+}
+
+export function listSkills() {
+  return get<SkillsCatalog>('/api/skills')
 }

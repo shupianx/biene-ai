@@ -1,5 +1,12 @@
 <template>
-  <div class="chat-shell" :style="{ '--input-overlay-height': `${inputOverlayHeight}px` }">
+  <div
+    class="chat-shell"
+    :style="{ '--input-overlay-height': `${inputOverlayHeight}px` }"
+    @pointerdown="onUserInteraction"
+    @wheel.passive="onUserInteraction"
+    @touchstart.passive="onUserInteraction"
+    @touchmove.passive="onUserInteraction"
+  >
     <!-- Compact window chrome (agent window is frameless) -->
     <header class="chat-chrome">
       <div class="brand">
@@ -50,7 +57,10 @@
         :disabled="session.isStreaming"
         :interruptible="session.isStreaming"
         :interrupting="session.isInterrupting"
+        :thinking-available="session.meta.thinking_available"
+        :thinking-enabled="Boolean(session.meta.thinking_enabled)"
         @send="onSend"
+        @update:thinking-enabled="onThinkingEnabledChange"
         @interrupt="onInterrupt"
       />
     </div>
@@ -74,13 +84,18 @@ const emit = defineEmits<{
 }>()
 
 const closeIconBody = '<path fill="currentColor" d="m12 13.4l-4.9 4.9q-.275.275-.7.275t-.7-.275t-.275-.7t.275-.7l4.9-4.9l-4.9-4.9q-.275-.275-.275-.7t.275-.7t.7-.275t.7.275l4.9 4.9l4.9-4.9q.275-.275.7-.275t.7.275t.275.7t-.275.7L13.4 12l4.9 4.9q.275.275.275.7t-.275.7t-.7.275t-.7-.275z"/>'
+const AUTO_SCROLL_THRESHOLD = 50
+const USER_IDLE_MS = 300
 
 const store = useSessionsStore()
 const listRef = ref<HTMLElement | null>(null)
-const stickToBottom = ref(true)
 const inputOverlayRef = ref<HTMLElement | null>(null)
 const inputOverlayHeight = ref(112)
+const isUserInteracting = ref(false)
+const pendingAutoScroll = ref(false)
+const lastDistanceToBottom = ref(0)
 let inputOverlayResizeObserver: ResizeObserver | null = null
+let interactionTimer: number | null = null
 
 const statusTone = computed(() => getSessionStatusTone(props.session))
 const statusLabel = computed(() => getSessionStatusLabel(statusTone.value))
@@ -97,12 +112,97 @@ function syncInputOverlayHeight() {
   inputOverlayHeight.value = inputOverlayRef.value?.offsetHeight ?? 112
 }
 
+function getDistanceToBottom() {
+  const el = listRef.value
+  if (!el) return Number.POSITIVE_INFINITY
+  return Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight)
+}
+
+function syncDistanceToBottom() {
+  lastDistanceToBottom.value = getDistanceToBottom()
+}
+
+function scrollToBottom() {
+  if (!listRef.value) return
+  listRef.value.scrollTop = listRef.value.scrollHeight
+  syncDistanceToBottom()
+}
+
+function clearInteractionTimer() {
+  if (interactionTimer == null) return
+  window.clearTimeout(interactionTimer)
+  interactionTimer = null
+}
+
+function flushPendingAutoScroll() {
+  if (!pendingAutoScroll.value) return
+  pendingAutoScroll.value = false
+  if (getDistanceToBottom() > AUTO_SCROLL_THRESHOLD) {
+    syncDistanceToBottom()
+    return
+  }
+  nextTick(() => {
+    scrollToBottom()
+  })
+}
+
+function onUserInteraction() {
+  isUserInteracting.value = true
+  clearInteractionTimer()
+  interactionTimer = window.setTimeout(() => {
+    interactionTimer = null
+    isUserInteracting.value = false
+    flushPendingAutoScroll()
+  }, USER_IDLE_MS)
+}
+
+function onWindowKeydown(event: KeyboardEvent) {
+  if (event.defaultPrevented) return
+  const target = event.target
+  if (target instanceof HTMLElement) {
+    const tagName = target.tagName
+    if (
+      tagName === 'INPUT' ||
+      tagName === 'TEXTAREA' ||
+      tagName === 'SELECT' ||
+      target.isContentEditable
+    ) {
+      return
+    }
+  }
+
+  if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar'].includes(event.key)) {
+    return
+  }
+  onUserInteraction()
+}
+
+function requestAutoScroll({ force = false } = {}) {
+  const wasNearBottom = force || lastDistanceToBottom.value <= AUTO_SCROLL_THRESHOLD
+
+  nextTick(() => {
+    if (!listRef.value) return
+    if (isUserInteracting.value) {
+      pendingAutoScroll.value = true
+      syncDistanceToBottom()
+      return
+    }
+    if (wasNearBottom) {
+      scrollToBottom()
+      return
+    }
+    syncDistanceToBottom()
+  })
+}
+
 watch(
   () => props.session.meta.id,
   () => {
-    stickToBottom.value = true
+    clearInteractionTimer()
+    isUserInteracting.value = false
+    pendingAutoScroll.value = false
     nextTick(() => {
-      if (listRef.value) listRef.value.scrollTop = listRef.value.scrollHeight
+      scrollToBottom()
     })
   },
   { immediate: true },
@@ -111,10 +211,7 @@ watch(
 watch(
   () => props.session.messages,
   () => {
-    if (!stickToBottom.value) return
-    nextTick(() => {
-      if (listRef.value) listRef.value.scrollTop = listRef.value.scrollHeight
-    })
+    requestAutoScroll()
   },
   { deep: true },
 )
@@ -122,25 +219,24 @@ watch(
 watch(
   () => props.session.pendingPermission?.request_id,
   () => {
-    if (!stickToBottom.value) return
-    nextTick(() => {
-      if (listRef.value) listRef.value.scrollTop = listRef.value.scrollHeight
-    })
+    requestAutoScroll()
   },
 )
 
 function onListScroll() {
-  const el = listRef.value
-  if (!el) return
-  stickToBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 30
+  syncDistanceToBottom()
 }
 
 function onSend(text: string) {
   store.sendMessage(props.session.meta.id, text)
-  stickToBottom.value = true
+  pendingAutoScroll.value = false
   nextTick(() => {
-    if (listRef.value) listRef.value.scrollTop = listRef.value.scrollHeight
+    scrollToBottom()
   })
+}
+
+function onThinkingEnabledChange(enabled: boolean) {
+  store.setThinkingEnabled(props.session.meta.id, enabled)
 }
 
 function onResolve(decision: 'allow' | 'always' | 'deny') {
@@ -154,17 +250,25 @@ function onInterrupt() {
 onMounted(() => {
   nextTick(() => {
     syncInputOverlayHeight()
+    syncDistanceToBottom()
     if (!inputOverlayRef.value || typeof ResizeObserver === 'undefined') return
     inputOverlayResizeObserver = new ResizeObserver(() => {
       syncInputOverlayHeight()
     })
     inputOverlayResizeObserver.observe(inputOverlayRef.value)
   })
+  window.addEventListener('keydown', onWindowKeydown, true)
 })
 
 onBeforeUnmount(() => {
   inputOverlayResizeObserver?.disconnect()
   inputOverlayResizeObserver = null
+  clearInteractionTimer()
+  window.removeEventListener('keydown', onWindowKeydown, true)
+})
+
+watch(inputOverlayHeight, () => {
+  requestAutoScroll()
 })
 </script>
 
@@ -199,7 +303,7 @@ onBeforeUnmount(() => {
   gap: 12px;
   padding: 0 8px 0 14px;
   background: var(--panel);
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule-soft);
   user-select: none;
   -webkit-app-region: drag;
 }

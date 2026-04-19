@@ -1,23 +1,10 @@
 <template>
   <div class="grid-view">
-    <!-- Toolbar: title + counter + filters + search + refresh + new -->
+    <!-- Toolbar: title + counter + search + refresh + new -->
     <div class="grid-toolbar">
       <h1 class="grid-title">{{ t('grid.title') }}</h1>
       <div class="counter">
         {{ pad(filtered.length) }} / {{ pad(store.sessionList.length) }}
-      </div>
-
-      <div class="filter-group">
-        <button
-          v-for="(f, i) in filterDefs"
-          :key="f.key"
-          class="filter-btn"
-          :class="{ active: filter === f.key, divider: i > 0 }"
-          @click="filter = f.key"
-        >
-          <span>{{ f.label }}</span>
-          <span class="filter-count">{{ counts[f.key] }}</span>
-        </button>
       </div>
 
       <div class="search-box">
@@ -39,6 +26,10 @@
         <svg class="icon-btn-icon" viewBox="0 0 24 24" aria-hidden="true" :class="{ spinning: refreshing }" v-html="refreshIconBody" />
       </button>
 
+      <button class="skills-btn" type="button" @click="onToggleSkills">
+        <span>{{ t('grid.skills') }}</span>
+      </button>
+
       <button class="new-btn" @click="showNewModal = true">
         <svg class="new-btn-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="addIconBody" />
         <span>{{ t('grid.newAgent') }}</span>
@@ -48,7 +39,7 @@
     <!-- Body -->
     <div class="grid-body">
       <div v-if="store.sessionList.length === 0" class="empty-grid">
-        <div class="empty-icon" aria-hidden="true">⚡</div>
+        <MaterialSymbolsRobot2Outline class="empty-icon empty-icon-muted" aria-hidden="true" />
         <p class="empty-title">{{ t('grid.noAgentsYet') }}</p>
         <button class="new-agent-btn" @click="onNew">
           <svg class="new-btn-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="addIconBody" />
@@ -56,9 +47,8 @@
         </button>
       </div>
       <div v-else-if="filtered.length === 0" class="empty-grid">
-        <div class="empty-frame" aria-hidden="true">⚡</div>
-        <p class="empty-title">{{ t('grid.emptyFilteredTitle') }}</p>
-        <p class="empty-hint">{{ t('grid.emptyFilteredHint') }}</p>
+        <MaterialSymbolsRobot2Outline class="empty-icon empty-icon-muted" aria-hidden="true" />
+        <p class="empty-title">{{ t('grid.noAgentsYet') }}</p>
         <button class="new-agent-btn" @click="onNew">
           <svg class="new-btn-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="addIconBody" />
           <span>{{ t('grid.newAgent') }}</span>
@@ -88,6 +78,7 @@
       v-if="editingSession"
       :key="editingSession.meta.id"
       :name="editingSession.meta.name"
+      :model-name="editingSession.meta.model_name"
       :existing-names="editableOtherNames"
       :permissions="editingSession.meta.permissions"
       :profile="editingSession.meta.profile"
@@ -107,23 +98,23 @@
 
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
+import MaterialSymbolsRobot2Outline from '~icons/material-symbols/robot-2-outline'
 import type { AgentProfile, SessionPermissions } from '../api/http'
 import { connectSessionListWS } from '../api/ws'
 import { t } from '../i18n'
 import { getDesktopBridge } from '../runtime'
 import { useSessionsStore } from '../stores/sessions'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
+import { useSkillsSidebar } from '../composables/useSkillsSidebar'
 import { nextDefaultAgentName } from '../utils/agentNames'
-import { getSessionStatusTone } from '../utils/sessionStatus'
 import SessionCard from '../components/SessionCard.vue'
 import NewAgentModal from '../components/NewAgentModal.vue'
 import SessionSettingsModal from '../components/SessionSettingsModal.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 
-type FilterKey = 'all' | 'running' | 'approval' | 'idle' | 'error'
-
 const store = useSessionsStore()
 const { openAgent } = useAgentNavigation()
+const { toggleSkillsSidebar } = useSkillsSidebar()
 
 const addIconBody = '<path fill="currentColor" d="M11 13H6q-.425 0-.712-.288T5 12t.288-.712T6 11h5V6q0-.425.288-.712T12 5t.713.288T13 6v5h5q.425 0 .713.288T19 12t-.288.713T18 13h-5v5q0 .425-.288.713T12 19t-.712-.288T11 18z"/>'
 const refreshIconBody = '<path fill="currentColor" d="M12 20q-3.35 0-5.675-2.325T4 12q0-3.35 2.325-5.675T12 4q1.725 0 3.275.7t2.7 1.95V4h2v7h-7v-2h4.2q-.85-1.175-2.175-1.837T12 6Q9.5 6 7.75 7.75T6 12t1.75 4.25T12 18q1.925 0 3.475-1.1T17.6 14h2.1q-.7 2.7-2.85 4.35T12 20"/>'
@@ -132,36 +123,15 @@ const searchIconBody = '<path fill="currentColor" d="M9.5 3A6.5 6.5 0 0 1 16 9.5
 const showNewModal = ref(false)
 const editingSessionId = ref<string | null>(null)
 const deletingSessionId = ref<string | null>(null)
-const filter = ref<FilterKey>('all')
 const search = ref('')
 const refreshing = ref(false)
 let disconnectListWS: (() => void) | null = null
 
-const filterDefs = computed<{ key: FilterKey; label: string }[]>(() => [
-  { key: 'all',      label: t('grid.filter.all') },
-  { key: 'running',  label: t('grid.filter.running') },
-  { key: 'approval', label: t('grid.filter.approval') },
-  { key: 'idle',     label: t('grid.filter.idle') },
-  { key: 'error',    label: t('grid.filter.error') },
-])
-
-const counts = computed<Record<FilterKey, number>>(() => {
-  const c: Record<FilterKey, number> = { all: 0, running: 0, approval: 0, idle: 0, error: 0 }
-  for (const s of store.sessionList) {
-    c.all += 1
-    const tone = getSessionStatusTone(s)
-    c[tone] += 1
-  }
-  return c
-})
-
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
   return store.sessionList.filter((s) => {
-    const tone = getSessionStatusTone(s)
-    if (filter.value !== 'all' && tone !== filter.value) return false
     if (!q) return true
-    const hay = `${s.meta.name} ${s.meta.id} ${s.meta.work_dir}`.toLowerCase()
+    const hay = `${s.meta.name} ${s.meta.model_name} ${s.meta.id} ${s.meta.work_dir}`.toLowerCase()
     return hay.includes(q)
   })
 })
@@ -237,6 +207,10 @@ function onNew() {
   showNewModal.value = true
 }
 
+function onToggleSkills() {
+  void toggleSkillsSidebar()
+}
+
 async function onRefresh() {
   refreshing.value = true
   try {
@@ -246,8 +220,8 @@ async function onRefresh() {
   }
 }
 
-async function onCreateAgent(name: string, permissions: SessionPermissions, profile: AgentProfile) {
-  const meta = await store.create(name, permissions, profile, { subscribe: false })
+async function onCreateAgent(name: string, modelID: string, permissions: SessionPermissions, profile: AgentProfile) {
+  const meta = await store.create(name, modelID, permissions, profile, { subscribe: false })
   showNewModal.value = false
   await openAgent(meta.id)
 }
@@ -325,56 +299,6 @@ async function onConfirmDelete() {
   padding: 2px 6px;
   border: 1px solid var(--rule-soft);
   white-space: nowrap;
-}
-
-/* Filter pills */
-.filter-group {
-  display: flex;
-  margin-left: 6px;
-  border: 1px solid var(--rule-soft);
-  flex: 0 0 auto;
-}
-
-.filter-btn {
-  padding: 5px 10px;
-  font-family: var(--mono);
-  font-size: 11px;
-  background: transparent;
-  color: var(--ink-3);
-  border: none;
-  cursor: pointer;
-  letter-spacing: 0.04em;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  transition: background .12s, color .12s;
-}
-
-.filter-btn.divider {
-  border-left: 1px solid var(--rule-soft);
-}
-
-.filter-btn:hover {
-  background: var(--hover-soft);
-  color: var(--ink);
-}
-
-.filter-btn.active {
-  background: var(--ink);
-  color: var(--bg);
-}
-
-.filter-count {
-  font-size: 9.5px;
-  padding: 0 4px;
-  background: var(--rule-softer);
-  color: var(--ink-3);
-}
-
-.filter-btn.active .filter-count {
-  background: rgba(255,255,255,0.18);
-  color: var(--bg);
 }
 
 /* Search */
@@ -462,6 +386,31 @@ async function onConfirmDelete() {
   transition: background .12s, color .12s;
 }
 
+.skills-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  background: var(--panel-2);
+  color: var(--ink-2);
+  border: 1px solid var(--rule-soft);
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  transition: background .12s, color .12s, border-color .12s;
+}
+
+.skills-btn:hover {
+  background: var(--panel);
+  border-color: var(--rule);
+  color: var(--ink);
+}
+
 .new-btn:hover {
   background: var(--ink-2);
   border-color: var(--ink-2);
@@ -530,6 +479,10 @@ async function onConfirmDelete() {
 .empty-icon {
   font-size: 40px;
   color: var(--ink-3);
+}
+
+.empty-icon-muted {
+  color: color-mix(in srgb, var(--ink-4) 72%, transparent);
 }
 
 .empty-frame {

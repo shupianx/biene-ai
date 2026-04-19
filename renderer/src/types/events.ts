@@ -2,6 +2,7 @@ export type SessionEventType =
   | 'message_added'
   | 'skill_activated'
   | 'status'
+  | 'reasoning_delta'
   | 'text_delta'
   | 'tool_compose'
   | 'tool_start'
@@ -33,6 +34,10 @@ export interface TextDeltaData {
   text: string
 }
 
+export interface ReasoningDeltaData {
+  text: string
+}
+
 export interface ToolStartData {
   tool_id?: string
   tool_name: string
@@ -58,6 +63,7 @@ export interface PermissionRequestData {
   tool_name: string
   tool_summary: string
   tool_input: unknown
+  expired?: boolean
 }
 
 export interface PermissionClearedData {

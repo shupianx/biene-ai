@@ -5,6 +5,7 @@ import {
   getSessionHistory, sendMessage as apiSend,
   interruptSession as apiInterrupt,
   resolvePermission as apiResolve,
+  setThinkingEnabled as apiSetThinking,
   type SessionMeta, type SessionPermissions, type AgentProfile, type DisplayMessage, type DisplayTool,
 } from '../api/http'
 import { connectWS } from '../api/ws'
@@ -22,6 +23,7 @@ export interface AgentSession {
   isStreaming: boolean
   isInterrupting: boolean
   activeSkillName: string | null
+  _pendingSkillName: string | null
   pendingPermission: PermissionRequest | null
   _historyLoaded: boolean
   // cleanup fn returned by connectWS
@@ -139,11 +141,12 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   async function create(
     name: string,
+    modelID: string,
     permissions: SessionPermissions,
     profile: AgentProfile,
     options: AttachOptions = {},
   ) {
-    const meta = await createSession({ name, permissions, profile })
+    const meta = await createSession({ name, model_id: modelID, permissions, profile })
     await _attach(meta, options)
     return meta
   }
@@ -175,7 +178,12 @@ export const useSessionsStore = defineStore('sessions', () => {
     sess.isStreaming = true
     sess.messages.push({ id: messageId, role: 'user', text, created_at: createdAt, tool_calls: [] })
     try {
-      await apiSend(sessionId, text, messageId)
+      await apiSend(
+        sessionId,
+        text,
+        messageId,
+        sess.meta.thinking_available ? Boolean(sess.meta.thinking_enabled) : undefined,
+      )
       console.log(`[sendMessage] POST ok for ${sessionId}`)
     } catch (err) {
       console.error(`[sendMessage] POST failed for ${sessionId}:`, err)
@@ -186,6 +194,20 @@ export const useSessionsStore = defineStore('sessions', () => {
       const msg = _ensureAssistantTextSegment(sess)
       msg.text += `\n\n**${t('common.errorLabel')}:** ${err instanceof Error ? err.message : String(err)}`
       _finishAssistantTurn(sess)
+    }
+  }
+
+  async function setThinkingEnabled(sessionId: string, enabled: boolean) {
+    const sess = sessions.value[sessionId]
+    if (!sess?.meta.thinking_available) return
+
+    const previous = Boolean(sess.meta.thinking_enabled)
+    sess.meta.thinking_enabled = enabled
+    try {
+      sess.meta = await apiSetThinking(sessionId, enabled)
+    } catch (err) {
+      sess.meta.thinking_enabled = previous
+      console.error(`[setThinkingEnabled] POST failed for ${sessionId}:`, err)
     }
   }
 
@@ -231,6 +253,7 @@ export const useSessionsStore = defineStore('sessions', () => {
         isStreaming: meta.status === 'running',
         isInterrupting: false,
         activeSkillName: null,
+        _pendingSkillName: null,
         pendingPermission: meta.pending_permission ?? null,
         _historyLoaded: false,
         _disconnect: null,
@@ -277,6 +300,7 @@ export const useSessionsStore = defineStore('sessions', () => {
         const s = sessions.value[id]
         if (!s) return
         s.activeSkillName = skill_name
+        s._pendingSkillName = skill_name
       },
       onStatus({ status }) {
         const s = sessions.value[id]
@@ -285,22 +309,39 @@ export const useSessionsStore = defineStore('sessions', () => {
         s.isStreaming = status === 'running'
         if (status !== 'running') {
           s.activeSkillName = null
+          s._pendingSkillName = null
           s.isInterrupting = false
           s.pendingPermission = null
           s.meta.pending_permission = undefined
         }
       },
+      onReasoningDelta({ text }) {
+        const s = sessions.value[id]
+        if (!s) return
+        const usedSkillName = s._pendingSkillName ?? undefined
+        const msg = _ensureAssistantReasoningSegment(s, usedSkillName)
+        s._pendingSkillName = null
+        if (!msg.reasoning) {
+          msg.reasoning = {
+            text: '',
+            started_at: new Date().toISOString(),
+          }
+        }
+        msg.reasoning.text += text
+      },
       onTextDelta({ text }) {
         const s = sessions.value[id]
         if (!s) return
-        const usedSkillName = s.activeSkillName ?? undefined
+        _finalizeLatestAssistantReasoning(s)
+        const usedSkillName = s._pendingSkillName ?? undefined
         const msg = _ensureAssistantTextSegment(s, usedSkillName)
-        s.activeSkillName = null
+        s._pendingSkillName = null
         msg.text += text
       },
       onToolCompose({ tool_id, tool_name, tool_summary, tool_input }) {
         const s = sessions.value[id]
         if (!s) return
+        _finalizeLatestAssistantReasoning(s)
         const tc: DisplayTool = {
           tool_id,
           tool_name,
@@ -308,17 +349,17 @@ export const useSessionsStore = defineStore('sessions', () => {
           tool_input,
           status: 'composing',
         }
-        const usedSkillName = s.activeSkillName ?? undefined
+        const usedSkillName = s._pendingSkillName ?? undefined
         const msg = _ensureAssistantToolSegment(s, usedSkillName)
-        s.activeSkillName = null
+        s._pendingSkillName = null
         msg.tool_calls!.push(tc)
       },
       onToolStart({ tool_id, tool_name, tool_summary, tool_input }) {
         const s = sessions.value[id]
         if (!s) return
+        _finalizeLatestAssistantReasoning(s)
         const existing = _findLatestActiveTool(s, tool_id, tool_name, ['composing'])
         if (existing) {
-          s.activeSkillName = null
           existing.tool_summary = tool_summary
           existing.tool_input = tool_input
           existing.status = 'pending'
@@ -331,20 +372,22 @@ export const useSessionsStore = defineStore('sessions', () => {
           tool_input,
           status: 'pending',
         }
-        const usedSkillName = s.activeSkillName ?? undefined
+        const usedSkillName = s._pendingSkillName ?? undefined
         const msg = _ensureAssistantToolSegment(s, usedSkillName)
-        s.activeSkillName = null
+        s._pendingSkillName = null
         msg.tool_calls!.push(tc)
       },
       onToolResult({ tool_id, tool_name, text, is_error }) {
         const s = sessions.value[id]
         if (!s) return
+        _finalizeLatestAssistantReasoning(s)
         const tc = _findLatestActiveTool(s, tool_id, tool_name, ['pending', 'composing'])
         if (tc) { tc.status = is_error ? 'error' : 'done'; tc.result = text }
       },
       onToolDenied({ tool_id, tool_name }) {
         const s = sessions.value[id]
         if (!s) return
+        _finalizeLatestAssistantReasoning(s)
         const tc = _findLatestActiveTool(s, tool_id, tool_name, ['pending', 'composing'])
         if (tc) tc.status = 'denied'
       },
@@ -363,15 +406,17 @@ export const useSessionsStore = defineStore('sessions', () => {
       onError({ message }) {
         const s = sessions.value[id]
         if (!s) return
-        const usedSkillName = s.activeSkillName ?? undefined
+        _finalizeLatestAssistantReasoning(s)
+        const usedSkillName = s._pendingSkillName ?? undefined
         const msg = _ensureAssistantTextSegment(s, usedSkillName)
-        s.activeSkillName = null
+        s._pendingSkillName = null
         msg.text += `\n\n**${t('common.errorLabel')}:** ${message}`
       },
       onDone() {
         const s = sessions.value[id]
         if (!s) return
         s.activeSkillName = null
+        s._pendingSkillName = null
         if (s.isInterrupting) {
           _interruptAssistantTurn(s)
           return
@@ -390,7 +435,7 @@ export const useSessionsStore = defineStore('sessions', () => {
   return {
     sessions, sessionList,
     init, refresh, syncSession, upsertSessionMeta, removeSessionLocal, ensureSession, ensureHistory, create, update, remove,
-    sendMessage, interrupt, resolvePermission,
+    sendMessage, setThinkingEnabled, interrupt, resolvePermission,
   }
 })
 
@@ -425,10 +470,27 @@ function _ensureAssistantTextSegment(sess: AgentSession, usedSkillName?: string)
   return _newAssistantSegment(sess, usedSkillName)
 }
 
+function _ensureAssistantReasoningSegment(sess: AgentSession, usedSkillName?: string): DisplayMessage {
+  const last = _latestStreamingAssistant(sess)
+  if (last) return last
+  return _newAssistantSegment(sess, usedSkillName)
+}
+
 function _ensureAssistantToolSegment(sess: AgentSession, usedSkillName?: string): DisplayMessage {
   const last = _latestStreamingAssistant(sess)
   if (last && !last.text) return last
   return _newAssistantSegment(sess, usedSkillName)
+}
+
+function _finalizeAssistantReasoning(msg: DisplayMessage | null) {
+  if (!msg?.reasoning || msg.reasoning.duration_ms) return
+  const startedAt = new Date(msg.reasoning.started_at).getTime()
+  const duration = Number.isFinite(startedAt) ? Math.max(1, Date.now() - startedAt) : 1
+  msg.reasoning.duration_ms = duration
+}
+
+function _finalizeLatestAssistantReasoning(sess: AgentSession) {
+  _finalizeAssistantReasoning(_latestStreamingAssistant(sess))
 }
 
 function _findLatestActiveTool(
@@ -454,6 +516,7 @@ function _finishAssistantTurn(sess: AgentSession) {
   for (let i = sess.messages.length - 1; i >= 0; i -= 1) {
     const msg = sess.messages[i]
     if (msg.role !== 'assistant' || msg.streaming === false) break
+    _finalizeAssistantReasoning(msg)
     msg.streaming = false
   }
 }
@@ -462,6 +525,7 @@ function _interruptAssistantTurn(sess: AgentSession) {
   for (let i = sess.messages.length - 1; i >= 0; i -= 1) {
     const msg = sess.messages[i]
     if (msg.role !== 'assistant' || msg.streaming === false) break
+    _finalizeAssistantReasoning(msg)
     for (const tool of msg.tool_calls ?? []) {
       if (tool.status !== 'pending' && tool.status !== 'composing') continue
       tool.status = 'cancelled'

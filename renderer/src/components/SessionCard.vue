@@ -27,7 +27,6 @@
           <svg viewBox="0 0 24 24" aria-hidden="true" v-html="moreIconBody" />
         </button>
         <div v-if="menuOpen" class="menu">
-          <button class="menu-item" @click="onOpen">{{ t('grid.openMenu') }}</button>
           <button class="menu-item" @click="onOpenFolder">{{ t('grid.openFolderMenu') }}</button>
           <button class="menu-item" @click="onSettings">{{ t('common.settings') }}</button>
           <div class="menu-sep" aria-hidden="true" />
@@ -38,12 +37,18 @@
 
     <!-- Body -->
     <div class="body">
-      <div v-if="pendingPermLine" class="warn-line">⚠ {{ pendingPermLine }}</div>
+      <div v-if="pendingPermLine" class="warn-line">
+        <CiOctagonWarning class="warn-icon" aria-hidden="true" />
+        <span>{{ pendingPermLine }}</span>
+      </div>
 
       <div class="meta-row">
         <div class="status-tag" :class="statusTone">
           <span class="status-dot" />
           <span>{{ statusLabel }}</span>
+        </div>
+        <div v-if="session.meta.model_name" class="model-tag" :title="session.meta.model_name">
+          {{ session.meta.model_name }}
         </div>
         <div v-if="session.activeSkillName" class="skill-tag">
           ⚡ {{ session.activeSkillName }}
@@ -67,6 +72,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import CiOctagonWarning from '~icons/ci/octagon-warning'
 import type { AgentSession } from '../stores/sessions'
 import { t } from '../i18n'
 import { getSessionStatusLabel, getSessionStatusTone } from '../utils/sessionStatus'
@@ -115,11 +121,6 @@ const domainLabel = computed(() =>
 const styleLabel = computed(() =>
   findStyleOption(props.session.meta.profile.style)?.label ?? ''
 )
-
-function onOpen() {
-  menuOpen.value = false
-  emit('select')
-}
 
 function onSettings() {
   menuOpen.value = false
@@ -315,6 +316,9 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
 }
 
 .warn-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--mono);
   font-size: 11.5px;
   color: var(--warn);
@@ -322,6 +326,12 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.warn-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
 }
 
 .meta-row {
@@ -370,6 +380,21 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
   border: 1px solid var(--accent);
   padding: 2px 6px;
   white-space: nowrap;
+}
+
+.model-tag {
+  min-width: 0;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  border: 1px solid var(--rule-soft);
+  background: var(--panel);
+  padding: 2px 6px;
 }
 
 .updated {

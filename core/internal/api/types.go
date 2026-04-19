@@ -63,19 +63,26 @@ type ToolDefinition struct {
 type EventType string
 
 const (
-	EventTextDelta    EventType = "text_delta"
-	EventToolUseStart EventType = "tool_use_start"
-	EventToolUse      EventType = "tool_use" // complete tool_use block ready
-	EventDone         EventType = "done"
-	EventError        EventType = "error"
+	EventReasoningDelta EventType = "reasoning_delta"
+	EventTextDelta      EventType = "text_delta"
+	EventToolUseStart   EventType = "tool_use_start"
+	EventToolUse        EventType = "tool_use" // complete tool_use block ready
+	EventDone           EventType = "done"
+	EventError          EventType = "error"
 )
 
 // StreamEvent is emitted by Provider.Stream for each incremental update.
 type StreamEvent struct {
 	Type    EventType
-	Text    string        // EventTextDelta
+	Text    string        // EventReasoningDelta / EventTextDelta
 	ToolUse *ToolUseBlock // EventToolUseStart / EventToolUse
 	Err     error         // EventError
+}
+
+// RequestOptions carries provider-specific runtime controls expressed in
+// provider-agnostic terms.
+type RequestOptions struct {
+	EnableThinking *bool
 }
 
 // ─── Provider interface ───────────────────────────────────────────────────
@@ -92,6 +99,7 @@ type Provider interface {
 		messages []Message,
 		tools []ToolDefinition,
 		maxTokens int,
+		opts RequestOptions,
 	) (<-chan StreamEvent, error)
 
 	// Name returns a human-readable identifier for logging.

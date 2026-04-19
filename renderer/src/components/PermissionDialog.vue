@@ -1,18 +1,21 @@
 <template>
   <div v-if="req" class="card">
     <div class="card-head">
-      <span class="state">
+      <span class="state" :class="{ expired: isExpired }">
         <span class="state-dot" />
-        <span>{{ t('sessionStatus.approval') }}</span>
+        <span>{{ isExpired ? t('permissions.expiredLabel') : t('sessionStatus.approval') }}</span>
       </span>
       <span class="tool-name">{{ permissionLabel }}</span>
     </div>
-    <p class="desc">{{ t('permissions.approvalDescription') }}</p>
+    <p class="desc">{{ isExpired ? t('permissions.expiredDescription') : t('permissions.approvalDescription') }}</p>
     <p v-if="permissionDescription" class="permission-desc">{{ permissionDescription }}</p>
     <div class="actions">
-      <button class="btn deny"   @click="emit('resolve', 'deny')">{{ t('permissions.deny') }}</button>
-      <button class="btn allow"  @click="emit('resolve', 'allow')">{{ t('permissions.allowOnce') }}</button>
-      <button class="btn always" @click="emit('resolve', 'always')">{{ t('permissions.allowAlways') }}</button>
+      <button v-if="isExpired" class="btn deny" @click="emit('resolve', 'deny')">{{ t('common.close') }}</button>
+      <template v-else>
+        <button class="btn deny"   @click="emit('resolve', 'deny')">{{ t('permissions.deny') }}</button>
+        <button class="btn allow"  @click="emit('resolve', 'allow')">{{ t('permissions.allowOnce') }}</button>
+        <button class="btn always" @click="emit('resolve', 'always')">{{ t('permissions.allowAlways') }}</button>
+      </template>
     </div>
   </div>
 </template>
@@ -28,6 +31,7 @@ const emit = defineEmits<{ (e: 'resolve', d: 'allow' | 'always' | 'deny'): void 
 
 const permissionLabel = computed(() => getPermissionLabel(props.req?.permission ?? ''))
 const permissionDescription = computed(() => getPermissionDescription(props.req?.permission ?? ''))
+const isExpired = computed(() => Boolean(props.req?.expired))
 </script>
 
 <style scoped>
@@ -63,12 +67,22 @@ const permissionDescription = computed(() => getPermissionDescription(props.req?
   text-transform: uppercase;
 }
 
+.state.expired {
+  border-color: var(--rule);
+  color: var(--ink-4);
+}
+
 .state-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--warn);
   animation: bienePulse 1.6s ease-in-out infinite;
+}
+
+.state.expired .state-dot {
+  background: currentColor;
+  animation: none;
 }
 
 .tool-name {

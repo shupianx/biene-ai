@@ -17,8 +17,9 @@ func (s *Session) setPendingPermission(req webperm.PermissionRequest) *Permissio
 
 	s.mu.Lock()
 	s.pendingPermission = payload
-	meta := s.metaLocked()
+	meta := s.persistentMetaLocked()
 	s.mu.Unlock()
+	s.persistMetaSnapshot(meta)
 	s.notifyMetaChanged(meta)
 	return clonePermissionPayload(payload)
 }
@@ -38,10 +39,11 @@ func (s *Session) clearPendingPermission(requestID string) {
 	}
 	s.pendingPermission = nil
 	cleared = true
-	meta = s.metaLocked()
+	meta = s.persistentMetaLocked()
 	s.mu.Unlock()
 
 	if cleared {
+		s.persistMetaSnapshot(meta)
 		s.notifyMetaChanged(meta)
 		s.send(makeFrame("permission_cleared", permissionClearedPayload{RequestID: requestID}))
 	}

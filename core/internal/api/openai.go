@@ -1,11 +1,15 @@
 package api
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"strings"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -14,8 +18,11 @@ import (
 // It works with OpenAI, Ollama, 豆包, Gemini OpenAI-compat, DeepSeek, etc.
 // by setting BaseURL in the client config.
 type OpenAIProvider struct {
-	client *openai.Client
-	model  string
+	client     *openai.Client
+	httpClient openai.HTTPDoer
+	apiKey     string
+	baseURL    string
+	model      string
 }
 
 // NewOpenAIProvider creates a new OpenAI-compatible provider.
@@ -25,9 +32,16 @@ func NewOpenAIProvider(apiKey, model, baseURL string) *OpenAIProvider {
 	if baseURL != "" {
 		cfg.BaseURL = baseURL
 	}
+	httpClient := cfg.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
 	return &OpenAIProvider{
-		client: openai.NewClientWithConfig(cfg),
-		model:  model,
+		client:     openai.NewClientWithConfig(cfg),
+		httpClient: httpClient,
+		apiKey:     apiKey,
+		baseURL:    strings.TrimRight(cfg.BaseURL, "/"),
+		model:      model,
 	}
 }
 
@@ -40,6 +54,7 @@ func (p *OpenAIProvider) Stream(
 	messages []Message,
 	tools []ToolDefinition,
 	maxTokens int,
+	opts RequestOptions,
 ) (<-chan StreamEvent, error) {
 	apiMessages, err := convertMessagesToOpenAI(messages, systemPrompt)
 	if err != nil {
@@ -56,7 +71,7 @@ func (p *OpenAIProvider) Stream(
 		req.Tools = convertToolsToOpenAI(tools)
 	}
 
-	stream, err := p.client.CreateChatCompletionStream(ctx, req)
+	stream, err := p.openStream(ctx, req, opts)
 	if err != nil {
 		return nil, fmt.Errorf("creating stream: %w", err)
 	}
@@ -88,6 +103,11 @@ func (p *OpenAIProvider) Stream(
 				continue
 			}
 			delta := resp.Choices[0].Delta
+
+			// Reasoning content for providers like Qwen / DeepSeek.
+			if delta.ReasoningContent != "" {
+				ch <- StreamEvent{Type: EventReasoningDelta, Text: delta.ReasoningContent}
+			}
 
 			// Text content
 			if delta.Content != "" {
@@ -169,6 +189,134 @@ func (p *OpenAIProvider) Stream(
 	}()
 
 	return ch, nil
+}
+
+type chatCompletionStream interface {
+	Recv() (openai.ChatCompletionStreamResponse, error)
+	Close() error
+}
+
+func (p *OpenAIProvider) openStream(
+	ctx context.Context,
+	req openai.ChatCompletionRequest,
+	opts RequestOptions,
+) (chatCompletionStream, error) {
+	if opts.EnableThinking == nil {
+		return p.client.CreateChatCompletionStream(ctx, req)
+	}
+
+	body, err := marshalChatCompletionRequest(req, map[string]any{
+		"enable_thinking": *opts.EnableThinking,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		p.baseURL+"/chat/completions",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "text/event-stream")
+	httpReq.Header.Set("Cache-Control", "no-cache")
+	httpReq.Header.Set("Connection", "keep-alive")
+	if p.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
+		defer resp.Body.Close()
+		bodyText, _ := io.ReadAll(resp.Body)
+		if len(bodyText) == 0 {
+			return nil, fmt.Errorf("unexpected status: %s", resp.Status)
+		}
+		return nil, fmt.Errorf("%s", strings.TrimSpace(string(bodyText)))
+	}
+
+	return &manualChatCompletionStream{
+		body:   resp.Body,
+		reader: bufio.NewReader(resp.Body),
+	}, nil
+}
+
+func marshalChatCompletionRequest(req openai.ChatCompletionRequest, extra map[string]any) ([]byte, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	if len(extra) == 0 {
+		return body, nil
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	for key, value := range extra {
+		payload[key] = value
+	}
+	return json.Marshal(payload)
+}
+
+type manualChatCompletionStream struct {
+	body   io.ReadCloser
+	reader *bufio.Reader
+}
+
+func (s *manualChatCompletionStream) Close() error {
+	return s.body.Close()
+}
+
+func (s *manualChatCompletionStream) Recv() (openai.ChatCompletionStreamResponse, error) {
+	var (
+		resp      openai.ChatCompletionStreamResponse
+		dataLines []string
+	)
+
+	for {
+		line, err := s.reader.ReadString('\n')
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				if len(dataLines) == 0 {
+					return resp, io.EOF
+				}
+				break
+			}
+			return resp, err
+		}
+
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" {
+			if len(dataLines) == 0 {
+				continue
+			}
+			break
+		}
+		if strings.HasPrefix(line, "data:") {
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		}
+	}
+
+	payload := strings.Join(dataLines, "\n")
+	if payload == "[DONE]" {
+		return resp, io.EOF
+	}
+	if payload == "" {
+		return resp, io.EOF
+	}
+	if err := json.Unmarshal([]byte(payload), &resp); err != nil {
+		return resp, err
+	}
+	return resp, nil
 }
 
 // ─── Conversion helpers ───────────────────────────────────────────────────

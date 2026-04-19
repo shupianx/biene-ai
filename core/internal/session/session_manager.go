@@ -16,6 +16,7 @@ import (
 	"biene/internal/config"
 	"biene/internal/permission/webperm"
 	"biene/internal/prompt"
+	"biene/internal/skills"
 	"biene/internal/store"
 	"biene/internal/tools"
 	"biene/internal/tools/builtins"
@@ -89,6 +90,12 @@ func (m *SessionManager) Init() {
 			st.Close()
 			continue
 		}
+		if meta.PendingPermission != nil {
+			meta.PendingPermission.Expired = true
+			if err := st.SaveMeta(meta); err != nil {
+				log.Printf("init: save expired permission state %s: %v", id, err)
+			}
+		}
 
 		// Load display history; clear any streaming-in-progress flags.
 		rawDisplay, err := st.LoadDisplayMessages()
@@ -127,36 +134,56 @@ func (m *SessionManager) Init() {
 		profile := normalizeProfile(meta.Profile)
 		toolMode := defaultToolModeForProfile(profile)
 
-		// Rebuild provider / registry / checker from current config.
-		modelEntry, err := m.cfg.GetModel("")
+		// Rebuild provider / registry / checker from the pinned model selection.
+		modelEntry, resolvedModelID, err := resolveModelEntry(m.cfg, meta.ModelID)
 		if err != nil {
 			log.Printf("init: get model for %s: %v", id, err)
 			st.Close()
 			continue
 		}
+		if meta.ModelID != resolvedModelID || meta.ModelName != modelEntry.Name {
+			meta.ModelID = resolvedModelID
+			meta.ModelName = modelEntry.Name
+			if err := st.SaveMeta(meta); err != nil {
+				log.Printf("init: save normalized model state %s: %v", id, err)
+			}
+		}
+		thinkingAvailable := modelEntry.EnableThinking
+		thinkingEnabled := thinkingAvailable
+		if meta.ThinkingAvailable {
+			thinkingEnabled = thinkingAvailable && meta.ThinkingEnabled
+		}
+		if meta.ThinkingAvailable != thinkingAvailable || meta.ThinkingEnabled != thinkingEnabled {
+			meta.ThinkingAvailable = thinkingAvailable
+			meta.ThinkingEnabled = thinkingEnabled
+			if err := st.SaveMeta(meta); err != nil {
+				log.Printf("init: save thinking state %s: %v", id, err)
+			}
+		}
 		provider := newProvider(modelEntry)
 		registry := builtins.RegistryForWorkDir(workDir)
 		checker := webperm.NewChecker(perms)
-		maxTokens := m.cfg.Settings.MaxTokens
-		if maxTokens == 0 {
-			maxTokens = 8192
-		}
+		maxTokens := maxTokensFromConfig(m.cfg)
 		registry.Register(builtins.NewListAgentsTool(m, id))
 		registry.Register(builtins.NewSendToAgentTool(m, id))
 
 		sess := &Session{
-			ID:          id,
-			Name:        meta.Name,
-			WorkDir:     meta.WorkDir,
-			Status:      StatusIdle,
-			permissions: perms,
-			profile:     profile,
-			toolMode:    toolMode,
-			CreatedAt:   meta.CreatedAt,
-			LastActive:  meta.LastActive,
-			provider:    provider,
-			registry:    registry,
-			checker:     checker,
+			ID:                id,
+			Name:              meta.Name,
+			WorkDir:           meta.WorkDir,
+			Status:            StatusIdle,
+			permissions:       perms,
+			profile:           profile,
+			toolMode:          toolMode,
+			CreatedAt:         meta.CreatedAt,
+			LastActive:        meta.LastActive,
+			provider:          provider,
+			registry:          registry,
+			checker:           checker,
+			modelID:           resolvedModelID,
+			modelName:         modelEntry.Name,
+			thinkingAvailable: thinkingAvailable,
+			thinkingEnabled:   thinkingEnabled,
 			systemPrompt: prompt.Build(registry, workDir, profile, prompt.AgentIdentity{
 				ID:      id,
 				Name:    meta.Name,
@@ -185,16 +212,19 @@ func (m *SessionManager) Init() {
 }
 
 // Create allocates a new session with its own workspace directory.
-func (m *SessionManager) Create(name string, permissions tools.PermissionSet, profile prompt.AgentProfile) (*Session, error) {
+func (m *SessionManager) Create(name string, permissions tools.PermissionSet, profile prompt.AgentProfile, modelID string) (*Session, error) {
 	id := newSessionID()
 	workDir := filepath.Join(m.workspaceRoot, id)
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
 		return nil, fmt.Errorf("creating workspace: %w", err)
 	}
+	if err := skills.InstallDefaultEnabled(workDir); err != nil {
+		return nil, fmt.Errorf("installing default-enabled skills: %w", err)
+	}
 	profile = normalizeProfile(profile)
 	toolMode := defaultToolModeForProfile(profile)
 
-	modelEntry, err := m.cfg.GetModel("")
+	modelEntry, resolvedModelID, err := resolveModelEntry(m.cfg, modelID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,10 +232,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	provider := newProvider(modelEntry)
 	registry := builtins.RegistryForWorkDir(workDir)
 	checker := webperm.NewChecker(permissions)
-	maxTokens := m.cfg.Settings.MaxTokens
-	if maxTokens == 0 {
-		maxTokens = 8192
-	}
+	maxTokens := maxTokensFromConfig(m.cfg)
 
 	registry.Register(builtins.NewListAgentsTool(m, id))
 	registry.Register(builtins.NewSendToAgentTool(m, id))
@@ -229,6 +256,10 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		provider:          provider,
 		registry:          registry,
 		checker:           checker,
+		modelID:           resolvedModelID,
+		modelName:         modelEntry.Name,
+		thinkingAvailable: modelEntry.EnableThinking,
+		thinkingEnabled:   modelEntry.EnableThinking,
 		systemPrompt:      sysprompt,
 		maxTokens:         maxTokens,
 		apiMessages:       []api.Message{},

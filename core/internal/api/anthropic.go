@@ -38,6 +38,7 @@ func (p *AnthropicProvider) Stream(
 	messages []Message,
 	tools []ToolDefinition,
 	maxTokens int,
+	_ RequestOptions,
 ) (<-chan StreamEvent, error) {
 	apiMessages, err := convertMessagesToAnthropic(messages)
 	if err != nil {

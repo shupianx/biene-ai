@@ -37,6 +37,7 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 			cfg.Messages,
 			toolDefs,
 			cfg.MaxTokens,
+			cfg.RequestOpts,
 		)
 		if err != nil {
 			return fmt.Errorf("API error: %w", err)

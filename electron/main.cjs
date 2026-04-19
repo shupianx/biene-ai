@@ -1,6 +1,7 @@
-const { Menu, app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
+const { Menu, app, BrowserWindow, dialog, ipcMain, screen, shell } = require('electron')
 const { spawn } = require('child_process')
 const { randomBytes } = require('crypto')
+const fs = require('fs')
 const http = require('http')
 const net = require('net')
 const path = require('path')
@@ -38,9 +39,16 @@ let coreStartPromise = null
 let quitAfterCoreStop = false
 let loginShellPathPromise = null
 const windowAppearanceOptions = new WeakMap()
+let mainWindowSkillsSidebarCompensation = 0
+let mainWindowSkillsSidebarCompensationLeft = 0
+let skillConfig = defaultSkillConfig()
 
 function currentTheme() {
   return desktopSettings.theme === 'dark' ? 'dark' : 'light'
+}
+
+function currentLocale() {
+  return desktopSettings.locale === 'zh-CN' ? 'zh-CN' : 'en'
 }
 
 function getWindowAppearance(theme) {
@@ -110,6 +118,133 @@ function resolvePackagedWorkspaceDir() {
   }
 
   return path.join(path.dirname(process.execPath), 'workspace')
+}
+
+function resolveBieneHomeDir() {
+  return path.join(app.getPath('home'), '.biene')
+}
+
+function resolveGlobalSkillsDir() {
+  return path.join(resolveBieneHomeDir(), 'skills')
+}
+
+function resolveSkillConfigPath() {
+  return path.join(resolveBieneHomeDir(), 'skill-config.json')
+}
+
+function defaultSkillConfig() {
+  return {
+    defaultEnabledSkillDirs: [],
+  }
+}
+
+function normalizeSkillConfig(value) {
+  const next = value && typeof value === 'object' ? value : {}
+  const legacyDefaultSkillDir = typeof next.defaultSkillDir === 'string' ? next.defaultSkillDir.trim() : ''
+  const defaultEnabledSkillDirs = Array.isArray(next.defaultEnabledSkillDirs)
+    ? [...new Set(next.defaultEnabledSkillDirs
+      .map((item) => typeof item === 'string' ? item.trim() : '')
+      .filter(Boolean))]
+    : []
+
+  if (legacyDefaultSkillDir && !defaultEnabledSkillDirs.includes(legacyDefaultSkillDir)) {
+    defaultEnabledSkillDirs.push(legacyDefaultSkillDir)
+  }
+
+  return {
+    defaultEnabledSkillDirs,
+  }
+}
+
+function loadSkillConfig() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(resolveSkillConfigPath(), 'utf8'))
+    return normalizeSkillConfig(raw)
+  } catch {
+    return saveSkillConfig(defaultSkillConfig())
+  }
+}
+
+function saveSkillConfig(nextConfig) {
+  const normalized = normalizeSkillConfig(nextConfig)
+  fs.mkdirSync(resolveBieneHomeDir(), { recursive: true })
+  fs.writeFileSync(resolveSkillConfigPath(), `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
+  return normalized
+}
+
+function ensureSkillDirWithinGlobalRoot(skillDir) {
+  const root = fs.realpathSync.native(resolveGlobalSkillsDir())
+  const target = fs.realpathSync.native(path.resolve(String(skillDir || '')))
+  if (target === root || !target.startsWith(`${root}${path.sep}`)) {
+    throw new Error('Skill path is outside the global skills directory.')
+  }
+  return target
+}
+
+function removeSkillDir(skillDir) {
+  const target = ensureSkillDirWithinGlobalRoot(skillDir)
+  fs.rmSync(target, { recursive: true, force: false })
+
+  skillConfig = saveSkillConfig({
+    defaultEnabledSkillDirs: skillConfig.defaultEnabledSkillDirs.filter((entry) => entry !== target),
+  })
+
+  return skillConfig
+}
+
+function containsSkillFile(root) {
+  const entries = fs.readdirSync(root, { withFileTypes: true })
+  for (const entry of entries) {
+    const nextPath = path.join(root, entry.name)
+    if (entry.isFile() && entry.name === 'SKILL.md') {
+      return true
+    }
+    if (entry.isDirectory() && containsSkillFile(nextPath)) {
+      return true
+    }
+  }
+  return false
+}
+
+function uniqueImportDir(root, baseName) {
+  const normalized = (typeof baseName === 'string' && baseName.trim()) ? baseName.trim() : 'skill'
+  let candidate = normalized
+  for (let i = 2; ; i += 1) {
+    const fullPath = path.join(root, candidate)
+    if (!fs.existsSync(fullPath)) {
+      return fullPath
+    }
+    candidate = `${normalized}-${i}`
+  }
+}
+
+async function importSkillFolder() {
+  const targetRoot = resolveGlobalSkillsDir()
+  fs.mkdirSync(targetRoot, { recursive: true })
+
+  const owner = (!mainWindow || mainWindow.isDestroyed()) ? undefined : mainWindow
+  const result = await dialog.showOpenDialog(owner, {
+    properties: ['openDirectory', 'multiSelections'],
+    title: 'Import Skill Folders',
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return 0
+  }
+
+  for (const sourceDir of result.filePaths) {
+    if (!containsSkillFile(sourceDir)) {
+      throw new Error(`Selected folder "${path.basename(sourceDir)}" does not contain a SKILL.md file.`)
+    }
+  }
+
+  let importedCount = 0
+  for (const sourceDir of result.filePaths) {
+    const destDir = uniqueImportDir(targetRoot, path.basename(sourceDir))
+    fs.cpSync(sourceDir, destDir, { recursive: true, errorOnExist: true })
+    importedCount += 1
+  }
+  return importedCount
 }
 
 function defaultLoginShell() {
@@ -623,8 +758,14 @@ function createAppWindow(options) {
     height: options.height,
     minWidth: options.minWidth,
     minHeight: options.minHeight,
+    show: options.show ?? true,
+    resizable: options.resizable ?? true,
+    maximizable: options.maximizable ?? true,
+    minimizable: options.minimizable ?? true,
+    skipTaskbar: options.skipTaskbar ?? false,
+    parent: options.parent,
     useContentSize: true,
-    center: true,
+    center: options.center ?? true,
     title: options.title,
     autoHideMenuBar: true,
     ...windowOptions,
@@ -635,6 +776,7 @@ function createAppWindow(options) {
       additionalArguments: [
         `--biene-core-url=${coreBaseUrl}`,
         `--biene-core-token=${ensureCoreAuthToken()}`,
+        `--biene-locale=${currentLocale()}`,
         `--biene-theme=${currentTheme()}`,
         `--biene-window-kind=${options.windowKind ?? 'main'}`,
       ],
@@ -683,6 +825,80 @@ function openAgentWindow(sessionId) {
   })
 }
 
+function setMainWindowSkillsSidebarOpen(open, requestedWidth) {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFullScreen()) {
+    return
+  }
+
+  const width = Math.max(0, Math.round(Number(requestedWidth) || 0))
+  const bounds = mainWindow.getBounds()
+
+  if (!open || width === 0) {
+    const shrink = Math.min(mainWindowSkillsSidebarCompensation, Math.max(0, bounds.width - mainWindow.getMinimumSize()[0]))
+    if (shrink > 0) {
+      const shrinkLeft = Math.min(mainWindowSkillsSidebarCompensationLeft, shrink)
+      mainWindow.setBounds({
+        x: bounds.x + shrinkLeft,
+        y: bounds.y,
+        width: bounds.width - shrink,
+        height: bounds.height,
+      }, false)
+      mainWindowSkillsSidebarCompensationLeft -= shrinkLeft
+    }
+    mainWindowSkillsSidebarCompensation = 0
+    mainWindowSkillsSidebarCompensationLeft = 0
+    return
+  }
+
+  const target = width
+  if (mainWindow.isMaximized()) {
+    mainWindowSkillsSidebarCompensation = 0
+    mainWindowSkillsSidebarCompensationLeft = 0
+    return
+  }
+
+  const delta = target - mainWindowSkillsSidebarCompensation
+  if (delta === 0) {
+    return
+  }
+
+  if (delta < 0) {
+    const shrink = Math.min(-delta, mainWindowSkillsSidebarCompensation, Math.max(0, bounds.width - mainWindow.getMinimumSize()[0]))
+    if (shrink > 0) {
+      const shrinkLeft = Math.min(mainWindowSkillsSidebarCompensationLeft, shrink)
+      mainWindow.setBounds({
+        x: bounds.x + shrinkLeft,
+        y: bounds.y,
+        width: bounds.width - shrink,
+        height: bounds.height,
+      }, false)
+      mainWindowSkillsSidebarCompensation -= shrink
+      mainWindowSkillsSidebarCompensationLeft -= shrinkLeft
+    }
+    return
+  }
+
+  const display = screen.getDisplayMatching(bounds)
+  const workArea = display.workArea
+  const availableLeft = Math.max(0, bounds.x - workArea.x)
+  const availableRight = Math.max(0, workArea.x + workArea.width - (bounds.x + bounds.width))
+  const grow = Math.min(delta, availableLeft + availableRight)
+  if (grow <= 0) {
+    return
+  }
+
+  const growRight = Math.min(grow, availableRight)
+  const growLeft = Math.min(grow - growRight, availableLeft)
+  mainWindow.setBounds({
+    x: bounds.x - growLeft,
+    y: bounds.y,
+    width: bounds.width + grow,
+    height: bounds.height,
+  }, false)
+  mainWindowSkillsSidebarCompensation += grow
+  mainWindowSkillsSidebarCompensationLeft += growLeft
+}
+
 function registerDesktopHandlers() {
   ipcMain.handle('desktop:getCoreStatus', async () => currentCoreStatus())
   ipcMain.handle('desktop:getSettings', async () => desktopSettings)
@@ -711,6 +927,21 @@ function registerDesktopHandlers() {
   ipcMain.handle('desktop:openAgentWindow', async (_event, sessionId) => {
     openAgentWindow(sessionId)
   })
+  ipcMain.handle('desktop:importSkillFolder', async () => importSkillFolder())
+  ipcMain.handle('desktop:getSkillConfig', async () => skillConfig)
+  ipcMain.handle('desktop:updateSkillConfig', async (_event, patch) => {
+    skillConfig = saveSkillConfig({
+      ...skillConfig,
+      ...(patch && typeof patch === 'object' ? patch : {}),
+    })
+    return skillConfig
+  })
+  ipcMain.handle('desktop:deleteSkill', async (_event, skillDir) => removeSkillDir(skillDir))
+  ipcMain.handle('desktop:setSkillsSidebarOpen', async (_event, payload) => {
+    const nextOpen = Boolean(payload?.open)
+    const nextWidth = Number(payload?.width) || 0
+    setMainWindowSkillsSidebarOpen(nextOpen, nextWidth)
+  })
   ipcMain.handle('desktop:showCoreMenu', async (event, labels) => {
     showCoreMenu(event, labels)
   })
@@ -723,8 +954,8 @@ function createMainWindow() {
   const win = createAppWindow({
     route: '/',
     title: 'Biene',
-    width: 1200,
-    height: 780,
+    width: 1140,
+    height: 720,
     minWidth: 960,
     minHeight: 640,
     windowKind: 'main',
@@ -732,6 +963,8 @@ function createMainWindow() {
   })
   mainWindow = win
   win.on('closed', () => {
+    mainWindowSkillsSidebarCompensation = 0
+    mainWindowSkillsSidebarCompensationLeft = 0
     if (mainWindow === win) {
       mainWindow = null
     }
@@ -759,6 +992,7 @@ app.on('before-quit', (event) => {
 
 app.whenReady().then(async () => {
   desktopSettings = loadDesktopSettings(app)
+  skillConfig = loadSkillConfig()
   registerDesktopHandlers()
 
   try {

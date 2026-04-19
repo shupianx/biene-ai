@@ -1,8 +1,11 @@
 import { computed, ref } from 'vue'
 import { getDesktopBridge, type DesktopSettings } from '../runtime'
+import { getLocale, setLocale as setAppLocale } from '../i18n'
+import type { AppLocale } from '../i18n/messages'
 
 const settings = ref<DesktopSettings>({
   keepCoreRunningOnExit: true,
+  locale: getLocale(),
   theme: 'light',
 })
 const supported = ref(false)
@@ -18,6 +21,7 @@ async function initDesktopSettings() {
   supported.value = true
   try {
     settings.value = await bridge.getDesktopSettings()
+    setAppLocale(settings.value.locale)
   } catch {
     // Fall back to the in-memory default.
   }
@@ -40,9 +44,26 @@ export function useDesktopSettings() {
     }
   }
 
+  async function setLocalePreference(next: AppLocale) {
+    const bridge = getDesktopBridge()
+    settings.value = { ...settings.value, locale: next }
+    setAppLocale(next)
+
+    if (!bridge?.updateDesktopSettings) return
+
+    try {
+      settings.value = await bridge.updateDesktopSettings({ locale: next })
+      setAppLocale(settings.value.locale)
+    } catch {
+      // Keep the already-applied locale even if desktop persistence fails.
+    }
+  }
+
   return {
     desktopSettingsSupported: computed(() => supported.value),
     keepCoreRunningOnExit: computed(() => settings.value.keepCoreRunningOnExit),
+    locale: computed(() => settings.value.locale),
     setKeepCoreRunningOnExit,
+    setLocalePreference,
   }
 }

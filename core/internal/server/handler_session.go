@@ -18,6 +18,7 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 // createSessionRequest is the body for POST /api/sessions.
 type createSessionRequest struct {
 	Name        string               `json:"name"`
+	ModelID     string               `json:"model_id"`
 	Permissions *tools.PermissionSet `json:"permissions"`
 	Profile     *prompt.AgentProfile `json:"profile"`
 }
@@ -45,7 +46,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if req.Profile != nil {
 		profile = *req.Profile
 	}
-	sess, err := s.mgr.Create(req.Name, perms, profile)
+	sess, err := s.mgr.Create(req.Name, perms, profile, req.ModelID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

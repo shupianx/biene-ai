@@ -1,7 +1,9 @@
 import { createI18n } from 'vue-i18n'
 import { messages, type AppLocale } from './messages'
+import { getDesktopBridge } from '../runtime'
 
 const DEFAULT_LOCALE: AppLocale = 'en'
+const STORAGE_KEY = 'biene.locale'
 
 export const i18n = createI18n({
   legacy: false,
@@ -15,7 +17,15 @@ export function getLocale(): AppLocale {
 }
 
 export function setLocale(locale: string) {
-  i18n.global.locale.value = normalizeLocale(locale)
+  const next = normalizeLocale(locale)
+  i18n.global.locale.value = next
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next)
+    } catch {
+      // Ignore storage failures and still apply the in-memory locale.
+    }
+  }
 }
 
 export function t(key: string, params?: Record<string, unknown>) {
@@ -24,6 +34,16 @@ export function t(key: string, params?: Record<string, unknown>) {
 }
 
 function resolveInitialLocale(): AppLocale {
+  const bridgeLocale = getDesktopBridge()?.initialLocale
+  if (bridgeLocale) return normalizeLocale(bridgeLocale)
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY)
+      if (stored) return normalizeLocale(stored)
+    } catch {
+      // Ignore storage failures and fall back to the browser locale.
+    }
+  }
   if (typeof navigator === 'undefined') return DEFAULT_LOCALE
   return normalizeLocale(navigator.language)
 }

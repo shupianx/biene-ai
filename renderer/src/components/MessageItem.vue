@@ -5,9 +5,40 @@
         <span class="role-tag">AGENT</span>
         <span v-if="usedSkillLabel" class="skill-note">⚡ {{ usedSkillLabel }}</span>
       </div>
-      <div v-if="msg.role === 'assistant'" class="markdown" v-html="renderedText" />
+      <div v-if="reasoningText" class="reasoning-block" :class="{ complete: reasoningComplete }">
+        <button
+          class="reasoning-head"
+          :class="{ clickable: reasoningComplete }"
+          type="button"
+          :disabled="!reasoningComplete"
+          :aria-expanded="reasoningComplete ? !reasoningCollapsed : undefined"
+          @click="toggleReasoning"
+        >
+          <span class="reasoning-title">{{ reasoningLabel }}</span>
+          <MaterialSymbolsArrowForwardIosRounded
+            v-if="reasoningComplete"
+            class="reasoning-chevron"
+            :class="{ expanded: !reasoningCollapsed }"
+            aria-hidden="true"
+          />
+        </button>
+        <div
+          class="reasoning-content"
+          :class="{
+            complete: reasoningComplete,
+            collapsed: reasoningCollapsed && reasoningComplete,
+            streaming: !reasoningComplete,
+          }"
+          :style="reasoningContentStyle"
+        >
+          <div ref="reasoningBodyRef" class="reasoning-body" dir="auto">
+            {{ reasoningText }}
+          </div>
+        </div>
+      </div>
+      <div v-if="assistantHasText" class="markdown" v-html="renderedText" />
       <div
-        v-else
+        v-else-if="msg.role !== 'assistant'"
         class="user-text"
         :class="{
           'agent-source-text': msg.author_type === 'agent',
@@ -45,7 +76,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import MaterialSymbolsArrowForwardIosRounded from '~icons/material-symbols/arrow-forward-ios-rounded'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import type { DisplayMessage } from '../api/http'
 import { t } from '../i18n'
@@ -62,9 +94,46 @@ const renderedText = computed(() =>
   renderMarkdown(props.msg.text)
 )
 
+const assistantHasText = computed(() =>
+  props.msg.role === 'assistant' && Boolean(props.msg.text.trim())
+)
+
 const usedSkillLabel = computed(() => {
   if (props.msg.role !== 'assistant' || !props.msg.used_skill_name) return ''
   return t('message.usedSkill', { name: props.msg.used_skill_name })
+})
+const reasoningCollapsed = ref(false)
+const reasoningBodyRef = ref<HTMLElement | null>(null)
+const reasoningExpandedHeight = ref(0)
+
+const reasoningText = computed(() =>
+  props.msg.role === 'assistant' ? props.msg.reasoning?.text ?? '' : ''
+)
+
+const reasoningComplete = computed(() =>
+  props.msg.role === 'assistant' && Boolean(props.msg.reasoning?.duration_ms)
+)
+
+const reasoningDuration = computed(() => {
+  const durationMs = props.msg.reasoning?.duration_ms ?? 0
+  if (!durationMs) return ''
+  const seconds = durationMs / 1000
+  const value = seconds < 10 ? seconds.toFixed(1) : Math.round(seconds).toString()
+  return t('agent.durationSeconds', { n: value })
+})
+
+const reasoningLabel = computed(() => {
+  if (!reasoningText.value) return ''
+  if (!reasoningComplete.value) return t('agent.thinkingLive')
+  return t('agent.thoughtFor', { duration: reasoningDuration.value })
+})
+
+const reasoningContentStyle = computed(() => {
+  if (!reasoningText.value) return {}
+  if (!reasoningComplete.value) {
+    return { maxHeight: '100px' }
+  }
+  return { maxHeight: reasoningCollapsed.value ? '0px' : `${reasoningExpandedHeight.value}px` }
 })
 
 const userRoleTag = computed(() => {
@@ -96,9 +165,38 @@ const canOpenSourceAgent = computed(() =>
   Boolean(props.msg.author_id)
 )
 
+watch(
+  () => reasoningComplete.value,
+  (complete, previous) => {
+    if (complete && !previous) {
+      reasoningCollapsed.value = true
+      return
+    }
+    if (!complete) {
+      reasoningCollapsed.value = false
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  [reasoningText, reasoningCollapsed, reasoningComplete],
+  () => {
+    void nextTick(() => {
+      reasoningExpandedHeight.value = reasoningBodyRef.value?.scrollHeight ?? 0
+    })
+  },
+  { immediate: true },
+)
+
 async function openSourceAgent() {
   if (!props.msg.author_id) return
   await openAgent(props.msg.author_id)
+}
+
+function toggleReasoning() {
+  if (!reasoningComplete.value) return
+  reasoningCollapsed.value = !reasoningCollapsed.value
 }
 </script>
 
@@ -153,6 +251,82 @@ async function openSourceAgent() {
   font-size: 10px;
   letter-spacing: 0.1em;
   color: var(--accent);
+}
+
+.reasoning-block {
+  margin: 0 0 10px;
+}
+
+.reasoning-head {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  text-align: left;
+  cursor: default;
+}
+
+.reasoning-head.clickable {
+  cursor: pointer;
+}
+
+.reasoning-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reasoning-chevron {
+  flex: 0 0 auto;
+  color: var(--ink-4);
+  font-size: 11px;
+  transition: transform .22s cubic-bezier(.2,.7,.2,1), color .12s ease;
+}
+
+.reasoning-head.clickable:hover .reasoning-chevron,
+.reasoning-head.clickable:hover .reasoning-title {
+  color: var(--ink-2);
+}
+
+.reasoning-content {
+  overflow: hidden;
+  opacity: 1;
+  transition: max-height .26s cubic-bezier(.2,.7,.2,1), opacity .18s ease;
+}
+
+.reasoning-content.streaming {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.reasoning-content.collapsed {
+  opacity: 0;
+}
+
+.reasoning-body {
+  padding: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.reasoning-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reasoning-chevron,
+  .reasoning-content {
+    transition: none;
+  }
 }
 
 .user-text {

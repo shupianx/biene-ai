@@ -15,12 +15,13 @@
     </div>
     <div class="titlebar-actions" @click.stop>
       <button
-        class="settings-button"
+        class="titlebar-button"
         type="button"
         :aria-label="t('titleBar.openSettingsMenu')"
+        :title="t('titleBar.openSettingsMenu')"
         @click="onSettingsMenu"
       >
-        <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="settingsHeartIconBody" />
+        <svg class="titlebar-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="settingsHeartIconBody" />
       </button>
     </div>
     <DesktopSettingsModal v-if="settingsModalOpen" @close="settingsModalOpen = false" />
@@ -149,7 +150,7 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
   -webkit-app-region: no-drag;
 }
 
-.settings-button {
+.titlebar-button {
   width: 26px;
   height: 26px;
   display: inline-flex;
@@ -162,13 +163,13 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
   transition: background .15s, color .15s, border-color .15s;
 }
 
-.settings-button:hover {
+.titlebar-button:hover {
   background: var(--bg-2);
   border-color: var(--rule-softer);
   color: var(--ink);
 }
 
-.settings-icon {
+.titlebar-icon {
   width: 15px;
   height: 15px;
 }

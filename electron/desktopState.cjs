@@ -4,6 +4,7 @@ const path = require('path')
 function defaultDesktopSettings() {
   return {
     keepCoreRunningOnExit: true,
+    locale: 'en',
     theme: 'light',
   }
 }
@@ -34,6 +35,7 @@ function loadDesktopSettings(app) {
   return {
     ...defaultDesktopSettings(),
     ...next,
+    locale: normalizeLocale(next.locale),
     theme: normalizeTheme(next.theme),
   }
 }
@@ -41,12 +43,17 @@ function loadDesktopSettings(app) {
 function saveDesktopSettings(app, nextSettings) {
   const normalized = {
     keepCoreRunningOnExit: Boolean(nextSettings?.keepCoreRunningOnExit ?? true),
+    locale: normalizeLocale(nextSettings?.locale),
     theme: normalizeTheme(nextSettings?.theme),
   }
   const filePath = desktopSettingsPath(app)
   ensureParentDir(filePath)
   writeFileSync(filePath, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
   return normalized
+}
+
+function normalizeLocale(value) {
+  return String(value ?? '').toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
 }
 
 function normalizeTheme(value) {

@@ -81,3 +81,40 @@ Check correctness first.
 		t.Fatalf("expected reviewer skill, got %q", metas[0].Name)
 	}
 }
+
+func TestScanGlobalCreatesRootAndLoadsSkills(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	root, err := EnsureGlobalRoot()
+	if err != nil {
+		t.Fatalf("EnsureGlobalRoot returned error: %v", err)
+	}
+
+	skillDir := filepath.Join(root, "triage")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	content := `---
+name: triage
+description: Sort incoming work quickly
+---
+Look at urgency first.
+`
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	metas, scanRoot, err := ScanGlobal()
+	if err != nil {
+		t.Fatalf("ScanGlobal returned error: %v", err)
+	}
+	if scanRoot != root {
+		t.Fatalf("expected root %q, got %q", root, scanRoot)
+	}
+	if len(metas) != 1 || metas[0].Name != "triage" {
+		t.Fatalf("expected triage skill, got %#v", metas)
+	}
+}

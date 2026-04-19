@@ -16,11 +16,17 @@ const maxMultipartMemory = 32 << 20
 type sendRequest struct {
 	Text            string `json:"text"`
 	ClientMessageID string `json:"client_message_id,omitempty"`
+	ThinkingEnabled *bool  `json:"thinking_enabled,omitempty"`
+}
+
+type thinkingRequest struct {
+	Enabled *bool `json:"enabled"`
 }
 
 type incomingInput struct {
 	Text            string
 	ClientMessageID string
+	ThinkingEnabled *bool
 	Files           []session.UploadedFile
 }
 
@@ -44,9 +50,38 @@ func (s *Server) handleChatSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.ThinkingEnabled != nil {
+		if _, err := sess.SetThinkingEnabled(*input.ThinkingEnabled); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
 	sess.EnqueueUserInput(input.Text, attachments, input.ClientMessageID)
 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleThinking updates the current thinking toggle for a session.
+// POST /api/sessions/{id}/thinking
+func (s *Server) handleThinking(w http.ResponseWriter, r *http.Request) {
+	sess := s.lookupSession(w, r)
+	if sess == nil {
+		return
+	}
+
+	var req thinkingRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Enabled == nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	meta, err := sess.SetThinkingEnabled(*req.Enabled)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, meta)
 }
 
 // handleChatInterrupt cancels the in-flight run for a session, if any.
@@ -79,6 +114,7 @@ func parseIncomingInput(r *http.Request) (incomingInput, error) {
 	return incomingInput{
 		Text:            req.Text,
 		ClientMessageID: req.ClientMessageID,
+		ThinkingEnabled: req.ThinkingEnabled,
 	}, nil
 }
 
@@ -89,6 +125,10 @@ func parseMultipartInput(r *http.Request) (incomingInput, error) {
 
 	text := strings.TrimSpace(r.FormValue("text"))
 	clientMessageID := strings.TrimSpace(r.FormValue("client_message_id"))
+	thinkingEnabled, err := parseOptionalBool(strings.TrimSpace(r.FormValue("thinking_enabled")))
+	if err != nil {
+		return incomingInput{}, err
+	}
 	headers := r.MultipartForm.File["files"]
 	files := make([]session.UploadedFile, 0, len(headers))
 	for _, header := range headers {
@@ -105,8 +145,25 @@ func parseMultipartInput(r *http.Request) (incomingInput, error) {
 	return incomingInput{
 		Text:            text,
 		ClientMessageID: clientMessageID,
+		ThinkingEnabled: thinkingEnabled,
 		Files:           files,
 	}, nil
+}
+
+func parseOptionalBool(value string) (*bool, error) {
+	if value == "" {
+		return nil, nil
+	}
+	switch strings.ToLower(value) {
+	case "true":
+		parsed := true
+		return &parsed, nil
+	case "false":
+		parsed := false
+		return &parsed, nil
+	default:
+		return nil, errors.New("invalid thinking_enabled value")
+	}
 }
 
 func readMultipartFile(header *multipart.FileHeader) (session.UploadedFile, error) {

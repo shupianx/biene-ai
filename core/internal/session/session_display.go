@@ -56,6 +56,13 @@ func (s *Session) currentAssistantTextSegmentLocked() *DisplayMessage {
 	return s.appendAssistantSegmentLocked()
 }
 
+func (s *Session) currentAssistantReasoningSegmentLocked() *DisplayMessage {
+	if msg := s.latestStreamingAssistantLocked(); msg != nil {
+		return msg
+	}
+	return s.appendAssistantSegmentLocked()
+}
+
 func (s *Session) currentAssistantToolSegmentLocked() *DisplayMessage {
 	if msg := s.latestStreamingAssistantLocked(); msg != nil && msg.Text == "" {
 		return msg
@@ -100,6 +107,7 @@ func (s *Session) finishStreamingAssistantSegmentsLocked() {
 		if msg.Role != "assistant" || !msg.Streaming {
 			break
 		}
+		finalizeReasoningLocked(msg)
 		msg.Streaming = false
 	}
 }
@@ -120,8 +128,20 @@ func (s *Session) markInterruptedAssistantSegmentsLocked() {
 				toolCall.Result = "Interrupted."
 			}
 		}
+		finalizeReasoningLocked(msg)
 		msg.Streaming = false
 	}
+}
+
+func finalizeReasoningLocked(msg *DisplayMessage) {
+	if msg == nil || msg.Reasoning == nil || msg.Reasoning.DurationMS > 0 {
+		return
+	}
+	durationMS := time.Since(msg.Reasoning.StartedAt).Milliseconds()
+	if durationMS <= 0 {
+		durationMS = 1
+	}
+	msg.Reasoning.DurationMS = durationMS
 }
 
 // applyEvent updates the display history for an agent loop event.
@@ -130,10 +150,22 @@ func (s *Session) applyEvent(ev agentloop.Event) {
 	defer s.mu.Unlock()
 
 	switch ev.Kind {
+	case agentloop.KindReasoningDelta:
+		msg := s.currentAssistantReasoningSegmentLocked()
+		if msg.Reasoning == nil {
+			msg.Reasoning = &DisplayReasoning{StartedAt: time.Now()}
+		}
+		msg.Reasoning.Text += ev.Text
 	case agentloop.KindTextDelta:
+		if msg := s.latestStreamingAssistantLocked(); msg != nil {
+			finalizeReasoningLocked(msg)
+		}
 		msg := s.currentAssistantTextSegmentLocked()
 		msg.Text += ev.Text
 	case agentloop.KindToolCompose:
+		if msg := s.latestStreamingAssistantLocked(); msg != nil {
+			finalizeReasoningLocked(msg)
+		}
 		msg := s.currentAssistantToolSegmentLocked()
 		msg.ToolCalls = append(msg.ToolCalls, DisplayTool{
 			ToolID:      ev.ToolID,
@@ -143,6 +175,9 @@ func (s *Session) applyEvent(ev agentloop.Event) {
 			Status:      "composing",
 		})
 	case agentloop.KindToolStart:
+		if msg := s.latestStreamingAssistantLocked(); msg != nil {
+			finalizeReasoningLocked(msg)
+		}
 		if toolCall := s.latestActiveToolLocked(ev.ToolID, ev.ToolName, "composing"); toolCall != nil {
 			toolCall.ToolSummary = ev.ToolSummary
 			toolCall.ToolInput = ev.ToolInput
@@ -158,6 +193,9 @@ func (s *Session) applyEvent(ev agentloop.Event) {
 			Status:      "pending",
 		})
 	case agentloop.KindToolResult:
+		if msg := s.latestStreamingAssistantLocked(); msg != nil {
+			finalizeReasoningLocked(msg)
+		}
 		if toolCall := s.latestActiveToolLocked(ev.ToolID, ev.ToolName, "pending", "composing"); toolCall != nil {
 			if ev.IsError {
 				toolCall.Status = "error"
@@ -167,11 +205,15 @@ func (s *Session) applyEvent(ev agentloop.Event) {
 			toolCall.Result = ev.Text
 		}
 	case agentloop.KindToolDenied:
+		if msg := s.latestStreamingAssistantLocked(); msg != nil {
+			finalizeReasoningLocked(msg)
+		}
 		if toolCall := s.latestActiveToolLocked(ev.ToolID, ev.ToolName, "pending", "composing"); toolCall != nil {
 			toolCall.Status = "denied"
 		}
 	case agentloop.KindError:
 		msg := s.currentAssistantTextSegmentLocked()
+		finalizeReasoningLocked(msg)
 		if msg.Text != "" {
 			msg.Text += "\n\n"
 		}
@@ -205,12 +247,23 @@ func (s *Session) SnapshotHistory() []DisplayMessage {
 			copy(atts, out[i].Attachments)
 			out[i].Attachments = atts
 		}
+		if out[i].Reasoning != nil {
+			out[i].Reasoning = cloneDisplayReasoning(out[i].Reasoning)
+		}
 	}
 	return out
 }
 
 // cloneAgentMessageMeta returns a shallow copy of meta, or nil.
 func cloneAgentMessageMeta(in *tools.AgentMessageMeta) *tools.AgentMessageMeta {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	return &out
+}
+
+func cloneDisplayReasoning(in *DisplayReasoning) *DisplayReasoning {
 	if in == nil {
 		return nil
 	}

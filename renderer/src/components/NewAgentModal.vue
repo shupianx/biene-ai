@@ -13,6 +13,22 @@
       <span v-if="nameConflict" class="error-text">{{ t('agentName.exists') }}</span>
     </label>
 
+    <label class="field">
+      <span class="label">{{ t('modal.agentModel') }}</span>
+      <select v-model="selectedModelID" class="select" :disabled="configLoading || modelOptions.length === 0">
+        <option
+          v-for="entry in modelOptions"
+          :key="entry.id"
+          :value="entry.id"
+        >
+          {{ entry.name }}
+        </option>
+      </select>
+      <span v-if="configLoading" class="field-hint">{{ t('modal.modelLoading') }}</span>
+      <span v-else-if="configError" class="error-text">{{ configError }}</span>
+      <span v-else class="field-hint">{{ selectedModelSummary || t('modal.agentModelHint') }}</span>
+    </label>
+
     <div class="field">
       <span class="label">{{ t('modal.toolPermissions') }}</span>
       <div class="permission-list">
@@ -92,14 +108,14 @@
 
     <template #footer>
       <button class="btn-cancel" @click="emit('close')">{{ t('common.cancel') }}</button>
-      <button class="btn-create" :disabled="nameConflict" @click="submit">{{ t('common.create') }}</button>
+      <button class="btn-create" :disabled="submitDisabled" @click="submit">{{ t('common.create') }}</button>
     </template>
   </BaseModal>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import type { AgentProfile, SessionPermissions } from '../api/http'
+import { fetchConfig, type AgentProfile, type ConfigModelEntry, type SessionPermissions } from '../api/http'
 import AutoGrowTextarea from './AutoGrowTextarea.vue'
 import BaseModal from './BaseModal.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
@@ -120,17 +136,22 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'create', name: string, permissions: SessionPermissions, profile: AgentProfile): void
+  (e: 'create', name: string, modelID: string, permissions: SessionPermissions, profile: AgentProfile): void
 }>()
 
 const name = ref('')
+const selectedModelID = ref('')
 const permissions = ref<SessionPermissions>(defaultPermissions())
 const profile = ref<AgentProfile>(defaultProfile())
 const advancedOpen = ref(false)
 const nameInput = ref<HTMLInputElement | null>(null)
+const configLoading = ref(false)
+const configError = ref('')
+const modelOptions = ref<ConfigModelEntry[]>([])
 
 onMounted(() => {
   nameInput.value?.focus()
+  void loadModelOptions()
 })
 
 const domainOptions = computed(() =>
@@ -161,11 +182,42 @@ const nameConflict = computed(() =>
   isAgentNameTaken(effectiveName.value, props.existingNames)
 )
 
+const selectedModel = computed(() =>
+  modelOptions.value.find((entry) => entry.id === selectedModelID.value) ?? null
+)
+
+const selectedModelSummary = computed(() => {
+  if (!selectedModel.value) return ''
+  const providerType = selectedModel.value.provider === 'openai_compatible'
+    ? t('modal.providerTypes.openaiCompatible')
+    : t('modal.providerTypes.anthropic')
+  return `${selectedModel.value.model} · ${providerType}`
+})
+
+const submitDisabled = computed(() =>
+  nameConflict.value || configLoading.value || !selectedModelID.value || Boolean(configError.value)
+)
+
+async function loadModelOptions() {
+  configLoading.value = true
+  configError.value = ''
+  try {
+    const config = await fetchConfig()
+    modelOptions.value = config.model_list
+    selectedModelID.value = config.default_model || config.model_list[0]?.id || ''
+  } catch (error) {
+    configError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    configLoading.value = false
+  }
+}
+
 function submit() {
-  if (nameConflict.value) return
+  if (submitDisabled.value) return
   emit(
     'create',
     effectiveName.value,
+    selectedModelID.value,
     { ...permissions.value },
     { ...profile.value, custom_instructions: (profile.value.custom_instructions ?? '').trim() },
   )

@@ -86,11 +86,14 @@ func (s *Server) ListenAndServe() error {
 	// Per-session chat + realtime events
 	mux.HandleFunc("GET /api/sessions/{id}/ws", s.handleChatWebSocket)
 	mux.HandleFunc("POST /api/sessions/{id}/send", s.handleChatSend)
+	mux.HandleFunc("POST /api/sessions/{id}/thinking", s.handleThinking)
 	mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.handleChatInterrupt)
 	mux.HandleFunc("POST /api/sessions/{id}/permission", s.handlePermission)
 
 	// Global config
 	mux.HandleFunc("GET /api/config", s.handleConfig)
+	mux.HandleFunc("POST /api/config", s.handleUpdateConfig)
+	mux.HandleFunc("GET /api/skills", s.handleListSkills)
 
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
 	fmt.Printf("biene-core listening on http://%s\n", addr)

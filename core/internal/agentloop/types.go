@@ -12,14 +12,15 @@ import (
 type EventKind string
 
 const (
-	KindTextDelta   EventKind = "text_delta"
-	KindToolCompose EventKind = "tool_compose"
-	KindToolStart   EventKind = "tool_start"
-	KindToolResult  EventKind = "tool_result"
-	KindToolDenied  EventKind = "tool_denied"
-	KindInterrupted EventKind = "interrupted"
-	KindDone        EventKind = "done"
-	KindError       EventKind = "error"
+	KindReasoningDelta EventKind = "reasoning_delta"
+	KindTextDelta      EventKind = "text_delta"
+	KindToolCompose    EventKind = "tool_compose"
+	KindToolStart      EventKind = "tool_start"
+	KindToolResult     EventKind = "tool_result"
+	KindToolDenied     EventKind = "tool_denied"
+	KindInterrupted    EventKind = "interrupted"
+	KindDone           EventKind = "done"
+	KindError          EventKind = "error"
 )
 
 // Event is a single update emitted to the caller.
@@ -47,4 +48,5 @@ type Config struct {
 	SystemPrompt string
 	Messages     []api.Message
 	MaxTokens    int
+	RequestOpts  api.RequestOptions
 }

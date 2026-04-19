@@ -7,7 +7,31 @@
           class="tool-icon-svg"
           aria-hidden="true"
         />
-        <template v-else>{{ icon }}</template>
+        <MoreHorizIcon
+          v-else-if="tc.status === 'composing'"
+          class="tool-icon-svg"
+          aria-hidden="true"
+        />
+        <CheckIcon
+          v-else-if="tc.status === 'done'"
+          class="tool-icon-svg"
+          aria-hidden="true"
+        />
+        <ErrorCircleIcon
+          v-else-if="tc.status === 'error'"
+          class="tool-icon-svg"
+          aria-hidden="true"
+        />
+        <DeniedIcon
+          v-else-if="tc.status === 'denied'"
+          class="tool-icon-svg"
+          aria-hidden="true"
+        />
+        <StopCircleIcon
+          v-else-if="tc.status === 'cancelled'"
+          class="tool-icon-svg"
+          aria-hidden="true"
+        />
       </span>
       <span class="tool-name">{{ tc.tool_name }}</span>
       <span class="tool-summary">{{ tc.tool_summary }}</span>
@@ -30,6 +54,11 @@
 import { ref, computed } from 'vue'
 import type { DisplayTool } from '../api/http'
 import EosIconsBubbleLoading from '~icons/eos-icons/bubble-loading'
+import MoreHorizIcon from '~icons/material-symbols/more-horiz'
+import CheckIcon from '~icons/material-symbols/check'
+import ErrorCircleIcon from '~icons/material-symbols/error-circle-rounded-outline-sharp'
+import StopCircleIcon from '~icons/material-symbols/stop-circle-outline'
+import DeniedIcon from '~icons/tabler/cancel'
 import { t } from '../i18n'
 
 const props = defineProps<{ tc: DisplayTool }>()
@@ -44,23 +73,6 @@ const statusClass = computed(() => ({
   'status-cancelled': props.tc.status === 'cancelled',
 }))
 const isPending = computed(() => props.tc.status === 'pending')
-
-const icon = computed(() => {
-  switch (props.tc.status) {
-    case 'composing':
-      return '…'
-    case 'done':
-      return '✓'
-    case 'error':
-      return '✗'
-    case 'denied':
-      return '⊘'
-    case 'cancelled':
-      return '■'
-    default:
-      return '?'
-  }
-})
 
 function fmt(v: unknown) {
   try { return JSON.stringify(v, null, 2) } catch { return String(v) }

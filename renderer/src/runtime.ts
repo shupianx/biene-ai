@@ -1,3 +1,5 @@
+import type { AppLocale } from './i18n/messages'
+
 export interface CoreStatus {
   healthy: boolean
 }
@@ -14,11 +16,17 @@ export interface SettingsMenuLabels {
 
 export interface DesktopSettings {
   keepCoreRunningOnExit: boolean
+  locale: AppLocale
   theme: 'light' | 'dark'
+}
+
+export interface SkillConfig {
+  defaultEnabledSkillDirs: string[]
 }
 
 export interface DesktopBridge {
   isElectron: boolean
+  initialLocale: AppLocale
   initialTheme: 'light' | 'dark'
   platform: string
   windowKind: string
@@ -30,6 +38,11 @@ export interface DesktopBridge {
   openExternal: (url: string) => Promise<void>
   openPath: (path: string) => Promise<void>
   openAgentWindow: (sessionId: string) => Promise<void>
+  importSkillFolder: () => Promise<number>
+  getSkillConfig: () => Promise<SkillConfig>
+  updateSkillConfig: (patch: Partial<SkillConfig>) => Promise<SkillConfig>
+  deleteSkill: (skillDir: string) => Promise<SkillConfig>
+  setSkillsSidebarOpen: (open: boolean, width: number) => Promise<void>
   showCoreMenu: (labels: CoreMenuLabels) => Promise<void>
   showSettingsMenu: (labels: SettingsMenuLabels) => Promise<void>
 }
