@@ -1,10 +1,6 @@
 <template>
   <div class="input-bar">
     <div class="composer" :class="{ disabled, focused: focused }">
-      <div class="composer-head">
-        <span class="head-label">{{ t('input.placeholder') }}</span>
-        <span class="head-hint">⏎ {{ t('input.send') }}</span>
-      </div>
       <textarea
         ref="taRef"
         v-model="text"
@@ -27,12 +23,10 @@
           :title="buttonTitle"
           @click="handleAction"
         >
-          <svg
+          <MynauiSend
             v-if="!interruptible"
             class="send-icon"
-            viewBox="0 0 24 24"
             aria-hidden="true"
-            v-html="sendIconBody"
           />
           <span v-else-if="interrupting" class="interrupt-spinner" aria-hidden="true" />
           <svg
@@ -54,7 +48,7 @@
 
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue'
-import { icons as mynauiIcons } from '@iconify-json/mynaui'
+import MynauiSend from '~icons/mynaui/send'
 import { t } from '../i18n'
 
 const props = defineProps<{
@@ -71,7 +65,6 @@ const text  = ref('')
 const taRef = ref<HTMLTextAreaElement | null>(null)
 const isComposing = ref(false)
 const focused = ref(false)
-const sendIconBody = mynauiIcons.icons.send.body
 let compositionLockedUntil = 0
 
 const buttonDisabled = computed(() => {
@@ -137,9 +130,7 @@ async function submit() {
 
 <style scoped>
 .input-bar {
-  padding: 12px 16px 16px;
-  background: var(--panel);
-  border-top: 1px solid var(--rule);
+  pointer-events: auto;
 }
 
 .composer {
@@ -150,6 +141,7 @@ async function submit() {
   padding: 10px 12px 10px;
   border: 1px solid var(--rule-soft);
   background: var(--panel-2);
+  box-shadow: 0 10px 30px rgba(20, 18, 15, 0.10);
   transition: border-color .15s, box-shadow .15s;
 }
 
@@ -160,25 +152,6 @@ async function submit() {
 
 .composer.disabled {
   background: var(--bg-2);
-}
-
-.composer-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-4);
-}
-
-.head-label {
-  opacity: 0.7;
-}
-
-.head-hint {
-  opacity: 0.6;
 }
 
 textarea {
@@ -258,16 +231,16 @@ textarea:disabled {
 }
 
 .action-btn.interrupt {
-  border-color: var(--err);
-  background: var(--err);
-  color: var(--panel-2);
+  border-color: color-mix(in srgb, var(--err) 42%, var(--rule-soft));
+  background: color-mix(in srgb, var(--err) 14%, var(--panel-2));
+  color: var(--err);
 }
 
 .interrupt-spinner {
   width: 12px;
   height: 12px;
-  border: 2px solid rgba(255, 255, 255, .3);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in srgb, var(--err) 20%, transparent);
+  border-top-color: var(--err);
   animation: bieneSpin .8s linear infinite;
 }
 

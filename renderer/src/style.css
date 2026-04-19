@@ -32,6 +32,12 @@
   --hover-soft:   rgba(20, 18, 15, 0.04);
   --paper-grain-opacity: 1;
 
+  /* Component tokens */
+  --switch-track-off: var(--bg-2);
+  --switch-knob-off: var(--ink-4);
+  --switch-track-on: var(--ink);
+  --switch-knob-on: var(--panel-2);
+
   /* Typography */
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --sans: 'Inter', 'Noto Sans SC', 'HarmonyOS Sans SC', 'PingFang SC', system-ui, sans-serif;
@@ -67,8 +73,105 @@
   --hover-soft:   rgba(240, 235, 225, 0.05);
   --paper-grain-opacity: 0.55;
 
+  --switch-track-off: var(--panel-2);
+  --switch-knob-off: var(--bg-2);
+  --switch-track-on: var(--ink);
+  --switch-knob-on: var(--panel-2);
+
   --app-bg: var(--bg);
   color-scheme: dark;
+}
+
+/* highlight.js keeps the GitHub light theme globally. In dark mode we
+   override the token colors with a Darcula-like palette. */
+:root[data-theme='dark'] .markdown pre {
+  background: #2b2b2b;
+  border-color: #3c3f41;
+}
+
+:root[data-theme='dark'] .markdown pre code.hljs {
+  color: #a9b7c6;
+  background: transparent;
+}
+
+:root[data-theme='dark'] .markdown .hljs-comment,
+:root[data-theme='dark'] .markdown .hljs-code,
+:root[data-theme='dark'] .markdown .hljs-formula,
+:root[data-theme='dark'] .markdown .hljs-quote {
+  color: #808080;
+  font-style: italic;
+}
+
+:root[data-theme='dark'] .markdown .hljs-doctag,
+:root[data-theme='dark'] .markdown .hljs-keyword,
+:root[data-theme='dark'] .markdown .hljs-meta .hljs-keyword,
+:root[data-theme='dark'] .markdown .hljs-template-tag,
+:root[data-theme='dark'] .markdown .hljs-template-variable,
+:root[data-theme='dark'] .markdown .hljs-type,
+:root[data-theme='dark'] .markdown .hljs-variable.language_ {
+  color: #cc7832;
+}
+
+:root[data-theme='dark'] .markdown .hljs-title,
+:root[data-theme='dark'] .markdown .hljs-title.class_,
+:root[data-theme='dark'] .markdown .hljs-title.class_.inherited__,
+:root[data-theme='dark'] .markdown .hljs-title.function_,
+:root[data-theme='dark'] .markdown .hljs-section,
+:root[data-theme='dark'] .markdown .hljs-built_in {
+  color: #ffc66d;
+}
+
+:root[data-theme='dark'] .markdown .hljs-attr,
+:root[data-theme='dark'] .markdown .hljs-attribute,
+:root[data-theme='dark'] .markdown .hljs-literal,
+:root[data-theme='dark'] .markdown .hljs-meta,
+:root[data-theme='dark'] .markdown .hljs-number,
+:root[data-theme='dark'] .markdown .hljs-operator,
+:root[data-theme='dark'] .markdown .hljs-property,
+:root[data-theme='dark'] .markdown .hljs-selector-attr,
+:root[data-theme='dark'] .markdown .hljs-selector-class,
+:root[data-theme='dark'] .markdown .hljs-selector-id,
+:root[data-theme='dark'] .markdown .hljs-variable {
+  color: #9876aa;
+}
+
+:root[data-theme='dark'] .markdown .hljs-regexp,
+:root[data-theme='dark'] .markdown .hljs-string,
+:root[data-theme='dark'] .markdown .hljs-meta .hljs-string,
+:root[data-theme='dark'] .markdown .hljs-symbol {
+  color: #6a8759;
+}
+
+:root[data-theme='dark'] .markdown .hljs-name,
+:root[data-theme='dark'] .markdown .hljs-selector-tag,
+:root[data-theme='dark'] .markdown .hljs-selector-pseudo {
+  color: #e8bf6a;
+}
+
+:root[data-theme='dark'] .markdown .hljs-subst,
+:root[data-theme='dark'] .markdown .hljs-punctuation,
+:root[data-theme='dark'] .markdown .hljs-tag,
+:root[data-theme='dark'] .markdown .hljs-link,
+:root[data-theme='dark'] .markdown .hljs-params {
+  color: #a9b7c6;
+}
+
+:root[data-theme='dark'] .markdown .hljs-emphasis {
+  font-style: italic;
+}
+
+:root[data-theme='dark'] .markdown .hljs-strong {
+  font-weight: 700;
+}
+
+:root[data-theme='dark'] .markdown .hljs-addition {
+  color: #a5c261;
+  background-color: rgba(106, 135, 89, 0.18);
+}
+
+:root[data-theme='dark'] .markdown .hljs-deletion {
+  color: #ff6b68;
+  background-color: rgba(255, 107, 104, 0.14);
 }
 
 *, *::before, *::after { box-sizing: border-box; }

@@ -89,7 +89,7 @@ function onCoreMenu() {
   gap: 18px;
   padding: 0 14px;
   background: var(--panel);
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-soft);
   font-family: var(--mono);
   font-size: 10.5px;
   letter-spacing: 0.08em;

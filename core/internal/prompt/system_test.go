@@ -22,7 +22,11 @@ func TestBuildIncludesInstalledSkills(t *testing.T) {
 		Instructions: "Always inspect correctness first.",
 	}}
 
-	promptText := Build(tools.NewRegistry(), workDir, DefaultProfile(), installed, activated)
+	promptText := Build(tools.NewRegistry(), workDir, DefaultProfile(), AgentIdentity{
+		ID:      "sess_test",
+		Name:    "Reviewer",
+		WorkDir: workDir,
+	}, installed, activated)
 	if !strings.Contains(promptText, "## Installed Skills") {
 		t.Fatalf("expected installed skills section, got:\n%s", promptText)
 	}
@@ -41,11 +45,38 @@ func TestBuildOmitsSkillBodyWhenNotActivated(t *testing.T) {
 		Description: "Review changes carefully",
 	}}
 
-	promptText := Build(tools.NewRegistry(), workDir, DefaultProfile(), installed, nil)
+	promptText := Build(tools.NewRegistry(), workDir, DefaultProfile(), AgentIdentity{
+		ID:      "sess_test",
+		Name:    "Reviewer",
+		WorkDir: workDir,
+	}, installed, nil)
 	if !strings.Contains(promptText, "## Installed Skills") {
 		t.Fatalf("expected installed skills section, got:\n%s", promptText)
 	}
 	if strings.Contains(promptText, "## Skill: reviewer") {
 		t.Fatalf("did not expect full skill body without activation, got:\n%s", promptText)
+	}
+}
+
+func TestBuildIncludesCurrentAgentIdentity(t *testing.T) {
+	workDir := t.TempDir()
+
+	promptText := Build(tools.NewRegistry(), workDir, DefaultProfile(), AgentIdentity{
+		ID:      "sess_123",
+		Name:    "Planner",
+		WorkDir: workDir,
+	}, nil, nil)
+
+	if !strings.Contains(promptText, "## Current Agent") {
+		t.Fatalf("expected current agent section, got:\n%s", promptText)
+	}
+	if !strings.Contains(promptText, "Agent name: Planner") {
+		t.Fatalf("expected agent name, got:\n%s", promptText)
+	}
+	if !strings.Contains(promptText, "Agent ID: sess_123") {
+		t.Fatalf("expected agent ID, got:\n%s", promptText)
+	}
+	if !strings.Contains(promptText, "Agent workspace: "+workDir) {
+		t.Fatalf("expected agent workspace, got:\n%s", promptText)
 	}
 }

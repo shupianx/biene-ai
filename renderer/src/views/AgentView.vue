@@ -1,10 +1,38 @@
 <template>
-  <div v-if="loading" class="agent-page state-page">
-    <p>{{ t('agent.loading') }}</p>
-  </div>
-  <div v-else-if="!session" class="agent-page state-page">
-    <p>{{ t('agent.notFound') }}</p>
-    <button class="back-btn" @click="closeAgentView">{{ t('common.back') }}</button>
+  <div v-if="loading || !session" class="agent-page state-shell">
+    <header class="state-chrome">
+      <div class="brand">
+        <span class="brand-text">{{ t('agent.brand') }}</span>
+      </div>
+      <div class="chrome-divider" aria-hidden="true" />
+      <div class="chrome-name" :title="headerLabel">{{ headerLabel }}</div>
+      <div class="chrome-spacer" />
+      <div class="status-tag" :class="stateTone">
+        <span class="status-dot" />
+        <span>{{ stateBadge }}</span>
+      </div>
+      <button class="close-btn" type="button" :aria-label="t('common.close')" @click="closeAgentView">
+        <svg viewBox="0 0 24 24" aria-hidden="true" v-html="closeIconBody" />
+      </button>
+    </header>
+
+    <div class="state-page">
+      <div class="state-card" :class="stateTone">
+        <div v-if="loading" class="state-loader" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div v-else class="state-symbol" aria-hidden="true">?</div>
+        <p class="state-title">{{ stateTitle }}</p>
+        <p class="state-hint">{{ stateHint }}</p>
+        <div v-if="sessionId" class="state-meta">
+          <span class="state-meta-label">{{ t('agent.requestedId') }}</span>
+          <code class="state-meta-value">{{ sessionId }}</code>
+        </div>
+        <button v-if="isMissing" class="state-btn" @click="closeAgentView">{{ t('common.back') }}</button>
+      </div>
+    </div>
   </div>
   <AgentChatView
     v-else
@@ -25,6 +53,7 @@ const route = useRoute()
 const store = useSessionsStore()
 const { closeAgentView } = useAgentNavigation()
 const loading = ref(true)
+const closeIconBody = '<path fill="currentColor" d="m12 13.4l-4.9 4.9q-.275.275-.7.275t-.7-.275t-.275-.7t.275-.7l4.9-4.9l-4.9-4.9q-.275-.275-.275-.7t.275-.7t.7-.275t.7.275l4.9 4.9l4.9-4.9q.275-.275.7-.275t.7.275t.275.7t-.275.7L13.4 12l4.9 4.9q.275.275.275.7t-.275.7t-.7.275t-.7-.275z"/>'
 
 const sessionId = computed(() =>
   typeof route.params.id === 'string' ? route.params.id : ''
@@ -32,6 +61,20 @@ const sessionId = computed(() =>
 
 const session = computed(() =>
   sessionId.value ? store.sessions[sessionId.value] ?? null : null
+)
+const isMissing = computed(() => !loading.value && !session.value)
+const stateTone = computed(() => (loading.value ? 'loading' : 'missing'))
+const stateBadge = computed(() =>
+  loading.value ? t('agent.loadingShort') : t('agent.notFoundShort')
+)
+const stateTitle = computed(() =>
+  loading.value ? t('agent.loading') : t('agent.notFound')
+)
+const stateHint = computed(() =>
+  loading.value ? t('agent.loadingHint') : t('agent.notFoundHint')
+)
+const headerLabel = computed(() =>
+  session.value?.meta.name || sessionId.value || stateTitle.value
 )
 
 function syncSessionMeta() {
@@ -61,9 +104,21 @@ watch(
 )
 
 watch(
-  () => session.value?.meta.name,
-  (name) => {
-    document.title = name ? `${name} · Biene` : 'Biene'
+  [loading, () => session.value?.meta.name, isMissing],
+  ([isLoading, name, missing]) => {
+    if (typeof name === 'string' && name) {
+      document.title = `${name} · Biene`
+      return
+    }
+    if (isLoading) {
+      document.title = `${t('agent.loadingShort')} · Biene`
+      return
+    }
+    if (missing) {
+      document.title = `${t('agent.notFoundShort')} · Biene`
+      return
+    }
+    document.title = 'Biene'
   },
   { immediate: true },
 )
@@ -82,35 +137,241 @@ onBeforeUnmount(() => {
 <style scoped>
 .agent-page {
   height: 100%;
-  background: var(--app-bg);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.state-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+.state-chrome {
+  height: 36px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px 0 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--rule-soft);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+}
+
+.brand-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+}
+
+.chrome-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--rule-soft);
+}
+
+.chrome-name {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chrome-spacer {
+  flex: 1;
+}
+
+.status-tag {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 7px;
+  border: 1px solid currentColor;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-4);
+}
+
+.status-tag.loading {
+  color: var(--accent);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-tag.loading .status-dot {
+  animation: bienePulse 1.6s ease-in-out infinite;
+}
+
+.close-btn {
+  -webkit-app-region: no-drag;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+
+.close-btn:hover {
+  background: var(--bg-2);
+  border-color: var(--rule-softer);
+  color: var(--ink);
+}
+
+.close-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .state-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 20px;
+}
+
+.state-card {
+  width: min(420px, 100%);
+  padding: 24px 22px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 12px;
-  color: #6b7280;
+  border: 1px solid var(--rule);
+  background: var(--panel-2);
+  box-shadow: 4px 4px 0 0 var(--rule);
+  text-align: center;
 }
 
-.state-page p {
+.state-card.loading {
+  border-color: var(--rule-soft);
+}
+
+.state-loader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+}
+
+.state-loader span {
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  animation: bieneBlink 1.1s ease-in-out infinite;
+}
+
+.state-loader span:nth-child(2) {
+  animation-delay: .15s;
+}
+
+.state-loader span:nth-child(3) {
+  animation-delay: .3s;
+}
+
+.state-symbol {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--rule-soft);
+  font-family: var(--mono);
+  font-size: 24px;
+  color: var(--ink-3);
+}
+
+.state-title,
+.state-hint {
   margin: 0;
-  font-size: 14px;
 }
 
-.back-btn {
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 1.5px solid #e5e7eb;
-  background: #fff;
-  color: #374151;
+.state-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.state-hint {
+  max-width: 32ch;
   font-size: 13px;
-  font-weight: bold;
-  cursor: pointer;
+  line-height: 1.6;
+  color: var(--ink-3);
 }
 
-.back-btn:hover {
-  background: #f9fafb;
+.state-meta {
+  width: 100%;
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px dashed var(--rule-softer);
+}
+
+.state-meta-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.state-meta-value {
+  display: inline-block;
+  padding: 4px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  background: var(--panel);
+  border: 1px solid var(--rule-softer);
+  overflow-wrap: anywhere;
+}
+
+.state-btn {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--panel-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform .12s, box-shadow .12s;
+}
+
+.state-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 0 var(--rule);
 }
 </style>

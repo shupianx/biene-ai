@@ -145,19 +145,23 @@ func (m *SessionManager) Init() {
 		registry.Register(builtins.NewSendToAgentTool(m, id))
 
 		sess := &Session{
-			ID:                id,
-			Name:              meta.Name,
-			WorkDir:           meta.WorkDir,
-			Status:            StatusIdle,
-			permissions:       perms,
-			profile:           profile,
-			toolMode:          toolMode,
-			CreatedAt:         meta.CreatedAt,
-			LastActive:        meta.LastActive,
-			provider:          provider,
-			registry:          registry,
-			checker:           checker,
-			systemPrompt:      prompt.Build(registry, workDir, profile, nil, nil),
+			ID:          id,
+			Name:        meta.Name,
+			WorkDir:     meta.WorkDir,
+			Status:      StatusIdle,
+			permissions: perms,
+			profile:     profile,
+			toolMode:    toolMode,
+			CreatedAt:   meta.CreatedAt,
+			LastActive:  meta.LastActive,
+			provider:    provider,
+			registry:    registry,
+			checker:     checker,
+			systemPrompt: prompt.Build(registry, workDir, profile, prompt.AgentIdentity{
+				ID:      id,
+				Name:    meta.Name,
+				WorkDir: workDir,
+			}, nil, nil),
 			maxTokens:         maxTokens,
 			apiMessages:       apiMsgs,
 			history:           history,
@@ -206,7 +210,11 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	registry.Register(builtins.NewListAgentsTool(m, id))
 	registry.Register(builtins.NewSendToAgentTool(m, id))
 
-	sysprompt := prompt.Build(registry, workDir, profile, nil, nil)
+	sysprompt := prompt.Build(registry, workDir, profile, prompt.AgentIdentity{
+		ID:      id,
+		Name:    name,
+		WorkDir: workDir,
+	}, nil, nil)
 	now := time.Now()
 	sess := &Session{
 		ID:                id,

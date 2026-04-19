@@ -19,6 +19,7 @@ export interface DesktopSettings {
 
 export interface DesktopBridge {
   isElectron: boolean
+  initialTheme: 'light' | 'dark'
   platform: string
   windowKind: string
   coreBaseUrl: string
@@ -27,6 +28,7 @@ export interface DesktopBridge {
   getDesktopSettings: () => Promise<DesktopSettings>
   updateDesktopSettings: (patch: Partial<DesktopSettings>) => Promise<DesktopSettings>
   openExternal: (url: string) => Promise<void>
+  openPath: (path: string) => Promise<void>
   openAgentWindow: (sessionId: string) => Promise<void>
   showCoreMenu: (labels: CoreMenuLabels) => Promise<void>
   showSettingsMenu: (labels: SettingsMenuLabels) => Promise<void>

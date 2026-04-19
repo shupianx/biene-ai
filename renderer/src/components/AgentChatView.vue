@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-shell">
+  <div class="chat-shell" :style="{ '--input-overlay-height': `${inputOverlayHeight}px` }">
     <!-- Compact window chrome (agent window is frameless) -->
     <header class="chat-chrome">
       <div class="brand">
@@ -17,31 +17,10 @@
       </button>
     </header>
 
-    <!-- Session meta strip -->
-    <div class="meta-strip">
-      <div class="title-col">
-        <div class="session-name">{{ session.meta.name }}</div>
-        <div class="session-id">{{ session.meta.id }}</div>
-      </div>
-      <div class="workdir-col">
-        <div class="workdir-label">{{ t('agent.workDirLabel') }}</div>
-        <div class="workdir-path" :title="session.meta.work_dir">{{ session.meta.work_dir }}</div>
-      </div>
-      <div class="profile-col">
-        <div v-if="domainLabel" class="chip">{{ domainLabel }}</div>
-        <div v-if="styleLabel" class="chip">{{ styleLabel }}</div>
-      </div>
-      <div class="perm-col">
-        <div class="perm-chip" :class="{ on: session.meta.permissions.execute }">EXEC</div>
-        <div class="perm-chip" :class="{ on: session.meta.permissions.write }">WRITE</div>
-        <div class="perm-chip" :class="{ on: session.meta.permissions.send_to_agent }">SEND</div>
-      </div>
-    </div>
-
     <!-- Message list -->
-    <div ref="listRef" class="message-list" @scroll="onListScroll">
+    <div ref="listRef" class="message-list" :class="{ empty: session.messages.length === 0 }" @scroll="onListScroll">
       <div v-if="session.messages.length === 0" class="empty-chat">
-        <div class="empty-frame" aria-hidden="true">⚡</div>
+        <MynauiLightningSolid class="empty-icon" aria-hidden="true" />
         <p class="empty-title">{{ t('agent.ready') }}</p>
         <p class="empty-dir">
           <span class="empty-dir-label">{{ t('agent.workDirLabel') }}</span>
@@ -66,26 +45,28 @@
       </div>
     </div>
 
-    <InputBar
-      :disabled="session.isStreaming"
-      :interruptible="session.isStreaming"
-      :interrupting="session.isInterrupting"
-      @send="onSend"
-      @interrupt="onInterrupt"
-    />
+    <div ref="inputOverlayRef" class="input-overlay">
+      <InputBar
+        :disabled="session.isStreaming"
+        :interruptible="session.isStreaming"
+        :interrupting="session.isInterrupting"
+        @send="onSend"
+        @interrupt="onInterrupt"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AgentSession } from '../stores/sessions'
+import MynauiLightningSolid from '~icons/mynaui/lightning-solid'
 import { t } from '../i18n'
 import { useSessionsStore } from '../stores/sessions'
 import MessageItem from './MessageItem.vue'
 import InputBar from './InputBar.vue'
 import PermissionDialog from './PermissionDialog.vue'
 import { getSessionStatusLabel, getSessionStatusTone } from '../utils/sessionStatus'
-import { findDomainOption, findStyleOption } from '../utils/profile'
 
 const props = defineProps<{ session: AgentSession }>()
 const emit = defineEmits<{
@@ -97,16 +78,12 @@ const closeIconBody = '<path fill="currentColor" d="m12 13.4l-4.9 4.9q-.275.275-
 const store = useSessionsStore()
 const listRef = ref<HTMLElement | null>(null)
 const stickToBottom = ref(true)
+const inputOverlayRef = ref<HTMLElement | null>(null)
+const inputOverlayHeight = ref(112)
+let inputOverlayResizeObserver: ResizeObserver | null = null
 
 const statusTone = computed(() => getSessionStatusTone(props.session))
 const statusLabel = computed(() => getSessionStatusLabel(statusTone.value))
-
-const domainLabel = computed(() =>
-  findDomainOption(props.session.meta.profile.domain)?.label ?? ''
-)
-const styleLabel = computed(() =>
-  findStyleOption(props.session.meta.profile.style)?.label ?? ''
-)
 
 const activeSkillLabel = computed(() =>
   props.session.activeSkillName ? t('agent.usingSkill', { name: props.session.activeSkillName }) : ''
@@ -115,6 +92,10 @@ const lastIsUser = computed(() => {
   const msgs = props.session.messages
   return msgs.length > 0 && msgs[msgs.length - 1].role === 'user'
 })
+
+function syncInputOverlayHeight() {
+  inputOverlayHeight.value = inputOverlayRef.value?.offsetHeight ?? 112
+}
 
 watch(
   () => props.session.meta.id,
@@ -169,10 +150,27 @@ function onResolve(decision: 'allow' | 'always' | 'deny') {
 function onInterrupt() {
   store.interrupt(props.session.meta.id)
 }
+
+onMounted(() => {
+  nextTick(() => {
+    syncInputOverlayHeight()
+    if (!inputOverlayRef.value || typeof ResizeObserver === 'undefined') return
+    inputOverlayResizeObserver = new ResizeObserver(() => {
+      syncInputOverlayHeight()
+    })
+    inputOverlayResizeObserver.observe(inputOverlayRef.value)
+  })
+})
+
+onBeforeUnmount(() => {
+  inputOverlayResizeObserver?.disconnect()
+  inputOverlayResizeObserver = null
+})
 </script>
 
 <style scoped>
 .chat-shell {
+  --input-overlay-height: 112px;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -180,6 +178,16 @@ function onInterrupt() {
   color: var(--ink);
   position: relative;
   overflow: hidden;
+}
+
+.input-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: 0 16px 16px;
+  pointer-events: none;
 }
 
 /* ── Chrome row ─────────────────────────────────────────────────── */
@@ -285,116 +293,13 @@ function onInterrupt() {
   height: 14px;
 }
 
-/* ── Meta strip ────────────────────────────────────────────────── */
-.meta-strip {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--rule-soft);
-  background: var(--panel-2);
-  flex: 0 0 auto;
-}
-
-.title-col {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.session-name {
-  font-family: var(--sans);
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.15;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-id {
-  margin-top: 3px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-4);
-  letter-spacing: 0.02em;
-}
-
-.workdir-col {
-  flex: 1;
-  min-width: 0;
-}
-
-.workdir-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  color: var(--ink-4);
-  text-transform: uppercase;
-}
-
-.workdir-path {
-  margin-top: 2px;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--ink-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-col {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.chip {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  padding: 3px 7px;
-  color: var(--ink-3);
-  border: 1px solid var(--rule-softer);
-  background: var(--panel-2);
-}
-
-.perm-col {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.perm-chip {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  padding: 3px 6px;
-  color: var(--ink-4);
-  background: transparent;
-  border: 1px solid var(--rule-softer);
-  text-decoration: line-through;
-  opacity: 0.6;
-}
-
-.perm-chip.on {
-  color: var(--ink-2);
-  background: var(--bg-2);
-  border-color: var(--rule-soft);
-  text-decoration: none;
-  opacity: 1;
-}
-
 /* ── Message list ──────────────────────────────────────────────── */
 .message-list {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 28px 20px;
+  padding: 4px 28px calc(var(--input-overlay-height) + 20px);
   scrollbar-width: thin;
   scrollbar-color: var(--rule-soft) transparent;
 }
@@ -417,24 +322,21 @@ function onInterrupt() {
 }
 
 .empty-chat {
-  padding: 80px 20px;
+  position: absolute;
+  inset: 4px 28px calc(var(--input-overlay-height) + 20px) 28px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   text-align: center;
 }
 
-.empty-frame {
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--rule);
-  color: var(--ink-3);
-  margin-bottom: 4px;
-  font-size: 22px;
+.empty-icon {
+  width: 38px;
+  height: 38px;
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 .empty-title {
@@ -442,6 +344,7 @@ function onInterrupt() {
   font-size: 15px;
   font-weight: 600;
   color: var(--ink-2);
+  max-width: 28ch;
 }
 
 .empty-dir {
@@ -453,6 +356,9 @@ function onInterrupt() {
   font-size: 11px;
   color: var(--ink-4);
   letter-spacing: 0.04em;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: min(100%, 52ch);
 }
 
 .empty-dir-label {

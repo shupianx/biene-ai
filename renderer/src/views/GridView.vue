@@ -70,6 +70,7 @@
           :key="s.meta.id"
           :session="s"
           @select="onOpenSession(s.meta.id)"
+          @open-folder="onOpenFolder(s.meta.work_dir)"
           @settings="onOpenSettings(s.meta.id)"
           @delete="deletingSessionId = s.meta.id"
         />
@@ -109,6 +110,7 @@ import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
 import type { AgentProfile, SessionPermissions } from '../api/http'
 import { connectSessionListWS } from '../api/ws'
 import { t } from '../i18n'
+import { getDesktopBridge } from '../runtime'
 import { useSessionsStore } from '../stores/sessions'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import { nextDefaultAgentName } from '../utils/agentNames'
@@ -264,6 +266,17 @@ async function onOpenSettings(id: string) {
   await store.refresh(false, false)
   if (!store.sessions[id]) return
   editingSessionId.value = id
+}
+
+async function onOpenFolder(workDir: string) {
+  const bridge = getDesktopBridge()
+  if (!bridge?.openPath) return
+
+  try {
+    await bridge.openPath(workDir)
+  } catch (error) {
+    console.error('Failed to open agent folder:', error)
+  }
 }
 
 async function onConfirmDelete() {
@@ -465,6 +478,25 @@ async function onConfirmDelete() {
   overflow: auto;
   padding: 20px;
   position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-soft) transparent;
+}
+
+.grid-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.grid-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.grid-body::-webkit-scrollbar-thumb {
+  background: var(--rule-soft);
+  border: 2px solid var(--bg);
+}
+
+.grid-body::-webkit-scrollbar-thumb:hover {
+  background: var(--rule);
 }
 
 .agent-grid {

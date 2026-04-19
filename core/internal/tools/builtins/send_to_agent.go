@@ -35,7 +35,7 @@ func (t *SendToAgentTool) InputSchema() json.RawMessage {
 		"properties": {
 			"target_agent_id": {
 				"type": "string",
-				"description": "The destination agent ID from list_agents"
+				"description": "The destination agent ID from the Other available agents section of list_agents. Do not use your own current agent ID."
 			},
 			"message": {
 				"type": "string",

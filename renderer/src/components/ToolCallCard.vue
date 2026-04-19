@@ -1,7 +1,14 @@
 <template>
   <div class="tool-card" :class="statusClass">
     <div class="tool-header" @click="expanded = !expanded">
-      <span class="tool-icon">{{ icon }}</span>
+      <span class="tool-icon">
+        <EosIconsBubbleLoading
+          v-if="isPending"
+          class="tool-icon-svg"
+          aria-hidden="true"
+        />
+        <template v-else>{{ icon }}</template>
+      </span>
       <span class="tool-name">{{ tc.tool_name }}</span>
       <span class="tool-summary">{{ tc.tool_summary }}</span>
       <span class="expand-icon">{{ expanded ? '▲' : '▼' }}</span>
@@ -22,6 +29,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { DisplayTool } from '../api/http'
+import EosIconsBubbleLoading from '~icons/eos-icons/bubble-loading'
 import { t } from '../i18n'
 
 const props = defineProps<{ tc: DisplayTool }>()
@@ -35,10 +43,24 @@ const statusClass = computed(() => ({
   'status-denied':  props.tc.status === 'denied',
   'status-cancelled': props.tc.status === 'cancelled',
 }))
+const isPending = computed(() => props.tc.status === 'pending')
 
-const icon = computed(() => (
-  { composing: '…', pending: '⟳', done: '✓', error: '✗', denied: '⊘', cancelled: '■' }[props.tc.status] ?? '?'
-))
+const icon = computed(() => {
+  switch (props.tc.status) {
+    case 'composing':
+      return '…'
+    case 'done':
+      return '✓'
+    case 'error':
+      return '✗'
+    case 'denied':
+      return '⊘'
+    case 'cancelled':
+      return '■'
+    default:
+      return '?'
+  }
+})
 
 function fmt(v: unknown) {
   try { return JSON.stringify(v, null, 2) } catch { return String(v) }
@@ -74,8 +96,18 @@ function fmt(v: unknown) {
   font-family: var(--mono);
   font-size: 12px;
   width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   color: var(--ink-3);
+}
+
+.tool-icon-svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .tool-name {
@@ -138,7 +170,6 @@ function fmt(v: unknown) {
 .status-composing .tool-icon { color: var(--ink-4); }
 .status-pending   .tool-icon {
   color: var(--warn);
-  animation: bieneSpin 1s linear infinite;
 }
 .status-done      .tool-icon { color: var(--ok); }
 .status-error     .tool-icon { color: var(--err); }

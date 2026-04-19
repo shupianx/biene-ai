@@ -15,6 +15,7 @@ ipcRenderer.on('desktop:settingsMenuAction', (_event, detail) => {
 
 const desktopBridge = Object.freeze({
   isElectron: true,
+  initialTheme: readCliArg('--biene-theme=') === 'dark' ? 'dark' : 'light',
   platform: process.platform,
   windowKind: readCliArg('--biene-window-kind=') || 'main',
   coreBaseUrl: readCliArg('--biene-core-url='),
@@ -30,6 +31,9 @@ const desktopBridge = Object.freeze({
   },
   openExternal(url) {
     return ipcRenderer.invoke('desktop:openExternal', url)
+  },
+  openPath(targetPath) {
+    return ipcRenderer.invoke('desktop:openPath', targetPath)
   },
   openAgentWindow(sessionId) {
     return ipcRenderer.invoke('desktop:openAgentWindow', sessionId)

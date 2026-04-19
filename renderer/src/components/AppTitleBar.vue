@@ -77,7 +77,7 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
   padding: 0 14px 0 12px;
   background: var(--panel);
   color: var(--ink);
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule-soft);
   -webkit-app-region: drag;
   user-select: none;
 }

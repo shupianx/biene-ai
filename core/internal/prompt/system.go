@@ -9,11 +9,18 @@ import (
 	"biene/internal/tools"
 )
 
+type AgentIdentity struct {
+	ID      string
+	Name    string
+	WorkDir string
+}
+
 // Build constructs the system prompt that is sent with every API request.
 func Build(
 	registry *tools.Registry,
 	cwd string,
 	profile AgentProfile,
+	self AgentIdentity,
 	installedSkills []skills.Metadata,
 	activatedSkills []skills.Definition,
 ) string {
@@ -43,6 +50,13 @@ func Build(
 
 	writeSection(&sb, "Domain", domain.Rules)
 	writeSection(&sb, "Style", style.Rules)
+
+	writeSection(&sb, "Current Agent", []string{
+		fmt.Sprintf("Agent name: %s", self.Name),
+		fmt.Sprintf("Agent ID: %s", self.ID),
+		fmt.Sprintf("Agent workspace: %s", self.WorkDir),
+		"If you need to confirm your own identity or compare yourself with other agents, use this section or list_agents. list_agents also shows your current agent entry.",
+	})
 
 	if profile.CustomInstructions != "" {
 		writeSection(&sb, "Custom Instructions", []string{profile.CustomInstructions})

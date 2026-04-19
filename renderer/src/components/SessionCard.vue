@@ -9,7 +9,13 @@
   >
     <!-- Top strip: name + menu -->
     <div class="top-strip">
-      <div class="name" :title="session.meta.name">{{ session.meta.name }}</div>
+      <div class="title-row">
+        <div class="name" :title="session.meta.name">{{ session.meta.name }}</div>
+        <div class="title-path" :title="session.meta.work_dir">
+          <svg class="path-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="folderIconBody" />
+          <span class="path-text">{{ shortDir }}</span>
+        </div>
+      </div>
       <div class="menu-wrap" @click.stop>
         <button
           class="menu-btn"
@@ -22,6 +28,7 @@
         </button>
         <div v-if="menuOpen" class="menu">
           <button class="menu-item" @click="onOpen">{{ t('grid.openMenu') }}</button>
+          <button class="menu-item" @click="onOpenFolder">{{ t('grid.openFolderMenu') }}</button>
           <button class="menu-item" @click="onSettings">{{ t('common.settings') }}</button>
           <div class="menu-sep" aria-hidden="true" />
           <button class="menu-item danger" @click="onDelete">{{ t('common.delete') }}</button>
@@ -31,11 +38,6 @@
 
     <!-- Body -->
     <div class="body">
-      <div class="path-row">
-        <svg class="path-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="folderIconBody" />
-        <span class="path-text" :title="session.meta.work_dir">{{ shortDir }}</span>
-      </div>
-
       <div v-if="pendingPermLine" class="warn-line">⚠ {{ pendingPermLine }}</div>
 
       <div class="meta-row">
@@ -75,6 +77,7 @@ import { formatMessageTime } from '../utils/messageTime'
 const props = defineProps<{ session: AgentSession }>()
 const emit = defineEmits<{
   (e: 'select'): void
+  (e: 'open-folder'): void
   (e: 'settings'): void
   (e: 'delete'): void
 }>()
@@ -121,6 +124,11 @@ function onOpen() {
 function onSettings() {
   menuOpen.value = false
   emit('settings')
+}
+
+function onOpenFolder() {
+  menuOpen.value = false
+  emit('open-folder')
 }
 
 function onDelete() {
@@ -170,6 +178,13 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
   border-bottom: 1px dashed var(--rule-soft);
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .name {
   font-family: var(--sans);
   font-size: 17px;
@@ -181,6 +196,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  flex: 0 1 auto;
+  max-width: 52%;
 }
 
 .menu-wrap {
@@ -273,14 +290,15 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
   flex: 1;
 }
 
-.path-row {
+.title-path {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--ink-4);
-  overflow: hidden;
 }
 
 .path-icon {

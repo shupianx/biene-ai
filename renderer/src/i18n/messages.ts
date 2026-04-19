@@ -46,6 +46,7 @@ export const messages = {
       },
       emptyFilteredTitle: 'No matching agents',
       emptyFilteredHint: 'Adjust the filters, or create a new agent.',
+      openFolderMenu: 'Open folder',
       openMenu: 'Open window',
     },
     statusBar: {
@@ -59,7 +60,12 @@ export const messages = {
     agent: {
       anotherAgent: 'another agent',
       loading: 'Loading agent…',
+      loadingHint: 'Connecting to the session state and recent messages.',
+      loadingShort: 'Loading',
       notFound: 'Agent not found.',
+      notFoundHint: 'This agent may have been deleted, or this window was opened with an invalid id.',
+      notFoundShort: 'Unavailable',
+      requestedId: 'Requested ID',
       ready: 'Agent ready. Send a message to start.',
       usingSkill: 'Using skill: {name}',
       workingDirectory: 'Working directory',
@@ -70,8 +76,8 @@ export const messages = {
       interrupted: 'Interrupted.',
       interrupt: 'Interrupt',
       interrupting: 'Interrupting',
-      placeholder: 'Message this agent…',
-      send: 'Send message',
+      placeholder: 'Message this agent… (⇧+⏎ newline, ⏎ send)',
+      send: 'Send',
     },
     message: {
       from: 'From',
@@ -210,6 +216,7 @@ export const messages = {
       },
       emptyFilteredTitle: '没有匹配的智能体',
       emptyFilteredHint: '调整筛选条件，或创建新智能体。',
+      openFolderMenu: '打开文件夹',
       openMenu: '打开窗口',
     },
     statusBar: {
@@ -223,7 +230,12 @@ export const messages = {
     agent: {
       anotherAgent: '另一个智能体',
       loading: '正在加载智能体…',
+      loadingHint: '正在连接会话状态并加载最近消息。',
+      loadingShort: '加载中',
       notFound: '未找到智能体。',
+      notFoundHint: '这个智能体可能已被删除，或者当前窗口是用无效 ID 打开的。',
+      notFoundShort: '不可用',
+      requestedId: '请求 ID',
       ready: '智能体已就绪，发送一条消息开始吧。',
       usingSkill: '正在使用 skill：{name}',
       workingDirectory: '工作目录',
@@ -234,8 +246,8 @@ export const messages = {
       interrupted: '已中断。',
       interrupt: '中断',
       interrupting: '正在中断',
-      placeholder: '向这个智能体发送消息…',
-      send: '发送消息',
+      placeholder: '向这个智能体发送消息…（⇧+⏎ 换行，⏎ 发送）',
+      send: '发送',
     },
     message: {
       from: '来自',

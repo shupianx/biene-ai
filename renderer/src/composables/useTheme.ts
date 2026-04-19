@@ -14,6 +14,10 @@ function applyTheme(next: ThemeMode) {
 }
 
 function readStoredTheme(): ThemeMode {
+  const bridgeTheme = getDesktopBridge()?.initialTheme
+  if (bridgeTheme === 'dark' || bridgeTheme === 'light') {
+    return bridgeTheme
+  }
   if (typeof window === 'undefined') return 'light'
   try {
     return window.localStorage.getItem(storageKey) === 'dark' ? 'dark' : 'light'

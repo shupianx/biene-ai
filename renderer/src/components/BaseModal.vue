@@ -107,6 +107,25 @@ const emit = defineEmits<{
   gap: 16px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-soft) transparent;
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: var(--rule-soft);
+  border: 2px solid var(--panel-2);
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--rule);
 }
 
 .modal-footer {

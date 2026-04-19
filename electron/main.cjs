@@ -37,6 +37,49 @@ let coreHealthy = false
 let coreStartPromise = null
 let quitAfterCoreStop = false
 let loginShellPathPromise = null
+const windowAppearanceOptions = new WeakMap()
+
+function currentTheme() {
+  return desktopSettings.theme === 'dark' ? 'dark' : 'light'
+}
+
+function getWindowAppearance(theme) {
+  if (theme === 'dark') {
+    return {
+      backgroundColor: '#1A1814',
+      overlayColor: '#1F1C17',
+      overlaySymbolColor: '#F0EBE1',
+    }
+  }
+
+  return {
+    backgroundColor: '#EDE8DF',
+    overlayColor: '#F6F2EA',
+    overlaySymbolColor: '#14120F',
+  }
+}
+
+function applyWindowAppearance(win) {
+  if (!win || win.isDestroyed()) return
+
+  const { frameless = false } = windowAppearanceOptions.get(win) ?? {}
+  const appearance = getWindowAppearance(currentTheme())
+  win.setBackgroundColor(appearance.backgroundColor)
+
+  if (!frameless && process.platform !== 'darwin' && typeof win.setTitleBarOverlay === 'function') {
+    win.setTitleBarOverlay({
+      color: appearance.overlayColor,
+      symbolColor: appearance.overlaySymbolColor,
+      height: 40,
+    })
+  }
+}
+
+function refreshAllWindowAppearances() {
+  for (const win of BrowserWindow.getAllWindows()) {
+    applyWindowAppearance(win)
+  }
+}
 
 function stopCoreMonitor() {
   if (coreMonitorTimer != null) {
@@ -561,15 +604,16 @@ function loadRendererRoute(win, route) {
 
 function createAppWindow(options) {
   const isFrameless = Boolean(options.frameless)
+  const appearance = getWindowAppearance(currentTheme())
   const windowOptions = {
     frame: !isFrameless,
     titleBarStyle: isFrameless ? 'default' : (process.platform === 'darwin' ? 'hiddenInset' : 'hidden'),
-    backgroundColor: '#f8fafc',
+    backgroundColor: appearance.backgroundColor,
   }
   if (!isFrameless && process.platform !== 'darwin') {
     windowOptions.titleBarOverlay = {
-      color: '#f8fafc',
-      symbolColor: '#111827',
+      color: appearance.overlayColor,
+      symbolColor: appearance.overlaySymbolColor,
       height: 40,
     }
   }
@@ -591,11 +635,13 @@ function createAppWindow(options) {
       additionalArguments: [
         `--biene-core-url=${coreBaseUrl}`,
         `--biene-core-token=${ensureCoreAuthToken()}`,
+        `--biene-theme=${currentTheme()}`,
         `--biene-window-kind=${options.windowKind ?? 'main'}`,
       ],
     },
   })
 
+  windowAppearanceOptions.set(win, { frameless: isFrameless })
   configureAppWindow(win)
   loadRendererRoute(win, options.route)
   win.webContents.once('did-finish-load', () => {
@@ -645,10 +691,22 @@ function registerDesktopHandlers() {
       ...desktopSettings,
       ...(patch && typeof patch === 'object' ? patch : {}),
     })
+    refreshAllWindowAppearances()
     return desktopSettings
   })
   ipcMain.handle('desktop:openExternal', async (_event, url) => {
     await shell.openExternal(url)
+  })
+  ipcMain.handle('desktop:openPath', async (_event, targetPath) => {
+    const pathToOpen = typeof targetPath === 'string' ? targetPath.trim() : ''
+    if (!pathToOpen) {
+      throw new Error('Path is required.')
+    }
+
+    const errorMessage = await shell.openPath(pathToOpen)
+    if (errorMessage) {
+      throw new Error(errorMessage)
+    }
   })
   ipcMain.handle('desktop:openAgentWindow', async (_event, sessionId) => {
     openAgentWindow(sessionId)

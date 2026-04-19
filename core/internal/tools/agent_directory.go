@@ -11,7 +11,7 @@ type AgentMessageMeta struct {
 	InReplyTo string `json:"in_reply_to,omitempty"`
 }
 
-// AgentPeer describes another available agent instance.
+// AgentPeer describes an available agent instance.
 type AgentPeer struct {
 	ID      string
 	Name    string

@@ -53,7 +53,7 @@ function onChange(event: Event) {
   position: relative;
   width: 40px;
   height: 22px;
-  background: var(--bg-2);
+  background: var(--switch-track-off);
   border: 1px solid var(--rule-soft);
   transition: background .15s ease, border-color .15s ease;
 }
@@ -64,17 +64,17 @@ function onChange(event: Event) {
   left: 2px;
   width: 16px;
   height: 16px;
-  background: var(--ink-4);
+  background: var(--switch-knob-off);
   transition: transform .15s ease, background .15s ease;
 }
 
 .switch-input:checked + .switch-track {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--switch-track-on);
+  border-color: var(--switch-track-on);
 }
 
 .switch-input:checked + .switch-track .switch-knob {
-  background: var(--panel-2);
+  background: var(--switch-knob-on);
   transform: translateX(18px);
 }
 

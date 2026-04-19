@@ -144,7 +144,11 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 	messages := append([]api.Message(nil), s.apiMessages...)
 	registry, _ := registryForToolMode(s.registry, s.toolMode)
 	installedSkills, activatedSkills := resolveSkillsForPrompt(s.WorkDir, s.history)
-	systemPrompt := prompt.Build(registry, s.WorkDir, s.profile, installedSkills, activatedSkills)
+	systemPrompt := prompt.Build(registry, s.WorkDir, s.profile, prompt.AgentIdentity{
+		ID:      s.ID,
+		Name:    s.Name,
+		WorkDir: s.WorkDir,
+	}, installedSkills, activatedSkills)
 	activatedSkillName := ""
 	if len(activatedSkills) > 0 {
 		activatedSkillName = activatedSkills[0].Name

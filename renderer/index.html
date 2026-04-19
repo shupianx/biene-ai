@@ -4,6 +4,46 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      html, body, #app {
+        height: 100%;
+      }
+
+      html, body {
+        margin: 0;
+        background: #EDE8DF;
+        color: #14120F;
+      }
+
+      html[data-theme="dark"], html[data-theme="dark"] body {
+        background: #1A1814;
+        color: #F0EBE1;
+        color-scheme: dark;
+      }
+
+      body, #app {
+        background: inherit;
+      }
+    </style>
+    <script>
+      (() => {
+        const root = document.documentElement
+        const bridgeTheme = window.bieneDesktop?.initialTheme
+        let theme = bridgeTheme === 'dark' || bridgeTheme === 'light' ? bridgeTheme : 'light'
+
+        if (!bridgeTheme) {
+          try {
+            theme = window.localStorage.getItem('biene.theme') === 'dark' ? 'dark' : 'light'
+          } catch {
+            theme = 'light'
+          }
+        }
+
+        root.dataset.theme = theme
+        root.style.colorScheme = theme
+        root.style.backgroundColor = theme === 'dark' ? '#1A1814' : '#EDE8DF'
+      })()
+    </script>
     <title>biene</title>
   </head>
   <body>
