@@ -1,10 +1,15 @@
 <template>
   <Teleport to="body">
-    <div class="backdrop" :style="{ zIndex: String(zIndex) }" @click.self="emit('close')">
+    <div class="backdrop" :style="{ zIndex: String(zIndex) }" @click.self="onBackdropClick">
       <div class="modal" :style="{ maxWidth }">
         <header class="modal-header">
           <span class="modal-title">{{ title }}</span>
-          <button class="close-btn" :aria-label="t('common.close')" @click="emit('close')">✕</button>
+          <button
+            v-if="dismissable"
+            class="close-btn"
+            :aria-label="t('common.close')"
+            @click="emit('close')"
+          >✕</button>
         </header>
 
         <div class="modal-body">
@@ -22,18 +27,24 @@
 <script setup lang="ts">
 import { t } from '../i18n'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   title: string
   maxWidth?: string
   zIndex?: number
+  dismissable?: boolean
 }>(), {
   maxWidth: '440px',
   zIndex: 200,
+  dismissable: true,
 })
 
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
+
+function onBackdropClick() {
+  if (props.dismissable) emit('close')
+}
 </script>
 
 <style scoped>

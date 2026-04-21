@@ -22,13 +22,6 @@ func resolveModelEntry(cfg *config.Config, requestedID string) (config.ModelEntr
 	return entry, entry.ID, nil
 }
 
-func maxTokensFromConfig(cfg *config.Config) int {
-	if cfg.Settings.MaxTokens > 0 {
-		return cfg.Settings.MaxTokens
-	}
-	return 8192
-}
-
 func (m *SessionManager) ModelUsageCounts() map[string]int {
 	m.mu.RLock()
 	sessions := make([]*Session, 0, len(m.sessions))
@@ -55,8 +48,6 @@ func (m *SessionManager) UpdateConfig(cfg *config.Config) error {
 		return err
 	}
 
-	maxTokens := maxTokensFromConfig(cfg)
-
 	m.mu.Lock()
 	m.cfg = cfg
 	sessions := make([]*Session, 0, len(m.sessions))
@@ -82,11 +73,12 @@ func (m *SessionManager) UpdateConfig(cfg *config.Config) error {
 			thinkingEnabled = thinkingAvailable && sess.thinkingEnabled
 		}
 		sess.provider = newProvider(modelEntry)
-		sess.maxTokens = maxTokens
 		sess.modelID = resolvedID
 		sess.modelName = modelEntry.Name
 		sess.thinkingAvailable = thinkingAvailable
 		sess.thinkingEnabled = thinkingEnabled
+		sess.thinkingOn = modelEntry.ThinkingOn
+		sess.thinkingOff = modelEntry.ThinkingOff
 		meta := sess.metaLocked()
 		persistedMeta := sess.persistentMetaLocked()
 		sess.mu.Unlock()

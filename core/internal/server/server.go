@@ -92,6 +92,12 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("POST /api/sessions/{id}/skills/install", s.handleSessionInstallSkill)
 	mux.HandleFunc("DELETE /api/sessions/{id}/skills/{skill_id}", s.handleSessionUninstallSkill)
 
+	// Background process (one per session)
+	mux.HandleFunc("GET /api/sessions/{id}/process", s.handleProcessState)
+	mux.HandleFunc("POST /api/sessions/{id}/process/stop", s.handleProcessStop)
+	mux.HandleFunc("GET /api/sessions/{id}/process/logs/ws", s.handleProcessLogsWebSocket)
+	mux.HandleFunc("GET /api/processes/active", s.handleActiveProcesses)
+
 	// Global config
 	mux.HandleFunc("GET /api/config", s.handleConfig)
 	mux.HandleFunc("POST /api/config", s.handleUpdateConfig)

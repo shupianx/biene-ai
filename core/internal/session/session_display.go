@@ -39,7 +39,7 @@ func (s *Session) currentAssistantTextSegmentLocked() *DisplayMessage {
 }
 
 func (s *Session) currentAssistantReasoningSegmentLocked() *DisplayMessage {
-	if msg := s.latestStreamingAssistantLocked(); msg != nil {
+	if msg := s.latestStreamingAssistantLocked(); msg != nil && len(msg.ToolCalls) == 0 && msg.Text == "" {
 		return msg
 	}
 	return s.appendAssistantSegmentLocked()

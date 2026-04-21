@@ -173,12 +173,13 @@ export interface ConfigModelEntry {
   model: string
   base_url: string
   thinking_available?: boolean
+  thinking_on?: Record<string, unknown>
+  thinking_off?: Record<string, unknown>
 }
 
 export interface CoreConfig {
   default_model: string
   model_list: ConfigModelEntry[]
-  max_tokens: number
 }
 
 export function fetchConfig() {
@@ -238,4 +239,28 @@ export function uninstallSkillFromSession(sessionId: string, skillId: string) {
   return del<{ skill_name: string }>(
     `/api/sessions/${encodeURIComponent(sessionId)}/skills/${encodeURIComponent(skillId)}`,
   )
+}
+
+// ── Background process (one per session) ──────────────────────────────────
+
+import type { ProcessStateData } from '../types/events'
+
+export function getProcessState(sessionId: string) {
+  return get<ProcessStateData>(`/api/sessions/${encodeURIComponent(sessionId)}/process`)
+}
+
+export function stopSessionProcess(sessionId: string) {
+  return post<ProcessStateData>(`/api/sessions/${encodeURIComponent(sessionId)}/process/stop`)
+}
+
+export interface ActiveBackgroundProcess {
+  session_id: string
+  session_name: string
+  command: string
+  args?: string[]
+  pid?: number
+}
+
+export function listActiveProcesses() {
+  return get<{ processes: ActiveBackgroundProcess[] }>('/api/processes/active')
 }

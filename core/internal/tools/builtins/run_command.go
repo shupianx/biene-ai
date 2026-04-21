@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -49,6 +50,10 @@ func (t *RunCommandTool) InputSchema() json.RawMessage {
 				"description": "Arguments passed to the command. Do not include shell syntax here.",
 				"items": { "type": "string" }
 			},
+			"cwd": {
+				"type": "string",
+				"description": "Optional working directory for the command, relative to the agent workspace (e.g. \"frontend\"). Must stay inside the workspace. Defaults to the workspace root."
+			},
 			"timeout": {
 				"type": "integer",
 				"description": "Optional timeout in seconds (default 120)"
@@ -61,6 +66,7 @@ func (t *RunCommandTool) InputSchema() json.RawMessage {
 type runCommandInput struct {
 	Command string   `json:"command"`
 	Args    []string `json:"args"`
+	Cwd     string   `json:"cwd"`
 	Timeout int      `json:"timeout"`
 }
 
@@ -86,6 +92,9 @@ func (t *RunCommandTool) Summary(raw json.RawMessage) string {
 		return "<invalid input>"
 	}
 	cmd := formatCommandPreview(in.Command, in.Args)
+	if in.Cwd != "" {
+		cmd = "[" + in.Cwd + "] " + cmd
+	}
 	if len(cmd) > 96 {
 		cmd = cmd[:93] + "..."
 	}
@@ -103,12 +112,17 @@ func (t *RunCommandTool) Execute(ctx context.Context, raw json.RawMessage) (stri
 		timeout = time.Duration(in.Timeout) * time.Second
 	}
 
+	workDir, err := resolveCommandCwd(t.WorkDir, in.Cwd)
+	if err != nil {
+		return "", err
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, in.Command, in.Args...)
-	if t.WorkDir != "" {
-		cmd.Dir = t.WorkDir
+	if workDir != "" {
+		cmd.Dir = workDir
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -144,6 +158,30 @@ func (t *RunCommandTool) Execute(ctx context.Context, raw json.RawMessage) (stri
 		}
 	}
 	return truncateCommandOutput(result), nil
+}
+
+// resolveCommandCwd returns the directory to run the command in.
+// If cwd is empty, it falls back to workDir. If cwd is provided, it is
+// resolved relative to workDir and must stay inside the workspace.
+func resolveCommandCwd(workDir, cwd string) (string, error) {
+	if cwd == "" {
+		return workDir, nil
+	}
+	if workDir == "" {
+		return "", fmt.Errorf("run_command: cwd not supported without a workspace root")
+	}
+	abs, _, err := resolvePath(workDir, cwd)
+	if err != nil {
+		return "", fmt.Errorf("run_command: %w", err)
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("run_command: cwd %q: %w", cwd, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("run_command: cwd %q is not a directory", cwd)
+	}
+	return abs, nil
 }
 
 func formatCommandPreview(command string, args []string) string {

@@ -83,19 +83,21 @@ Core 是一个纯 `net/http` 的 Go HTTP 服务，没有额外框架。
 
 **`internal/api/`** — 与 LLM 供应商无关的抽象层。`types.go` 定义了内部消息类型（`TextBlock`、`ToolUseBlock`、`ToolResultBlock`）以及 `Provider` 接口。`anthropic.go` 和 `openai.go` 分别实现该接口，负责与各 SDK 的协议格式互转。所有流式响应以 `<-chan StreamEvent` 返回。
 
-**`internal/query/`** — 智能体循环的核心引擎。`loop.go` 中的 `Run()` 执行一轮完整的对话：调用模型（流式） → 收集工具调用 → 逐个权限检查 + 执行 → 将结果追加到消息历史 → 再次调模型，直到模型不再请求工具。所有中间事件通过 `<-chan Event` 返回给调用方。支持写操作权限的预检（`preparedPermission`），在模型还在流式输出时提前发起权限请求。
+**`internal/agentloop/`** — 智能体循环的核心引擎。`stream.go` 中的 `Run()` 执行一轮完整的对话：调用模型（流式） → 收集工具调用 → 逐个权限检查 + 执行 → 将结果追加到消息历史 → 再次调模型，直到模型不再请求工具。所有中间事件通过 `<-chan Event` 返回给调用方。支持写操作权限的预检（`permission_prep.go`），在模型还在流式输出时提前发起权限请求。
 
 **`internal/server/`** — HTTP transport 层。
 - `server.go`：注册所有路由并启动 `ListenAndServe`。
-- `sse.go`：将 session 发出的事件帧写入 HTTP SSE 响应。
-- `handler_*.go`：各处理器文件，逻辑很薄——解析请求、委托给 session、编码响应。
+- `handler_ws.go`：WebSocket 事件推送。`GET /api/sessions/ws` 广播会话列表层面的变化（创建/删除/meta 更新等），`GET /api/sessions/{id}/ws` 推送单个会话的实时事件（reasoning delta、tool call、permission_request 等）。
+- `handler_*.go`：其他 REST 处理器文件，逻辑很薄——解析请求、委托给 session、编码响应。
 
 **`internal/session/`** — 会话生命周期与状态机。
 - `session.go`：`Session` 结构体，持有单个智能体的核心状态（消息历史、工具注册表、权限管理器、提供者等）以及运行循环的驱动逻辑。
 - `session_manager.go`：`SessionManager` 管理所有活跃会话的创建、查找、删除、持久化恢复和 agent-to-agent 交付。
 - `session_persist.go`：序列化/反序列化 `display_messages` 和 `api_messages` 到 SQLite。
-- `session_display.go`：维护 UI 展示用的 `DisplayMessage` 列表。
+- `session_display.go`：维护 UI 展示用的 `DisplayMessage` 列表（reasoning/text/tool 分段策略、流式状态机等）。
 - `session_files.go`：处理附件上传、工作区文件路径校验和 agent 间文件复制。
+- `session_skills.go`：技能的安装 / 卸载 / 激活（`use_skill` 工具通过 `ActivateSkill` 加载技能正文并标记为活跃）。
+- `session_realtime.go` / `session_manager_realtime.go`：WebSocket 订阅与事件广播。
 
 **`internal/tools/`** — 每个工具实现 `Tool` 接口（`tool.go`）。`RegistryForWorkDir()` 预加载文件工具：`Read`、`Write`、`Edit`。`Bash` 工具也已实现（区分只读命令可跳过权限）。`ListAgents` 和 `SendToAgent` 由 `SessionManager` 在创建会话时单独注册（需要 `AgentDirectory` 接口）。工具通过 `PermissionKey`（`write`、`send_to_agent` 或只读为空）声明所需权限；写操作需要用户确认。
 
@@ -109,11 +111,11 @@ Core 是一个纯 `net/http` 的 Go HTTP 服务，没有额外框架。
 
 ### Renderer（Vue 3 — `renderer/src/`）
 
-**状态管理**：`stores/sessions.ts`（Pinia）。`AgentSession` 保存会话元数据、展示消息、流式状态和待审权限。Store 在 session 附加时为每个会话建立 SSE 连接，并将收到的事件合并到本地状态。
+**状态管理**：`stores/sessions.ts`（Pinia）。`AgentSession` 保存会话元数据、展示消息、流式状态和待审权限。Store 在 session 附加时为每个会话建立 WebSocket 连接，并将收到的事件合并到本地状态（前端同样维护分段状态机，需与后端 `session_display.go` 的分段规则保持对称）。
 
 **路由**（`router.ts`）：`/` → `GridView`（会话列表），`/agent/:id` → `AgentView`（完整聊天界面）。Electron 打开的智能体窗口直接加载 `/agent/:id`。
 
-**API 层**（`api/http.ts`、`api/sse.ts`）：`http.ts` 对每个 REST 端点封装了带类型的调用函数；`sse.ts` 连接 `GET /api/sessions/{id}/events`，并将类型化事件分发给 store。
+**API 层**（`api/http.ts`、`api/ws.ts`）：`http.ts` 对每个 REST 端点封装了带类型的调用函数；`ws.ts` 连接 `GET /api/sessions/{id}/ws` 和 `GET /api/sessions/ws`，并将类型化事件分发给 store。
 
 **关键组件**：`AgentChatView.vue`（主聊天面板）、`MessageItem.vue`（渲染单条消息）、`ToolCallCard.vue`（展示工具调用）、`PermissionDialog.vue`（批准/拒绝写操作）、`InputBar.vue`（消息输入框）。
 
@@ -127,8 +129,8 @@ Core 是一个纯 `net/http` 的 Go HTTP 服务，没有额外框架。
 
 ## 关键数据流
 
-**发送消息**：`InputBar` → `POST /api/sessions/{id}/send` → Go 处理器将消息入队 → `query.Run()` 启动智能体循环 → 流式获取 LLM 响应并通过 SSE 广播 → 渲染层 store 实时更新消息列表。
+**发送消息**：`InputBar` → `POST /api/sessions/{id}/send` → Go 处理器将消息入队 → `agentloop.Run()` 启动智能体循环 → 流式获取 LLM 响应并通过 WebSocket 广播 → 渲染层 store 实时更新消息列表。
 
-**需要权限的工具执行**：智能体循环触发写操作工具 → 发出 `permission_request` SSE 事件 → store 设置 `pendingPermission` → `PermissionDialog` 弹出 → 用户点击批准/拒绝 → `POST /api/sessions/{id}/permission` → 循环解除阻塞。
+**需要权限的工具执行**：智能体循环触发写操作工具 → 通过 WebSocket 发出 `permission_request` 事件 → store 设置 `pendingPermission` → `PermissionDialog` 弹出 → 用户点击批准/拒绝 → `POST /api/sessions/{id}/permission` → 循环解除阻塞。
 
 **会话持久化**：每轮对话后，session 将 `display_messages` 和 `api_messages` 序列化写入 SQLite。启动时，`SessionManager.Init()` 扫描 workspace 目录中已有的 `meta.json` 文件并重新加载会话。

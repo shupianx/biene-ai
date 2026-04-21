@@ -51,7 +51,6 @@ func (p *OpenAIProvider) Stream(
 	systemPrompt string,
 	messages []Message,
 	tools []ToolDefinition,
-	maxTokens int,
 	opts RequestOptions,
 ) (<-chan StreamEvent, error) {
 	apiMessages, err := convertMessagesToOpenAI(messages, systemPrompt)
@@ -60,10 +59,9 @@ func (p *OpenAIProvider) Stream(
 	}
 
 	req := openAIChatCompletionRequest{
-		Model:     p.model,
-		Messages:  apiMessages,
-		MaxTokens: maxTokens,
-		Stream:    true,
+		Model:    p.model,
+		Messages: apiMessages,
+		Stream:   true,
 	}
 	if len(tools) > 0 {
 		req.Tools = convertToolsToOpenAI(tools)
@@ -202,8 +200,8 @@ func (p *OpenAIProvider) openStream(
 		option.WithHeader("Cache-Control", "no-cache"),
 		option.WithHeader("Connection", "keep-alive"),
 	}
-	if opts.EnableThinking != nil {
-		reqOpts = append(reqOpts, option.WithJSONSet("enable_thinking", *opts.EnableThinking))
+	for key, value := range opts.ThinkingExtra {
+		reqOpts = append(reqOpts, option.WithJSONSet(key, value))
 	}
 
 	if err := p.client.Post(ctx, "chat/completions", req, &resp, reqOpts...); err != nil {
@@ -272,11 +270,10 @@ func (s *manualChatCompletionStream) Recv() (openAIChatCompletionStreamResponse,
 }
 
 type openAIChatCompletionRequest struct {
-	Model     string                        `json:"model"`
-	Messages  []openAIChatCompletionMessage `json:"messages"`
-	MaxTokens int                           `json:"max_tokens,omitempty"`
-	Stream    bool                          `json:"stream,omitempty"`
-	Tools     []openAIChatCompletionTool    `json:"tools,omitempty"`
+	Model    string                        `json:"model"`
+	Messages []openAIChatCompletionMessage `json:"messages"`
+	Stream   bool                          `json:"stream,omitempty"`
+	Tools    []openAIChatCompletionTool    `json:"tools,omitempty"`
 }
 
 type openAIChatCompletionMessage struct {

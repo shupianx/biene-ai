@@ -10,6 +10,7 @@ export type SessionEventType =
   | 'permission_request'
   | 'permission_cleared'
   | 'skill_activated'
+  | 'process_state'
   | 'error'
   | 'done'
 
@@ -68,6 +69,21 @@ export interface PermissionClearedData {
 
 export interface SkillActivatedData {
   skill_name: string
+}
+
+export type ProcessStatus = 'idle' | 'running' | 'exited' | 'killed' | 'failed'
+
+export interface ProcessStateData {
+  active: boolean
+  status: ProcessStatus
+  command?: string
+  args?: string[]
+  cwd?: string
+  pid?: number
+  started_at?: string
+  exited_at?: string
+  exit_code?: number
+  log_file?: string
 }
 
 export interface ErrorData {

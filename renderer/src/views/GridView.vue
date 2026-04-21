@@ -67,6 +67,10 @@
       </div>
     </div>
 
+    <WelcomeModal
+      v-if="showWelcome"
+      @done="onWelcomeDone"
+    />
     <NewAgentModal
       v-if="showNewModal"
       :default-name="nextAgentName"
@@ -129,6 +133,7 @@ import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
 import FolderOpenIcon from '~icons/material-symbols/folder-open-outline'
 import MaterialSymbolsRobot2Outline from '~icons/material-symbols/robot-2-outline'
 import type { AgentProfile, SessionPermissions } from '../api/http'
+import { fetchConfig } from '../api/http'
 import { connectSessionListWS } from '../api/ws'
 import { t } from '../i18n'
 import { getDesktopBridge } from '../runtime'
@@ -141,6 +146,7 @@ import SessionSettingsModal from '../components/SessionSettingsModal.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
 import FloatingPanel from '../components/FloatingPanel.vue'
 import SkillsBrowser from '../components/SkillsBrowser.vue'
+import WelcomeModal from '../components/WelcomeModal.vue'
 
 const store = useSessionsStore()
 const { openAgent } = useAgentNavigation()
@@ -152,11 +158,27 @@ const refreshIconBody = '<path fill="currentColor" d="M12 20q-3.35 0-5.675-2.325
 const searchIconBody = '<path fill="currentColor" d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.57 4.23l.27.28h.8l5 5l-1.5 1.5l-5-5v-.79l-.28-.27A6.52 6.52 0 0 1 9.5 16A6.5 6.5 0 0 1 3 9.5A6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14S14 12 14 9.5S12 5 9.5 5"/>'
 
 const showNewModal = ref(false)
+const showWelcome = ref(false)
 const editingSessionId = ref<string | null>(null)
 const deletingSessionId = ref<string | null>(null)
 const search = ref('')
 const refreshing = ref(false)
 let disconnectListWS: (() => void) | null = null
+
+async function checkWelcome() {
+  try {
+    const cfg = await fetchConfig()
+    if (!cfg.model_list || cfg.model_list.length === 0) {
+      showWelcome.value = true
+    }
+  } catch (error) {
+    console.error('Failed to check config for welcome flow:', error)
+  }
+}
+
+function onWelcomeDone() {
+  showWelcome.value = false
+}
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -182,6 +204,7 @@ function onVisibilityChange() {
 
 onMounted(() => {
   void store.init(false, false)
+  void checkWelcome()
   disconnectListWS = connectSessionListWS({
     onOpen() {
       void store.refresh(false, false)

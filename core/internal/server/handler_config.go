@@ -9,19 +9,20 @@ import (
 )
 
 type editableModelEntry struct {
-	ID                string `json:"id"`
-	Name              string `json:"name"`
-	Provider          string `json:"provider"`
-	APIKey            string `json:"api_key"`
-	Model             string `json:"model"`
-	BaseURL           string `json:"base_url"`
-	ThinkingAvailable bool   `json:"thinking_available,omitempty"`
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	Provider          string         `json:"provider"`
+	APIKey            string         `json:"api_key"`
+	Model             string         `json:"model"`
+	BaseURL           string         `json:"base_url"`
+	ThinkingAvailable bool           `json:"thinking_available,omitempty"`
+	ThinkingOn        map[string]any `json:"thinking_on,omitempty"`
+	ThinkingOff       map[string]any `json:"thinking_off,omitempty"`
 }
 
 type editableConfig struct {
 	DefaultModel string               `json:"default_model"`
 	ModelList    []editableModelEntry `json:"model_list"`
-	MaxTokens    int                  `json:"max_tokens"`
 }
 
 // handleConfig returns the current configuration.
@@ -46,9 +47,6 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	cfg := &config.Config{
 		DefaultModel: req.DefaultModel,
 		ModelList:    make([]config.ModelEntry, len(req.ModelList)),
-		Settings: config.Settings{
-			MaxTokens: req.MaxTokens,
-		},
 	}
 	for i, entry := range req.ModelList {
 		cfg.ModelList[i] = config.ModelEntry{
@@ -59,6 +57,8 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 			Model:             entry.Model,
 			BaseURL:           entry.BaseURL,
 			ThinkingAvailable: entry.ThinkingAvailable,
+			ThinkingOn:        entry.ThinkingOn,
+			ThinkingOff:       entry.ThinkingOff,
 		}
 	}
 
@@ -138,13 +138,14 @@ func configResponse(cfg *config.Config) editableConfig {
 			Model:             e.Model,
 			BaseURL:           e.BaseURL,
 			ThinkingAvailable: e.ThinkingAvailable,
+			ThinkingOn:        e.ThinkingOn,
+			ThinkingOff:       e.ThinkingOff,
 		}
 	}
 
 	return editableConfig{
 		DefaultModel: cfg.DefaultModel,
 		ModelList:    entries,
-		MaxTokens:    cfg.Settings.MaxTokens,
 	}
 }
 

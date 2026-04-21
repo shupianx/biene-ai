@@ -15,7 +15,6 @@ func TestCreatePinsSelectedModel(t *testing.T) {
 			{ID: "main", Name: "Main", Provider: "anthropic", Model: "claude-opus-4-6"},
 			{ID: "backup", Name: "Backup", Provider: "openai_compatible", Model: "gpt-5"},
 		},
-		Settings: config.Settings{MaxTokens: 4096},
 	}
 	mgr := NewSessionManager(t.TempDir(), cfg)
 
@@ -50,7 +49,6 @@ func TestCreateDefaultsThinkingOffWhenModelSupportsIt(t *testing.T) {
 				ThinkingAvailable: true,
 			},
 		},
-		Settings: config.Settings{MaxTokens: 4096},
 	}
 	mgr := NewSessionManager(t.TempDir(), cfg)
 
@@ -75,7 +73,6 @@ func TestUpdateConfigRefreshesPinnedModelName(t *testing.T) {
 			{ID: "main", Name: "Main", Provider: "anthropic", Model: "claude-opus-4-6"},
 			{ID: "backup", Name: "Backup", Provider: "openai_compatible", Model: "gpt-5"},
 		},
-		Settings: config.Settings{MaxTokens: 4096},
 	}
 	mgr := NewSessionManager(t.TempDir(), cfg)
 
@@ -94,7 +91,6 @@ func TestUpdateConfigRefreshesPinnedModelName(t *testing.T) {
 			{ID: "main", Name: "Primary", Provider: "anthropic", Model: "claude-opus-4-6"},
 			{ID: "backup", Name: "Research", Provider: "openai_compatible", Model: "gpt-5"},
 		},
-		Settings: config.Settings{MaxTokens: 8192},
 	}
 
 	if err := mgr.UpdateConfig(next); err != nil {

@@ -12,6 +12,7 @@ import type {
   PermissionRequestData,
   PermissionClearedData,
   SkillActivatedData,
+  ProcessStateData,
   ErrorData,
   SessionEventType,
 } from '../types/events'
@@ -29,6 +30,7 @@ export interface WSHandlers {
   onPermissionRequest: (data: PermissionRequestData) => void
   onPermissionCleared: (data: PermissionClearedData) => void
   onSkillActivated: (data: SkillActivatedData) => void
+  onProcessState: (data: ProcessStateData) => void
   onError: (data: ErrorData) => void
   onDone: () => void
   onReconnect?: () => void
@@ -87,6 +89,9 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
         break
       case 'skill_activated':
         handlers.onSkillActivated(message.data as SkillActivatedData)
+        break
+      case 'process_state':
+        handlers.onProcessState(message.data as ProcessStateData)
         break
       case 'error':
         handlers.onError(message.data as ErrorData)
@@ -147,6 +152,52 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
       window.clearTimeout(reconnectTimer)
       reconnectTimer = null
     }
+    ws?.close()
+    ws = null
+  }
+}
+
+export interface ProcessLogsWSHandlers {
+  onLine: (line: string) => void
+  onState: (state: ProcessStateData) => void
+  onError?: (event: Event) => void
+}
+
+interface ProcessLogFrame {
+  line?: string
+  state?: ProcessStateData
+}
+
+/** Opens a WebSocket that streams the session's background-process logs.
+ *  The server sends the current state first, then line events until close. */
+export function connectProcessLogsWS(
+  sessionId: string,
+  handlers: ProcessLogsWSHandlers,
+): () => void {
+  const url = buildCoreWebSocketUrl(`/api/sessions/${sessionId}/process/logs/ws`)
+  let ws: WebSocket | null = null
+  let closed = false
+
+  ws = new WebSocket(url)
+  ws.onmessage = (event) => {
+    try {
+      const frame = JSON.parse(event.data) as ProcessLogFrame
+      if (frame.line !== undefined) {
+        handlers.onLine(frame.line)
+      }
+      if (frame.state) {
+        handlers.onState(frame.state)
+      }
+    } catch (err) {
+      console.warn(`[process-logs WS] invalid message for ${sessionId}:`, err)
+    }
+  }
+  ws.onerror = (event) => {
+    if (!closed) handlers.onError?.(event)
+  }
+
+  return () => {
+    closed = true
     ws?.close()
     ws = null
   }

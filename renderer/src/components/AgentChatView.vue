@@ -52,6 +52,28 @@
     </div>
 
     <div ref="inputOverlayRef" class="input-overlay">
+      <div
+        v-if="session.processState?.active"
+        class="process-window"
+        :class="{ expanded: logsOpen }"
+      >
+        <ProcessCapsule
+          class="process-capsule"
+          :state="session.processState"
+          :logs-open="logsOpen"
+          :stopping="isStopping"
+          @toggle-logs="onToggleLogs"
+          @stop="onStopProcess"
+        />
+        <Transition name="log-reveal">
+          <ProcessLogPanel
+            v-if="logsOpen"
+            class="process-log-panel"
+            :session-id="session.meta.id"
+            :state="session.processState"
+          />
+        </Transition>
+      </div>
       <InputBar
         :disabled="session.isStreaming"
         :interruptible="session.isStreaming"
@@ -75,6 +97,8 @@ import { useSessionsStore } from '../stores/sessions'
 import MessageItem from './MessageItem.vue'
 import InputBar from './InputBar.vue'
 import PermissionDialog from './PermissionDialog.vue'
+import ProcessCapsule from './ProcessCapsule.vue'
+import ProcessLogPanel from './ProcessLogPanel.vue'
 import { getSessionStatusLabel, getSessionStatusTone } from '../utils/sessionStatus'
 
 const props = defineProps<{ session: AgentSession }>()
@@ -243,6 +267,32 @@ function onInterrupt() {
   store.interrupt(props.session.meta.id)
 }
 
+const logsOpen = ref(false)
+const isStopping = ref(false)
+
+function onToggleLogs() {
+  logsOpen.value = !logsOpen.value
+}
+
+async function onStopProcess() {
+  if (isStopping.value) return
+  isStopping.value = true
+  try {
+    await store.stopProcess(props.session.meta.id)
+  } catch (err) {
+    console.error('[stopProcess] failed:', err)
+  } finally {
+    isStopping.value = false
+  }
+}
+
+watch(
+  () => props.session.processState?.active,
+  (active) => {
+    if (!active) logsOpen.value = false
+  },
+)
+
 onMounted(() => {
   nextTick(() => {
     syncInputOverlayHeight()
@@ -288,6 +338,56 @@ watch(inputOverlayHeight, () => {
   z-index: 10;
   padding: 0 16px 16px;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.process-window {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--rule-soft);
+  pointer-events: auto;
+  overflow: hidden;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.process-window.expanded {
+  border-color: var(--rule);
+  box-shadow: 2px 2px 0 0 var(--rule);
+}
+
+.process-capsule {
+  align-self: stretch;
+}
+
+.process-log-panel {
+  align-self: stretch;
+  border-top: 1px solid var(--rule-soft);
+}
+
+.log-reveal-enter-active,
+.log-reveal-leave-active {
+  transition:
+    max-height 260ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 180ms ease,
+    border-top-color 160ms ease;
+  overflow: hidden;
+}
+
+.log-reveal-enter-from,
+.log-reveal-leave-to {
+  max-height: 0;
+  opacity: 0;
+  border-top-color: transparent;
+}
+
+.log-reveal-enter-to,
+.log-reveal-leave-from {
+  max-height: 260px;
+  opacity: 1;
+  border-top-color: var(--rule-soft);
 }
 
 /* ── Chrome row ─────────────────────────────────────────────────── */

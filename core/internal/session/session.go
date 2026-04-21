@@ -11,6 +11,7 @@ import (
 
 	"biene/internal/api"
 	"biene/internal/permission/webperm"
+	"biene/internal/processes"
 	"biene/internal/prompt"
 	"biene/internal/store"
 	"biene/internal/tools"
@@ -96,7 +97,6 @@ type Session struct {
 	registry          *tools.Registry
 	checker           *webperm.Checker
 	systemPrompt      string
-	maxTokens         int
 	permissions       tools.PermissionSet
 	profile           prompt.AgentProfile
 	toolMode          ToolMode
@@ -104,6 +104,8 @@ type Session struct {
 	modelName         string
 	thinkingAvailable bool
 	thinkingEnabled   bool
+	thinkingOn        map[string]any
+	thinkingOff       map[string]any
 
 	// activeSkills tracks skills that have been loaded via use_skill during
 	// this session. Names are unique and kept in activation order.
@@ -124,6 +126,10 @@ type Session struct {
 	history []DisplayMessage
 	// pendingPermission tracks the current unresolved permission prompt, if any.
 	pendingPermission *PermissionRequestPayload
+
+	// processes manages the single background process slot for this session.
+	// nil until Session initialization wires it up.
+	processes *processes.Controller
 
 	// subscribers fan out live realtime event frames to all connected clients.
 	subscribers      map[int]chan Frame

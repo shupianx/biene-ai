@@ -36,6 +36,7 @@ let coreMonitorTimer = null
 let coreHealthy = false
 let coreStartPromise = null
 let quitAfterCoreStop = false
+let processConfirmHandled = false
 let loginShellPathPromise = null
 const windowAppearanceOptions = new WeakMap()
 
@@ -513,6 +514,88 @@ async function stopCore() {
   setCoreHealthy(false)
 }
 
+function fetchActiveProcesses() {
+  return new Promise((resolve) => {
+    if (!coreBaseUrl) {
+      resolve([])
+      return
+    }
+    const req = http.get(
+      `${coreBaseUrl}/api/processes/active`,
+      { headers: buildCoreAuthHeaders() },
+      (res) => {
+        let body = ''
+        res.on('data', (chunk) => {
+          body += chunk.toString()
+        })
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(body)
+            resolve(Array.isArray(parsed?.processes) ? parsed.processes : [])
+          } catch {
+            resolve([])
+          }
+        })
+      },
+    )
+    req.on('error', () => resolve([]))
+    req.setTimeout(1500, () => {
+      req.destroy()
+      resolve([])
+    })
+  })
+}
+
+function quitConfirmLabels() {
+  if (currentLocale() === 'zh-CN') {
+    return {
+      title: '仍有后台进程在运行',
+      message: '以下智能体还有后台进程正在运行。退出 Biene 会终止它们。',
+      quit: '仍然退出',
+      cancel: '取消',
+    }
+  }
+  return {
+    title: 'Background processes are running',
+    message: 'These agents still have background processes running. Quitting Biene will stop them.',
+    quit: 'Quit anyway',
+    cancel: 'Cancel',
+  }
+}
+
+function formatProcessLine(entry) {
+  const argsPart = Array.isArray(entry.args) && entry.args.length > 0
+    ? ` ${entry.args.join(' ')}`
+    : ''
+  return `• ${entry.session_name}: ${entry.command}${argsPart}`
+}
+
+async function confirmQuitIfActiveProcesses() {
+  if (!coreHealthy) return true
+  const processes = await fetchActiveProcesses()
+  if (processes.length === 0) return true
+
+  const labels = quitConfirmLabels()
+  const detail = processes.map(formatProcessLine).join('\n')
+  const parentWin = mainWindow && !mainWindow.isDestroyed()
+    ? mainWindow
+    : BrowserWindow.getFocusedWindow()
+
+  const options = {
+    type: 'warning',
+    title: labels.title,
+    message: labels.message,
+    detail,
+    buttons: [labels.quit, labels.cancel],
+    defaultId: 1,
+    cancelId: 1,
+  }
+  const result = parentWin
+    ? await dialog.showMessageBox(parentWin, options)
+    : await dialog.showMessageBox(options)
+  return result.response === 0
+}
+
 function releaseCoreForAppExit() {
   stopCoreMonitor()
   if (!coreProcess) return
@@ -750,6 +833,24 @@ function createMainWindow() {
 }
 
 app.on('before-quit', (event) => {
+  if (!processConfirmHandled && !quitAfterCoreStop) {
+    event.preventDefault()
+    void confirmQuitIfActiveProcesses().then((proceed) => {
+      if (!proceed) {
+        // User canceled; allow re-checking next time quit is attempted.
+        processConfirmHandled = false
+        return
+      }
+      processConfirmHandled = true
+      app.quit()
+    }).catch((err) => {
+      console.error('Failed to resolve quit confirmation:', err)
+      processConfirmHandled = true
+      app.quit()
+    })
+    return
+  }
+
   isQuitting = true
   if (desktopSettings.keepCoreRunningOnExit) {
     releaseCoreForAppExit()

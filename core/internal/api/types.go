@@ -94,8 +94,14 @@ type StreamEvent struct {
 
 // RequestOptions carries provider-specific runtime controls expressed in
 // provider-agnostic terms.
+//
+// ThinkingExtra is a JSON fragment that the provider shallow-merges into
+// the top-level of the chat request body. The fragment's shape is defined
+// by the provider (Qwen: {"enable_thinking": true}; Kimi: {"thinking":
+// {"type": "enabled"}}) and supplied by config, so the core doesn't need
+// to know dialect specifics.
 type RequestOptions struct {
-	EnableThinking *bool
+	ThinkingExtra map[string]any
 }
 
 // ─── Provider interface ───────────────────────────────────────────────────
@@ -111,7 +117,6 @@ type Provider interface {
 		systemPrompt string,
 		messages []Message,
 		tools []ToolDefinition,
-		maxTokens int,
 		opts RequestOptions,
 	) (<-chan StreamEvent, error)
 

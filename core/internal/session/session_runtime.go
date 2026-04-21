@@ -74,6 +74,10 @@ func (s *Session) close() {
 		close(ch)
 	}
 	s.subscribersMu.Unlock()
+
+	if s.processes != nil {
+		s.processes.Close()
+	}
 }
 
 // ── Input enqueueing ──────────────────────────────────────────────────────
@@ -180,20 +184,26 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 		Checker:      s.checker,
 		SystemPrompt: systemPrompt,
 		Messages:     messages,
-		MaxTokens:    s.maxTokens,
 		RequestOpts: api.RequestOptions{
-			EnableThinking: thinkingOption(s.thinkingAvailable, s.thinkingEnabled),
+			ThinkingExtra: thinkingExtra(s.thinkingAvailable, s.thinkingEnabled, s.thinkingOn, s.thinkingOff),
 		},
 	}
 	return ctx, cfg, &meta, runDone
 }
 
-func thinkingOption(available, enabled bool) *bool {
+// thinkingExtra picks the JSON fragment to splat into the request body
+// based on whether the provider supports thinking and whether the user
+// has it toggled on for this session. Returns nil when the provider has
+// no fragment for the chosen state (e.g. a template that only declares
+// the "on" fragment and relies on the backend's default-off behavior).
+func thinkingExtra(available, enabled bool, on, off map[string]any) map[string]any {
 	if !available {
 		return nil
 	}
-	value := enabled
-	return &value
+	if enabled {
+		return on
+	}
+	return off
 }
 
 func resolveSkillsForPrompt(workDir string) []skills.Metadata {

@@ -36,7 +36,6 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 			cfg.SystemPrompt,
 			cfg.Messages,
 			toolDefs,
-			cfg.MaxTokens,
 			cfg.RequestOpts,
 		)
 		if err != nil {

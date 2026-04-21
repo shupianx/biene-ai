@@ -47,6 +47,5 @@ type Config struct {
 	Checker      PermissionChecker
 	SystemPrompt string
 	Messages     []api.Message
-	MaxTokens    int
 	RequestOpts  api.RequestOptions
 }

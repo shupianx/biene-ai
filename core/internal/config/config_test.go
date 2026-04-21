@@ -59,25 +59,3 @@ func TestGetModelUsesID(t *testing.T) {
 	}
 }
 
-func TestNormalizeAutoEnablesThinkingForQwen36Plus(t *testing.T) {
-	cfg := &Config{
-		DefaultModel: "qwen",
-		ModelList: []ModelEntry{
-			{
-				ID:       "qwen",
-				Name:     "Qwen",
-				Provider: "openai_compatible",
-				Model:    "qwen3.6-plus",
-				BaseURL:  "https://dashscope.aliyuncs.com/compatible-mode/v1",
-			},
-		},
-	}
-
-	changed := Normalize(cfg)
-	if !changed {
-		t.Fatalf("expected normalization to add thinking support")
-	}
-	if !cfg.ModelList[0].ThinkingAvailable {
-		t.Fatal("expected qwen3.6-plus entry to enable thinking support")
-	}
-}

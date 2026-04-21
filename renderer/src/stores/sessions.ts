@@ -6,12 +6,14 @@ import {
   interruptSession as apiInterrupt,
   resolvePermission as apiResolve,
   setThinkingEnabled as apiSetThinking,
+  getProcessState as apiGetProcess,
+  stopSessionProcess as apiStopProcess,
   type SessionMeta, type SessionPermissions, type AgentProfile, type DisplayMessage, type DisplayTool,
 } from '../api/http'
 import { connectWS } from '../api/ws'
 import { t } from '../i18n'
 import { getCoreBaseUrl, getDesktopBridge } from '../runtime'
-import type { PermissionRequestData } from '../types/events'
+import type { PermissionRequestData, ProcessStateData } from '../types/events'
 
 // ── Per-session state ──────────────────────────────────────────────────────
 
@@ -24,6 +26,7 @@ export interface AgentSession {
   isInterrupting: boolean
   pendingPermission: PermissionRequest | null
   activeSkills: string[]
+  processState: ProcessStateData | null
   _historyLoaded: boolean
   // cleanup fn returned by connectWS
   _disconnect: (() => void) | null
@@ -229,6 +232,23 @@ export const useSessionsStore = defineStore('sessions', () => {
     }
   }
 
+  async function _refreshProcessState(sessionId: string) {
+    try {
+      const state = await apiGetProcess(sessionId)
+      const sess = sessions.value[sessionId]
+      if (sess) sess.processState = state
+    } catch (err) {
+      console.warn(`[processState] fetch failed for ${sessionId}:`, err)
+    }
+  }
+
+  async function stopProcess(sessionId: string) {
+    const state = await apiStopProcess(sessionId)
+    const sess = sessions.value[sessionId]
+    if (sess) sess.processState = state
+    return state
+  }
+
   async function resolvePermission(sessionId: string, decision: 'allow' | 'always' | 'deny') {
     const sess = sessions.value[sessionId]
     if (!sess?.pendingPermission) return
@@ -253,10 +273,12 @@ export const useSessionsStore = defineStore('sessions', () => {
         isInterrupting: false,
         pendingPermission: meta.pending_permission ?? null,
         activeSkills: [...(meta.active_skills ?? [])],
+        processState: null,
         _historyLoaded: false,
         _disconnect: null,
       }
       sessions.value[meta.id] = sess
+      void _refreshProcessState(meta.id)
     } else {
       sess.meta = meta
       sess.isStreaming = meta.status === 'running'
@@ -386,6 +408,11 @@ export const useSessionsStore = defineStore('sessions', () => {
         s.pendingPermission = null
         s.meta.pending_permission = undefined
       },
+      onProcessState(state) {
+        const s = sessions.value[id]
+        if (!s) return
+        s.processState = state
+      },
       onSkillActivated({ skill_name }) {
         const s = sessions.value[id]
         if (!s) return
@@ -426,6 +453,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     sessions, sessionList,
     init, refresh, syncSession, upsertSessionMeta, removeSessionLocal, ensureSession, ensureHistory, create, update, remove,
     sendMessage, setThinkingEnabled, interrupt, resolvePermission,
+    stopProcess,
   }
 })
 
@@ -461,7 +489,7 @@ function _ensureAssistantTextSegment(sess: AgentSession): DisplayMessage {
 
 function _ensureAssistantReasoningSegment(sess: AgentSession): DisplayMessage {
   const last = _latestStreamingAssistant(sess)
-  if (last) return last
+  if (last && (last.tool_calls?.length ?? 0) === 0 && !last.text) return last
   return _newAssistantSegment(sess)
 }
 

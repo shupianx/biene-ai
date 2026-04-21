@@ -15,6 +15,7 @@ import (
 	"biene/internal/api"
 	"biene/internal/config"
 	"biene/internal/permission/webperm"
+	"biene/internal/processes"
 	"biene/internal/prompt"
 	"biene/internal/skills"
 	"biene/internal/store"
@@ -163,9 +164,12 @@ func (m *SessionManager) Init() {
 		provider := newProvider(modelEntry)
 		registry := builtins.RegistryForWorkDir(workDir)
 		checker := webperm.NewChecker(perms)
-		maxTokens := maxTokensFromConfig(m.cfg)
+		procCtl := processes.New(workDir)
 		registry.Register(builtins.NewListAgentsTool(m, id))
 		registry.Register(builtins.NewSendToAgentTool(m, id))
+		registry.Register(builtins.NewStartProcessTool(workDir, procCtl))
+		registry.Register(builtins.NewReadProcessOutputTool(procCtl))
+		registry.Register(builtins.NewStopProcessTool(procCtl))
 
 		installedIDs, scanErr := skills.InstalledSkillIDsForWorkDir(workDir)
 		if scanErr != nil {
@@ -188,13 +192,15 @@ func (m *SessionManager) Init() {
 			modelName:         modelEntry.Name,
 			thinkingAvailable: thinkingAvailable,
 			thinkingEnabled:   thinkingEnabled,
+			thinkingOn:        modelEntry.ThinkingOn,
+			thinkingOff:       modelEntry.ThinkingOff,
 			activeSkills:      append([]string(nil), meta.ActiveSkills...),
 			installedSkillIDs: installedIDs,
-			maxTokens:         maxTokens,
 			apiMessages:       apiMsgs,
 			history:           history,
 			pendingPermission: clonePermissionPayload(meta.PendingPermission),
 			persistedCount:    len(history),
+			processes:         procCtl,
 			subscribers:       make(map[int]chan Frame),
 			store:             st,
 		}
@@ -211,6 +217,7 @@ func (m *SessionManager) Init() {
 		}
 		checker.OnPermissionSettled = sess.clearPendingPermission
 		checker.OnPermissionsChanged = sess.persistPermissions
+		sess.startProcessWatcher()
 
 		m.mu.Lock()
 		m.sessions[id] = sess
@@ -239,10 +246,13 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	provider := newProvider(modelEntry)
 	registry := builtins.RegistryForWorkDir(workDir)
 	checker := webperm.NewChecker(permissions)
-	maxTokens := maxTokensFromConfig(m.cfg)
+	procCtl := processes.New(workDir)
 
 	registry.Register(builtins.NewListAgentsTool(m, id))
 	registry.Register(builtins.NewSendToAgentTool(m, id))
+	registry.Register(builtins.NewStartProcessTool(workDir, procCtl))
+	registry.Register(builtins.NewReadProcessOutputTool(procCtl))
+	registry.Register(builtins.NewStopProcessTool(procCtl))
 
 	installedIDs, scanErr := skills.InstalledSkillIDsForWorkDir(workDir)
 	if scanErr != nil {
@@ -267,11 +277,13 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		modelName:         modelEntry.Name,
 		thinkingAvailable: modelEntry.ThinkingAvailable,
 		thinkingEnabled:   false,
+		thinkingOn:        modelEntry.ThinkingOn,
+		thinkingOff:       modelEntry.ThinkingOff,
 		installedSkillIDs: installedIDs,
-		maxTokens:         maxTokens,
 		apiMessages:       []api.Message{},
 		history:           []DisplayMessage{},
 		pendingPermission: nil,
+		processes:         procCtl,
 		subscribers:       make(map[int]chan Frame),
 	}
 	registry.Register(builtins.NewUseSkillTool(sess))
@@ -287,6 +299,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	}
 	checker.OnPermissionSettled = sess.clearPendingPermission
 	checker.OnPermissionsChanged = sess.persistPermissions
+	sess.startProcessWatcher()
 
 	storeDir := filepath.Join(workDir, ".biene")
 	if st, err := store.Open(storeDir); err != nil {
@@ -315,6 +328,43 @@ func (m *SessionManager) Get(id string) *Session {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.sessions[id]
+}
+
+// ActiveBackgroundProcess describes one running background process along with
+// the session it belongs to. Used for the app-quit confirmation prompt.
+type ActiveBackgroundProcess struct {
+	SessionID   string   `json:"session_id"`
+	SessionName string   `json:"session_name"`
+	Command     string   `json:"command"`
+	Args        []string `json:"args,omitempty"`
+	PID         int      `json:"pid,omitempty"`
+}
+
+// ActiveBackgroundProcesses returns every session that currently has a
+// running background process.
+func (m *SessionManager) ActiveBackgroundProcesses() []ActiveBackgroundProcess {
+	m.mu.RLock()
+	sessions := make([]*Session, 0, len(m.sessions))
+	for _, sess := range m.sessions {
+		sessions = append(sessions, sess)
+	}
+	m.mu.RUnlock()
+
+	var out []ActiveBackgroundProcess
+	for _, sess := range sessions {
+		st := sess.ProcessState()
+		if !st.Active {
+			continue
+		}
+		out = append(out, ActiveBackgroundProcess{
+			SessionID:   sess.ID,
+			SessionName: sess.Name,
+			Command:     st.Command,
+			Args:        st.Args,
+			PID:         st.PID,
+		})
+	}
+	return out
 }
 
 func (m *SessionManager) NameTaken(name, excludeID string) bool {

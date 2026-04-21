@@ -141,7 +141,7 @@
                     @click="toggle"
                   >
                     <span class="select-label">{{ currentTemplateLabel }}</span>
-                    <span class="chevron" aria-hidden="true">▾</span>
+                    <ArrowDropDownIcon class="chevron" aria-hidden="true" />
                   </button>
                 </template>
               </PopupMenu>
@@ -164,7 +164,7 @@
                     @click="toggle"
                   >
                     <span class="select-label">{{ currentProviderTypeLabel }}</span>
-                    <span class="chevron" aria-hidden="true">▾</span>
+                    <ArrowDropDownIcon class="chevron" aria-hidden="true" />
                   </button>
                 </template>
               </PopupMenu>
@@ -220,6 +220,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { fetchConfig, listSessions, saveConfig, type ConfigModelEntry, type CoreConfig, type SessionMeta } from '../api/http'
 import { providerTemplateList, providerTemplates, type ProviderTemplateKey } from '../constants/providerTemplates'
+import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
 import BaseModal from './BaseModal.vue'
 import PopupMenu, { type PopupMenuEntry } from './PopupMenu.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
@@ -319,6 +320,8 @@ function emptyProviderDraft(): ConfigModelEntry {
     model: '',
     base_url: '',
     thinking_available: false,
+    thinking_on: undefined,
+    thinking_off: undefined,
   }
 }
 
@@ -331,6 +334,8 @@ function cloneProvider(entry: ConfigModelEntry): ConfigModelEntry {
     model: entry.model,
     base_url: entry.base_url,
     thinking_available: Boolean(entry.thinking_available),
+    thinking_on: entry.thinking_on,
+    thinking_off: entry.thinking_off,
   }
 }
 
@@ -338,7 +343,6 @@ function cloneConfig(config: CoreConfig): CoreConfig {
   return {
     default_model: config.default_model,
     model_list: config.model_list.map(cloneProvider),
-    max_tokens: config.max_tokens,
   }
 }
 
@@ -401,7 +405,11 @@ function detectProviderTemplate(entry: ConfigModelEntry): ProviderTemplateID {
 
 function applyProviderTemplate(templateID: ProviderTemplateID) {
   providerTemplate.value = templateID
-  if (templateID === 'none') return
+  if (templateID === 'none') {
+    providerDraft.thinking_on = undefined
+    providerDraft.thinking_off = undefined
+    return
+  }
 
   const template = providerTemplates[templateID]
   providerDraft.name = template.name
@@ -409,6 +417,8 @@ function applyProviderTemplate(templateID: ProviderTemplateID) {
   providerDraft.model = template.model
   providerDraft.base_url = template.base_url
   providerDraft.thinking_available = Boolean(template.thinking_available)
+  providerDraft.thinking_on = 'thinking_on' in template ? template.thinking_on : undefined
+  providerDraft.thinking_off = 'thinking_off' in template ? template.thinking_off : undefined
 }
 
 async function loadCoreConfig() {
@@ -488,6 +498,8 @@ async function saveProviderDraft() {
     model: providerDraft.model.trim(),
     base_url: providerDraft.base_url.trim(),
     thinking_available: Boolean(providerDraft.thinking_available),
+    thinking_on: providerDraft.thinking_on,
+    thinking_off: providerDraft.thinking_off,
   }
 
   if (!nextEntry.name) {
@@ -968,7 +980,8 @@ onMounted(() => {
 
 .provider-select-trigger .chevron {
   flex: 0 0 auto;
-  font-size: 10px;
+  width: 18px;
+  height: 18px;
   color: var(--ink-4);
   transition: transform 150ms ease;
 }

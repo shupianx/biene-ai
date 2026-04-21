@@ -58,10 +58,7 @@ You can also create or edit it directly. A minimal example:
       "model": "claude-opus-4-6",
       "base_url": ""
     }
-  ],
-  "settings": {
-    "max_tokens": 8192
-  }
+  ]
 }
 ```
 

@@ -8,26 +8,33 @@
         class="input"
         :class="{ invalid: nameConflict }"
         :placeholder="defaultName"
-        @keydown.enter="submit"
+        @keydown.enter="onNameEnter"
+        @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
       />
       <span v-if="nameConflict" class="error-text">{{ t('agentName.exists') }}</span>
     </label>
 
-    <label class="field">
+    <div class="field">
       <span class="label">{{ t('modal.agentModel') }}</span>
-      <select v-model="selectedModelID" class="select" :disabled="configLoading || modelOptions.length === 0">
-        <option
-          v-for="entry in modelOptions"
-          :key="entry.id"
-          :value="entry.id"
-        >
-          {{ entry.name }}
-        </option>
-      </select>
+      <PopupMenu :items="modelMenuItems" @select="onModelSelect">
+        <template #trigger="{ open, toggle }">
+          <button
+            type="button"
+            class="select select-trigger"
+            :class="{ open }"
+            :disabled="configLoading || modelOptions.length === 0"
+            @click="toggle"
+          >
+            <span class="select-label">{{ currentModelLabel }}</span>
+            <ArrowDropDownIcon class="chevron" aria-hidden="true" />
+          </button>
+        </template>
+      </PopupMenu>
       <span v-if="configLoading" class="field-hint">{{ t('modal.modelLoading') }}</span>
       <span v-else-if="configError" class="error-text">{{ configError }}</span>
       <span v-else class="field-hint">{{ selectedModelSummary || t('modal.agentModelHint') }}</span>
-    </label>
+    </div>
 
     <div class="field">
       <span class="label">{{ t('modal.toolPermissions') }}</span>
@@ -65,33 +72,41 @@
         <div class="field">
           <span class="label">{{ t('modal.profile') }}</span>
           <div class="profile-grid">
-            <label class="field">
+            <div class="field">
               <span class="sub-label">{{ t('modal.domain') }}</span>
-              <select v-model="profile.domain" class="select">
-                <option
-                  v-for="option in domainOptions"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
+              <PopupMenu :items="domainMenuItems" @select="onDomainSelect">
+                <template #trigger="{ open, toggle }">
+                  <button
+                    type="button"
+                    class="select select-trigger"
+                    :class="{ open }"
+                    @click="toggle"
+                  >
+                    <span class="select-label">{{ currentDomainLabel }}</span>
+                    <ArrowDropDownIcon class="chevron" aria-hidden="true" />
+                  </button>
+                </template>
+              </PopupMenu>
               <span class="field-hint">{{ selectedDomainDescription }}</span>
-            </label>
+            </div>
 
-            <label class="field">
+            <div class="field">
               <span class="sub-label">{{ t('modal.style') }}</span>
-              <select v-model="profile.style" class="select">
-                <option
-                  v-for="option in styleOptions"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
+              <PopupMenu :items="styleMenuItems" @select="onStyleSelect">
+                <template #trigger="{ open, toggle }">
+                  <button
+                    type="button"
+                    class="select select-trigger"
+                    :class="{ open }"
+                    @click="toggle"
+                  >
+                    <span class="select-label">{{ currentStyleLabel }}</span>
+                    <ArrowDropDownIcon class="chevron" aria-hidden="true" />
+                  </button>
+                </template>
+              </PopupMenu>
               <span class="field-hint">{{ selectedStyleDescription }}</span>
-            </label>
+            </div>
           </div>
 
           <label class="field">
@@ -116,8 +131,10 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { fetchConfig, type AgentProfile, type ConfigModelEntry, type SessionPermissions } from '../api/http'
+import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
 import AutoGrowTextarea from './AutoGrowTextarea.vue'
 import BaseModal from './BaseModal.vue'
+import PopupMenu, { type PopupMenuEntry } from './PopupMenu.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import { t } from '../i18n'
 import { isAgentNameTaken } from '../utils/agentNames'
@@ -174,6 +191,38 @@ const selectedStyleDescription = computed(() =>
   findStyleOption(profile.value.style)?.description ?? ''
 )
 
+const domainMenuItems = computed<PopupMenuEntry[]>(() =>
+  domainOptions.value.map((option) => ({
+    key: option.value,
+    label: option.label,
+    selected: option.value === profile.value.domain,
+  }))
+)
+
+const styleMenuItems = computed<PopupMenuEntry[]>(() =>
+  styleOptions.value.map((option) => ({
+    key: option.value,
+    label: option.label,
+    selected: option.value === profile.value.style,
+  }))
+)
+
+const currentDomainLabel = computed(
+  () => findDomainOption(profile.value.domain)?.label ?? ''
+)
+
+const currentStyleLabel = computed(
+  () => findStyleOption(profile.value.style)?.label ?? ''
+)
+
+function onDomainSelect(key: string) {
+  profile.value.domain = key as AgentProfile['domain']
+}
+
+function onStyleSelect(key: string) {
+  profile.value.style = key as AgentProfile['style']
+}
+
 const effectiveName = computed(() =>
   name.value.trim() || props.defaultName
 )
@@ -185,6 +234,23 @@ const nameConflict = computed(() =>
 const selectedModel = computed(() =>
   modelOptions.value.find((entry) => entry.id === selectedModelID.value) ?? null
 )
+
+const modelMenuItems = computed<PopupMenuEntry[]>(() =>
+  modelOptions.value.map((entry) => ({
+    key: entry.id,
+    label: entry.name,
+    selected: entry.id === selectedModelID.value,
+  }))
+)
+
+const currentModelLabel = computed(() => {
+  if (configLoading.value) return t('modal.modelLoading')
+  return selectedModel.value?.name ?? ''
+})
+
+function onModelSelect(key: string) {
+  selectedModelID.value = key
+}
 
 const selectedModelSummary = computed(() => {
   if (!selectedModel.value) return ''
@@ -210,6 +276,24 @@ async function loadModelOptions() {
   } finally {
     configLoading.value = false
   }
+}
+
+const isComposing = ref(false)
+let compositionLockedUntil = 0
+
+function onCompositionStart() {
+  isComposing.value = true
+}
+
+function onCompositionEnd() {
+  isComposing.value = false
+  compositionLockedUntil = Date.now() + 30
+}
+
+function onNameEnter(event: KeyboardEvent) {
+  if (isComposing.value || event.isComposing || event.keyCode === 229) return
+  if (Date.now() < compositionLockedUntil) return
+  submit()
 }
 
 function submit() {
@@ -270,6 +354,47 @@ function submit() {
 .select {
   height: 34px;
   padding: 0 10px;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.select-trigger:disabled {
+  cursor: not-allowed;
+  color: var(--ink-3);
+  background: color-mix(in srgb, var(--panel-2) 76%, var(--bg));
+}
+
+.select-trigger.open,
+.select-trigger:focus-visible {
+  border-color: var(--ink);
+  box-shadow: 2px 2px 0 0 var(--rule);
+}
+
+.select-trigger .select-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.select-trigger .chevron {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  color: var(--ink-4);
+  transition: transform 150ms ease;
+}
+
+.select-trigger.open .chevron {
+  transform: rotate(180deg);
 }
 
 .textarea {

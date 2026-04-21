@@ -10,26 +10,29 @@ import (
 )
 
 // ModelEntry holds one selectable model configuration.
+//
+// ThinkingAvailable gates whether the session-level thinking toggle is shown
+// in the UI. ThinkingOn / ThinkingOff are provider-specific JSON fragments
+// that are shallow-merged into the chat request body when thinking is enabled
+// or disabled respectively. Providers that express thinking differently
+// (Qwen top-level `enable_thinking`, Kimi nested `thinking.type`, etc.)
+// carry their own shapes here so the core stays provider-agnostic.
 type ModelEntry struct {
-	ID                string `json:"id"`
-	Name              string `json:"name"`
-	Provider          string `json:"provider"` // "anthropic" | "openai_compatible"
-	APIKey            string `json:"api_key"`
-	Model             string `json:"model"`
-	BaseURL           string `json:"base_url"`
-	ThinkingAvailable bool   `json:"thinking_available,omitempty"`
-}
-
-// Settings holds global behavior settings.
-type Settings struct {
-	MaxTokens int `json:"max_tokens"`
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	Provider          string         `json:"provider"` // "anthropic" | "openai_compatible"
+	APIKey            string         `json:"api_key"`
+	Model             string         `json:"model"`
+	BaseURL           string         `json:"base_url"`
+	ThinkingAvailable bool           `json:"thinking_available,omitempty"`
+	ThinkingOn        map[string]any `json:"thinking_on,omitempty"`
+	ThinkingOff       map[string]any `json:"thinking_off,omitempty"`
 }
 
 // Config is the root configuration structure.
 type Config struct {
 	DefaultModel string       `json:"default_model"`
 	ModelList    []ModelEntry `json:"model_list"`
-	Settings     Settings     `json:"settings"`
 }
 
 // LoadResult carries the loaded config plus metadata about how it was loaded.
@@ -40,22 +43,12 @@ type LoadResult struct {
 }
 
 // TemplateConfig returns an empty config template for first-time setup.
+// ModelList is intentionally empty: the onboarding flow asks the user to
+// configure their first provider before any agent can be created.
 func TemplateConfig() *Config {
 	return &Config{
-		DefaultModel: "main",
-		ModelList: []ModelEntry{
-			{
-				ID:       "main",
-				Name:     "main",
-				Provider: "anthropic",
-				APIKey:   "",
-				Model:    "claude-opus-4-6",
-				BaseURL:  "",
-			},
-		},
-		Settings: Settings{
-			MaxTokens: 8192,
-		},
+		DefaultModel: "",
+		ModelList:    []ModelEntry{},
 	}
 }
 
@@ -125,9 +118,8 @@ func Normalize(cfg *Config) bool {
 	}
 
 	changed := false
-	if len(cfg.ModelList) == 0 {
-		cfg.ModelList = []ModelEntry{defaultModelEntry()}
-		changed = true
+	if cfg.ModelList == nil {
+		cfg.ModelList = []ModelEntry{}
 	}
 
 	legacyNameToID := make(map[string]string, len(cfg.ModelList))
@@ -178,11 +170,6 @@ func Normalize(cfg *Config) bool {
 			changed = true
 		}
 
-		if shouldAutoEnableThinking(*entry) && !entry.ThinkingAvailable {
-			entry.ThinkingAvailable = true
-			changed = true
-		}
-
 		requestedID := strings.TrimSpace(entry.ID)
 		if requestedID == "" {
 			requestedID = entry.Name
@@ -199,6 +186,14 @@ func Normalize(cfg *Config) bool {
 	}
 
 	defaultModel := strings.TrimSpace(cfg.DefaultModel)
+	if len(cfg.ModelList) == 0 {
+		if cfg.DefaultModel != "" {
+			cfg.DefaultModel = ""
+			changed = true
+		}
+		return changed
+	}
+
 	switch {
 	case defaultModel == "":
 		cfg.DefaultModel = cfg.ModelList[0].ID
@@ -216,11 +211,6 @@ func Normalize(cfg *Config) bool {
 		changed = true
 	default:
 		cfg.DefaultModel = cfg.ModelList[0].ID
-		changed = true
-	}
-
-	if cfg.Settings.MaxTokens == 0 {
-		cfg.Settings.MaxTokens = 8192
 		changed = true
 	}
 
@@ -252,13 +242,6 @@ func defaultModelEntry() ModelEntry {
 		Model:    "claude-opus-4-6",
 		BaseURL:  "",
 	}
-}
-
-func shouldAutoEnableThinking(entry ModelEntry) bool {
-	if normalizeProvider(entry.Provider) != "openai_compatible" {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(entry.Model), "qwen3.6-plus")
 }
 
 func normalizeProvider(provider string) string {

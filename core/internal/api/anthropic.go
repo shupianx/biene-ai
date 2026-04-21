@@ -4,10 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
+
+// anthropicMaxTokensFor returns a safe per-model output-token cap. The value
+// matches each Claude 4 model's documented maximum so reasoning-heavy turns
+// are not truncated mid-thought.
+func anthropicMaxTokensFor(model string) int64 {
+	m := strings.ToLower(model)
+	switch {
+	case strings.Contains(m, "opus"):
+		return 32000
+	case strings.Contains(m, "sonnet"), strings.Contains(m, "haiku"):
+		return 64000
+	default:
+		return 32000
+	}
+}
 
 // AnthropicProvider implements Provider using the official Anthropic Go SDK.
 // It uses the Beta.Messages API which supports the latest features.
@@ -37,7 +53,6 @@ func (p *AnthropicProvider) Stream(
 	systemPrompt string,
 	messages []Message,
 	tools []ToolDefinition,
-	maxTokens int,
 	_ RequestOptions,
 ) (<-chan StreamEvent, error) {
 	apiMessages, err := convertMessagesToAnthropic(messages)
@@ -47,7 +62,7 @@ func (p *AnthropicProvider) Stream(
 
 	params := anthropic.BetaMessageNewParams{
 		Model:     anthropic.Model(p.model),
-		MaxTokens: int64(maxTokens),
+		MaxTokens: anthropicMaxTokensFor(p.model),
 		System:    []anthropic.BetaTextBlockParam{{Text: systemPrompt}},
 		Messages:  apiMessages,
 	}

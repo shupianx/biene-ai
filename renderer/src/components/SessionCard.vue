@@ -338,7 +338,7 @@ async function onConflictConfirm() {
 
 .name {
   font-family: var(--sans);
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink);
