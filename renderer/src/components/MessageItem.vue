@@ -40,20 +40,27 @@
         </div>
       </div>
       <div v-if="assistantHasText" class="markdown" v-html="renderedText" />
-      <div
-        v-else-if="msg.role !== 'assistant'"
-        class="user-text"
-        :class="{
-          'agent-source-text': msg.author_type === 'agent',
-          'system-note-text': msg.author_type === 'system',
-        }"
-        dir="auto"
-      >
-        <div class="user-head">
+      <template v-else-if="msg.role !== 'assistant'">
+        <div
+          class="user-head"
+          :class="{
+            'agent-source-head': msg.author_type === 'agent',
+            'system-note-head': msg.author_type === 'system',
+          }"
+        >
           <span class="role-tag">{{ userRoleTag }}</span>
         </div>
-        <div class="user-body">{{ msg.text }}</div>
-      </div>
+        <div
+          class="user-text"
+          :class="{
+            'agent-source-text': msg.author_type === 'agent',
+            'system-note-text': msg.author_type === 'system',
+          }"
+          dir="auto"
+        >
+          <div class="user-body">{{ msg.text }}</div>
+        </div>
+      </template>
       <ToolCallCard
         v-for="(tc, i) in (msg.tool_calls ?? [])"
         :key="i"
@@ -441,7 +448,7 @@ function toggleReasoning() {
   border-color: var(--accent);
 }
 
-.user-text.agent-source-text .role-tag {
+.user-head.agent-source-head .role-tag {
   color: var(--accent);
   border-color: var(--accent);
 }

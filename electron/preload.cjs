@@ -39,9 +39,6 @@ const desktopBridge = Object.freeze({
   openAgentWindow(sessionId) {
     return ipcRenderer.invoke('desktop:openAgentWindow', sessionId)
   },
-  setSkillsSidebarOpen(open, width) {
-    return ipcRenderer.invoke('desktop:setSkillsSidebarOpen', { open, width })
-  },
   showCoreMenu(labels) {
     return ipcRenderer.invoke('desktop:showCoreMenu', labels)
   },

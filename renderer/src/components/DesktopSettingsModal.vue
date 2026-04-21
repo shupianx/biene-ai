@@ -77,7 +77,7 @@
               <div class="provider-actions">
                 <button
                   v-if="coreConfig.default_model !== entry.id"
-                  class="card-btn"
+                  class="card-btn accent"
                   type="button"
                   :disabled="configSaving"
                   @click="setDefaultProvider(entry.id)"
@@ -117,7 +117,7 @@
           </article>
         </div>
 
-        <div v-if="editorMode" class="provider-editor">
+        <div v-if="editorMode" ref="editorRef" class="provider-editor">
           <div class="provider-editor-head">
             <div class="setting-copy">
               <span class="setting-label">
@@ -130,28 +130,45 @@
           <p v-if="editorError" class="config-error">{{ editorError }}</p>
 
           <div class="provider-form-grid">
-            <label class="provider-field">
+            <div class="provider-field">
               <span class="provider-field-label">{{ t('modal.quickAddTemplate') }}</span>
-              <select v-model="providerTemplate" class="provider-input" @change="applyProviderTemplate(providerTemplate)">
-                <option v-for="option in providerTemplateOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-            </label>
+              <PopupMenu :items="templateMenuItems" @select="onTemplateSelect">
+                <template #trigger="{ open, toggle }">
+                  <button
+                    type="button"
+                    class="provider-input provider-select-trigger"
+                    :class="{ open }"
+                    @click="toggle"
+                  >
+                    <span class="select-label">{{ currentTemplateLabel }}</span>
+                    <span class="chevron" aria-hidden="true">▾</span>
+                  </button>
+                </template>
+              </PopupMenu>
+            </div>
 
             <label class="provider-field">
               <span class="provider-field-label">{{ t('modal.providerName') }}</span>
               <input v-model="providerDraft.name" class="provider-input" type="text" autocomplete="off" />
             </label>
 
-            <label class="provider-field">
+            <div class="provider-field">
               <span class="provider-field-label">{{ t('modal.providerType') }}</span>
-              <select v-model="providerDraft.provider" class="provider-input" :disabled="isProviderTemplateLocked">
-                <option v-for="option in providerTypeOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-            </label>
+              <PopupMenu :items="providerTypeMenuItems" @select="onProviderTypeSelect">
+                <template #trigger="{ open, toggle }">
+                  <button
+                    type="button"
+                    class="provider-input provider-select-trigger"
+                    :class="{ open }"
+                    :disabled="isProviderTemplateLocked"
+                    @click="toggle"
+                  >
+                    <span class="select-label">{{ currentProviderTypeLabel }}</span>
+                    <span class="chevron" aria-hidden="true">▾</span>
+                  </button>
+                </template>
+              </PopupMenu>
+            </div>
 
             <label class="provider-field">
               <span class="provider-field-label">{{ t('modal.providerModel') }}</span>
@@ -182,7 +199,7 @@
           </div>
 
           <div class="provider-editor-actions">
-            <button class="card-btn" type="button" :disabled="configSaving" @click="cancelProviderEditor">
+            <button class="card-btn soft" type="button" :disabled="configSaving" @click="cancelProviderEditor">
               {{ t('common.cancel') }}
             </button>
             <button class="primary-btn" type="button" :disabled="configSaving" @click="saveProviderDraft">
@@ -200,10 +217,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { fetchConfig, listSessions, saveConfig, type ConfigModelEntry, type CoreConfig, type SessionMeta } from '../api/http'
 import { providerTemplateList, providerTemplates, type ProviderTemplateKey } from '../constants/providerTemplates'
 import BaseModal from './BaseModal.vue'
+import PopupMenu, { type PopupMenuEntry } from './PopupMenu.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import { useTheme } from '../composables/useTheme'
 import { useDesktopSettings } from '../composables/useDesktopSettings'
@@ -236,6 +254,7 @@ const editingProviderID = ref('')
 const providerTemplate = ref<ProviderTemplateID>('none')
 const providerDraft = reactive<ConfigModelEntry>(emptyProviderDraft())
 const sessionMetas = ref<SessionMeta[]>([])
+const editorRef = ref<HTMLElement | null>(null)
 
 const localeOptions = computed<{ value: AppLocale; label: string }[]>(() => [
   { value: 'en', label: t('language.english') },
@@ -251,6 +270,40 @@ const providerTemplateOptions = computed<Array<{ value: ProviderTemplateID; labe
   ...providerTemplateList.map((template) => ({ value: template.id, label: template.name })),
 ])
 const isProviderTemplateLocked = computed(() => providerTemplate.value !== 'none')
+
+const templateMenuItems = computed<PopupMenuEntry[]>(() =>
+  providerTemplateOptions.value.map((option) => ({
+    key: option.value,
+    label: option.label,
+    selected: option.value === providerTemplate.value,
+  }))
+)
+const currentTemplateLabel = computed(
+  () =>
+    providerTemplateOptions.value.find((o) => o.value === providerTemplate.value)?.label ?? ''
+)
+
+const providerTypeMenuItems = computed<PopupMenuEntry[]>(() =>
+  providerTypeOptions.value.map((option) => ({
+    key: option.value,
+    label: option.label,
+    selected: option.value === providerDraft.provider,
+  }))
+)
+const currentProviderTypeLabel = computed(
+  () =>
+    providerTypeOptions.value.find((o) => o.value === providerDraft.provider)?.label ?? ''
+)
+
+function onTemplateSelect(key: string) {
+  providerTemplate.value = key as ProviderTemplateID
+  applyProviderTemplate(providerTemplate.value)
+}
+
+function onProviderTypeSelect(key: string) {
+  if (isProviderTemplateLocked.value) return
+  providerDraft.provider = key as ConfigModelEntry['provider']
+}
 
 const darkMode = computed({
   get: () => isDark.value,
@@ -400,6 +453,9 @@ function openAddProvider() {
   editorError.value = ''
   providerTemplate.value = 'none'
   Object.assign(providerDraft, emptyProviderDraft())
+  nextTick(() => {
+    editorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 }
 
 function openEditProvider(entry: ConfigModelEntry) {
@@ -778,6 +834,27 @@ onMounted(() => {
   border-color: color-mix(in srgb, var(--err) 40%, var(--rule));
 }
 
+.card-btn.soft {
+  background: var(--bg-2);
+  border-color: var(--bg-2);
+  color: var(--ink-2);
+}
+
+.card-btn.soft:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-2) 82%, var(--ink));
+  border-color: color-mix(in srgb, var(--bg-2) 82%, var(--ink));
+}
+
+.card-btn.accent {
+  background: transparent;
+  border-color: var(--info);
+  color: var(--info);
+}
+
+.card-btn.accent:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+}
+
 .provider-meta {
   margin: 0;
   display: grid;
@@ -865,6 +942,39 @@ onMounted(() => {
   cursor: not-allowed;
   color: var(--ink-4);
   background: color-mix(in srgb, var(--panel-2) 72%, var(--bg));
+}
+
+.provider-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.provider-select-trigger.open,
+.provider-select-trigger:focus-visible {
+  border-color: var(--accent);
+}
+
+.provider-select-trigger .select-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.provider-select-trigger .chevron {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--ink-4);
+  transition: transform 150ms ease;
+}
+
+.provider-select-trigger.open .chevron {
+  transform: rotate(180deg);
 }
 
 .provider-editor-actions {

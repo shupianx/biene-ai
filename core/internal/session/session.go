@@ -109,6 +109,11 @@ type Session struct {
 	// this session. Names are unique and kept in activation order.
 	activeSkills []string
 
+	// installedSkillIDs is a cache of skill directory IDs present under
+	// <WorkDir>/.biene/skills. It is refreshed from disk on install/uninstall
+	// so the frontend can detect drag-and-drop name collisions locally.
+	installedSkillIDs []string
+
 	// apiMessages is the canonical conversation passed into the next model turn.
 	apiMessages []api.Message
 
@@ -151,6 +156,7 @@ type SessionMeta struct {
 	Profile           prompt.AgentProfile       `json:"profile"`
 	PendingPermission *PermissionRequestPayload `json:"pending_permission,omitempty"`
 	ActiveSkills      []string                  `json:"active_skills,omitempty"`
+	InstalledSkillIDs []string                  `json:"installed_skill_ids"`
 	CreatedAt         time.Time                 `json:"created_at"`
 	LastActive        time.Time                 `json:"last_active"`
 }
@@ -175,6 +181,7 @@ func (s *Session) metaLocked() SessionMeta {
 		Profile:           s.profile,
 		PendingPermission: clonePermissionPayload(s.pendingPermission),
 		ActiveSkills:      append([]string(nil), s.activeSkills...),
+		InstalledSkillIDs: append([]string(nil), s.installedSkillIDs...),
 		CreatedAt:         s.CreatedAt,
 		LastActive:        s.LastActive,
 	}

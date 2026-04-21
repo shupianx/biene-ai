@@ -89,6 +89,8 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("POST /api/sessions/{id}/thinking", s.handleThinking)
 	mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.handleChatInterrupt)
 	mux.HandleFunc("POST /api/sessions/{id}/permission", s.handlePermission)
+	mux.HandleFunc("POST /api/sessions/{id}/skills/install", s.handleSessionInstallSkill)
+	mux.HandleFunc("DELETE /api/sessions/{id}/skills/{skill_id}", s.handleSessionUninstallSkill)
 
 	// Global config
 	mux.HandleFunc("GET /api/config", s.handleConfig)

@@ -82,6 +82,9 @@
       :existing-names="editableOtherNames"
       :permissions="editingSession.meta.permissions"
       :profile="editingSession.meta.profile"
+      :session-id="editingSession.meta.id"
+      :installed-skill-ids="editingSession.meta.installed_skill_ids ?? []"
+      :active-skill-names="editingSession.meta.active_skills ?? []"
       @close="editingSessionId = null"
       @save="onSaveSettings"
     />
@@ -93,11 +96,37 @@
       @cancel="deletingSessionId = null"
       @confirm="onConfirmDelete"
     />
+    <FloatingPanel
+      v-if="skillsPanelOpen"
+      :title="t('skillsBrowser.title')"
+      :close-label="t('common.close')"
+      :initial-width="640"
+      :initial-height="560"
+      :min-width="360"
+      :min-height="320"
+      storage-key="biene.skillsPanel"
+      @close="skillsPanelOpen = false"
+    >
+      <template #chrome>
+        <code class="skills-panel-path" :title="skillsRootPath">{{ skillsRootPath }}</code>
+        <button
+          class="skills-panel-folder-btn"
+          type="button"
+          :title="t('grid.openFolderMenu')"
+          :aria-label="t('grid.openFolderMenu')"
+          @click="onOpenSkillsFolder"
+        >
+          <FolderOpenIcon class="skills-panel-folder-icon" />
+        </button>
+      </template>
+      <SkillsBrowser embedded @root-change="onSkillsRootChange" />
+    </FloatingPanel>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
+import FolderOpenIcon from '~icons/material-symbols/folder-open-outline'
 import MaterialSymbolsRobot2Outline from '~icons/material-symbols/robot-2-outline'
 import type { AgentProfile, SessionPermissions } from '../api/http'
 import { connectSessionListWS } from '../api/ws'
@@ -105,16 +134,18 @@ import { t } from '../i18n'
 import { getDesktopBridge } from '../runtime'
 import { useSessionsStore } from '../stores/sessions'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
-import { useSkillsSidebar } from '../composables/useSkillsSidebar'
 import { nextDefaultAgentName } from '../utils/agentNames'
 import SessionCard from '../components/SessionCard.vue'
 import NewAgentModal from '../components/NewAgentModal.vue'
 import SessionSettingsModal from '../components/SessionSettingsModal.vue'
 import ConfirmModal from '../components/ConfirmModal.vue'
+import FloatingPanel from '../components/FloatingPanel.vue'
+import SkillsBrowser from '../components/SkillsBrowser.vue'
 
 const store = useSessionsStore()
 const { openAgent } = useAgentNavigation()
-const { toggleSkillsSidebar } = useSkillsSidebar()
+const skillsPanelOpen = ref(false)
+const skillsRootPath = ref('~/.biene/skills')
 
 const addIconBody = '<path fill="currentColor" d="M11 13H6q-.425 0-.712-.288T5 12t.288-.712T6 11h5V6q0-.425.288-.712T12 5t.713.288T13 6v5h5q.425 0 .713.288T19 12t-.288.713T18 13h-5v5q0 .425-.288.713T12 19t-.712-.288T11 18z"/>'
 const refreshIconBody = '<path fill="currentColor" d="M12 20q-3.35 0-5.675-2.325T4 12q0-3.35 2.325-5.675T12 4q1.725 0 3.275.7t2.7 1.95V4h2v7h-7v-2h4.2q-.85-1.175-2.175-1.837T12 6Q9.5 6 7.75 7.75T6 12t1.75 4.25T12 18q1.925 0 3.475-1.1T17.6 14h2.1q-.7 2.7-2.85 4.35T12 20"/>'
@@ -208,7 +239,21 @@ function onNew() {
 }
 
 function onToggleSkills() {
-  void toggleSkillsSidebar()
+  skillsPanelOpen.value = !skillsPanelOpen.value
+}
+
+function onSkillsRootChange(next: string) {
+  if (next) skillsRootPath.value = next
+}
+
+async function onOpenSkillsFolder() {
+  const bridge = getDesktopBridge()
+  if (!bridge?.openPath) return
+  try {
+    await bridge.openPath(skillsRootPath.value)
+  } catch (error) {
+    console.error('Failed to open skills folder:', error)
+  }
 }
 
 async function onRefresh() {
@@ -531,5 +576,42 @@ async function onConfirmDelete() {
 .new-agent-btn:hover {
   background: var(--ink-2);
   border-color: var(--ink-2);
+}
+
+.skills-panel-path {
+  min-width: 0;
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.skills-panel-folder-btn {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background .14s, color .14s;
+}
+
+.skills-panel-folder-btn:hover {
+  background: var(--bg-2);
+  color: var(--ink);
+}
+
+.skills-panel-folder-icon {
+  width: 14px;
+  height: 14px;
 }
 </style>

@@ -34,7 +34,6 @@ export interface DesktopBridge {
   openExternal: (url: string) => Promise<void>
   openPath: (path: string) => Promise<void>
   openAgentWindow: (sessionId: string) => Promise<void>
-  setSkillsSidebarOpen: (open: boolean, width: number) => Promise<void>
   showCoreMenu: (labels: CoreMenuLabels) => Promise<void>
   showSettingsMenu: (labels: SettingsMenuLabels) => Promise<void>
 }

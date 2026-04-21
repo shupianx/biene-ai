@@ -27,6 +27,81 @@ type updateSkillsConfigRequest struct {
 	DefaultEnabledSkillIDs []string `json:"default_enabled_skill_ids"`
 }
 
+type sessionInstallSkillRequest struct {
+	SkillID string `json:"skill_id"`
+}
+
+type sessionInstallSkillResponse struct {
+	SkillName string `json:"skill_name"`
+}
+
+type sessionUninstallSkillResponse struct {
+	SkillName string `json:"skill_name"`
+}
+
+// handleSessionInstallSkill copies one repository skill into the agent
+// workspace, overwriting any existing installation at the same path. Clients
+// should check session meta's installed_skill_ids before calling so they can
+// warn the user about the overwrite.
+// POST /api/sessions/{id}/skills/install
+func (s *Server) handleSessionInstallSkill(w http.ResponseWriter, r *http.Request) {
+	sess := s.lookupSession(w, r)
+	if sess == nil {
+		return
+	}
+
+	var req sessionInstallSkillRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	skillID := strings.TrimSpace(req.SkillID)
+	if skillID == "" {
+		writeError(w, http.StatusBadRequest, "skill_id is required")
+		return
+	}
+
+	name, err := sess.InstallSkillFromRepository(skillID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if strings.HasPrefix(err.Error(), "skill not found:") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, sessionInstallSkillResponse{SkillName: name})
+}
+
+// handleSessionUninstallSkill removes one installed skill from the agent workspace.
+// DELETE /api/sessions/{id}/skills/{skill_id}
+func (s *Server) handleSessionUninstallSkill(w http.ResponseWriter, r *http.Request) {
+	sess := s.lookupSession(w, r)
+	if sess == nil {
+		return
+	}
+
+	skillID := strings.TrimSpace(r.PathValue("skill_id"))
+	if skillID == "" {
+		writeError(w, http.StatusBadRequest, "skill id is required")
+		return
+	}
+
+	name, err := sess.UninstallSkill(skillID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if strings.HasPrefix(err.Error(), "skill not found:") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, sessionUninstallSkillResponse{SkillName: name})
+}
+
 // handleListSkills returns the skill repository catalog under ~/.biene/skills.
 // GET /api/skills
 func (s *Server) handleListSkills(w http.ResponseWriter, _ *http.Request) {

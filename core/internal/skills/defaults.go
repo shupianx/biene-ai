@@ -2,6 +2,7 @@ package skills
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -60,6 +61,97 @@ func normalizeDefaultEnabledSkillDirs(items []string, legacy string) []string {
 	}
 	add(legacy)
 	return out
+}
+
+// InstallSkillByID copies one repository skill identified by its stable ID
+// into the agent workspace at <workDir>/.biene/skills/<rel>. If a directory
+// already exists at the destination, it is removed first so files deleted
+// from the repository version do not linger. Returns the skill's canonical
+// Name (from its frontmatter) on success. Callers that want to warn the user
+// before overwriting should check for an existing install via
+// InstalledSkillIDsForWorkDir before calling this function.
+func InstallSkillByID(workDir, id string) (string, error) {
+	id = strings.TrimSpace(filepath.ToSlash(id))
+	if id == "" {
+		return "", fmt.Errorf("skill id is required")
+	}
+
+	metas, root, err := ScanRepository()
+	if err != nil {
+		return "", err
+	}
+	rootReal, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+
+	var srcMeta *Metadata
+	for i := range metas {
+		if RepositorySkillID(root, metas[i].Dir) == id {
+			srcMeta = &metas[i]
+			break
+		}
+	}
+	if srcMeta == nil {
+		return "", fmt.Errorf("skill not found: %s", id)
+	}
+
+	srcReal, err := filepath.EvalSymlinks(srcMeta.Dir)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(rootReal, srcReal)
+	if err != nil {
+		return "", err
+	}
+
+	destRoot := filepath.Join(workDir, bienehome.DirName, "skills")
+	if err := os.MkdirAll(destRoot, 0o755); err != nil {
+		return "", err
+	}
+	destDir := filepath.Join(destRoot, rel)
+
+	if err := os.RemoveAll(destDir); err != nil {
+		return "", err
+	}
+	if err := copyDir(srcReal, destDir); err != nil {
+		return "", err
+	}
+
+	return srcMeta.Name, nil
+}
+
+// UninstallSkillByID removes one installed skill from the agent workspace.
+// Returns the skill's canonical Name (from its frontmatter) when the skill
+// was present and removed, or an empty name when the target did not exist.
+// The id is the same stable ID produced by InstalledSkillIDsForWorkDir.
+func UninstallSkillByID(workDir, id string) (string, error) {
+	id = strings.TrimSpace(filepath.ToSlash(id))
+	if id == "" {
+		return "", fmt.Errorf("skill id is required")
+	}
+
+	root := WorkDirSkillsRoot(workDir)
+	metas, err := ScanFromDir(root)
+	if err != nil {
+		return "", err
+	}
+
+	var targetMeta *Metadata
+	for i := range metas {
+		if RepositorySkillID(root, metas[i].Dir) == id {
+			targetMeta = &metas[i]
+			break
+		}
+	}
+	if targetMeta == nil {
+		return "", fmt.Errorf("skill not found: %s", id)
+	}
+
+	if err := os.RemoveAll(targetMeta.Dir); err != nil {
+		return "", err
+	}
+	return targetMeta.Name, nil
 }
 
 // InstallDefaultEnabled copies repository-configured default-enabled skills

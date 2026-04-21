@@ -34,6 +34,34 @@ func ScanForWorkDir(workDir string) ([]Metadata, error) {
 	return ScanFromDir(root)
 }
 
+// WorkDirSkillsRoot returns the absolute path of the installed-skills directory
+// for a given agent work directory: <workDir>/.biene/skills.
+func WorkDirSkillsRoot(workDir string) string {
+	return filepath.Join(workDir, bienehome.DirName, "skills")
+}
+
+// InstalledSkillIDsForWorkDir returns stable IDs for skills installed under
+// <workDir>/.biene/skills. IDs share the same scheme as repository IDs (the
+// skill directory's relative path with forward slashes), so frontend callers
+// can directly compare a dragged skill's repository ID against this list to
+// detect name collisions without hitting the server.
+func InstalledSkillIDsForWorkDir(workDir string) ([]string, error) {
+	root := WorkDirSkillsRoot(workDir)
+	metas, err := ScanFromDir(root)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(metas))
+	for _, meta := range metas {
+		id := RepositorySkillID(root, meta.Dir)
+		if id == "" {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
 // RepositoryRoot returns the skill repository directory under ~/.biene/skills.
 func RepositoryRoot() (string, error) {
 	return bienehome.SkillRepositoryRoot()

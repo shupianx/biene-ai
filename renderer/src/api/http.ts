@@ -1,5 +1,17 @@
 import { buildCoreHeaders, buildCoreUrl } from '../runtime'
 
+export class HttpError extends Error {
+  status: number
+  body: string
+
+  constructor(status: number, message: string, body: string) {
+    super(message)
+    this.name = 'HttpError'
+    this.status = status
+    this.body = body
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
   const headers = buildCoreHeaders(body && !isFormData ? { 'Content-Type': 'application/json' } : undefined)
@@ -12,7 +24,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(text || res.statusText)
+    throw new HttpError(res.status, text || res.statusText, text)
   }
   return res.json()
 }
@@ -51,6 +63,7 @@ export interface SessionMeta {
   profile: AgentProfile
   pending_permission?: import('../types/events').PermissionRequestData
   active_skills?: string[]
+  installed_skill_ids?: string[]
   created_at: string
   last_active: string
 }
@@ -212,4 +225,17 @@ export function importSkillFolder(files: File[]) {
     form.append('files', file, relativePath)
   }
   return post<SkillsCatalog>('/api/skills/import', form)
+}
+
+export function installSkillToSession(sessionId: string, skillId: string) {
+  return post<{ skill_name: string }>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/skills/install`,
+    { skill_id: skillId },
+  )
+}
+
+export function uninstallSkillFromSession(sessionId: string, skillId: string) {
+  return del<{ skill_name: string }>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/skills/${encodeURIComponent(skillId)}`,
+  )
 }

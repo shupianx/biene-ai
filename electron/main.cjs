@@ -1,4 +1,4 @@
-const { Menu, app, BrowserWindow, dialog, ipcMain, screen, shell } = require('electron')
+const { Menu, app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
 const { spawn } = require('child_process')
 const { randomBytes } = require('crypto')
 const http = require('http')
@@ -38,8 +38,6 @@ let coreStartPromise = null
 let quitAfterCoreStop = false
 let loginShellPathPromise = null
 const windowAppearanceOptions = new WeakMap()
-let mainWindowSkillsSidebarCompensation = 0
-let mainWindowSkillsSidebarCompensationLeft = 0
 
 function currentTheme() {
   return desktopSettings.theme === 'dark' ? 'dark' : 'light'
@@ -696,80 +694,6 @@ function openAgentWindow(sessionId) {
   })
 }
 
-function setMainWindowSkillsSidebarOpen(open, requestedWidth) {
-  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFullScreen()) {
-    return
-  }
-
-  const width = Math.max(0, Math.round(Number(requestedWidth) || 0))
-  const bounds = mainWindow.getBounds()
-
-  if (!open || width === 0) {
-    const shrink = Math.min(mainWindowSkillsSidebarCompensation, Math.max(0, bounds.width - mainWindow.getMinimumSize()[0]))
-    if (shrink > 0) {
-      const shrinkLeft = Math.min(mainWindowSkillsSidebarCompensationLeft, shrink)
-      mainWindow.setBounds({
-        x: bounds.x + shrinkLeft,
-        y: bounds.y,
-        width: bounds.width - shrink,
-        height: bounds.height,
-      }, false)
-      mainWindowSkillsSidebarCompensationLeft -= shrinkLeft
-    }
-    mainWindowSkillsSidebarCompensation = 0
-    mainWindowSkillsSidebarCompensationLeft = 0
-    return
-  }
-
-  const target = width
-  if (mainWindow.isMaximized()) {
-    mainWindowSkillsSidebarCompensation = 0
-    mainWindowSkillsSidebarCompensationLeft = 0
-    return
-  }
-
-  const delta = target - mainWindowSkillsSidebarCompensation
-  if (delta === 0) {
-    return
-  }
-
-  if (delta < 0) {
-    const shrink = Math.min(-delta, mainWindowSkillsSidebarCompensation, Math.max(0, bounds.width - mainWindow.getMinimumSize()[0]))
-    if (shrink > 0) {
-      const shrinkLeft = Math.min(mainWindowSkillsSidebarCompensationLeft, shrink)
-      mainWindow.setBounds({
-        x: bounds.x + shrinkLeft,
-        y: bounds.y,
-        width: bounds.width - shrink,
-        height: bounds.height,
-      }, false)
-      mainWindowSkillsSidebarCompensation -= shrink
-      mainWindowSkillsSidebarCompensationLeft -= shrinkLeft
-    }
-    return
-  }
-
-  const display = screen.getDisplayMatching(bounds)
-  const workArea = display.workArea
-  const availableLeft = Math.max(0, bounds.x - workArea.x)
-  const availableRight = Math.max(0, workArea.x + workArea.width - (bounds.x + bounds.width))
-  const grow = Math.min(delta, availableLeft + availableRight)
-  if (grow <= 0) {
-    return
-  }
-
-  const growRight = Math.min(grow, availableRight)
-  const growLeft = Math.min(grow - growRight, availableLeft)
-  mainWindow.setBounds({
-    x: bounds.x - growLeft,
-    y: bounds.y,
-    width: bounds.width + grow,
-    height: bounds.height,
-  }, false)
-  mainWindowSkillsSidebarCompensation += grow
-  mainWindowSkillsSidebarCompensationLeft += growLeft
-}
-
 function registerDesktopHandlers() {
   ipcMain.handle('desktop:getCoreStatus', async () => currentCoreStatus())
   ipcMain.handle('desktop:getSettings', async () => desktopSettings)
@@ -798,11 +722,6 @@ function registerDesktopHandlers() {
   ipcMain.handle('desktop:openAgentWindow', async (_event, sessionId) => {
     openAgentWindow(sessionId)
   })
-  ipcMain.handle('desktop:setSkillsSidebarOpen', async (_event, payload) => {
-    const nextOpen = Boolean(payload?.open)
-    const nextWidth = Number(payload?.width) || 0
-    setMainWindowSkillsSidebarOpen(nextOpen, nextWidth)
-  })
   ipcMain.handle('desktop:showCoreMenu', async (event, labels) => {
     showCoreMenu(event, labels)
   })
@@ -820,12 +739,10 @@ function createMainWindow() {
     minWidth: 960,
     minHeight: 640,
     windowKind: 'main',
-    openDevTools: true,
+    openDevTools: false,
   })
   mainWindow = win
   win.on('closed', () => {
-    mainWindowSkillsSidebarCompensation = 0
-    mainWindowSkillsSidebarCompensationLeft = 0
     if (mainWindow === win) {
       mainWindow = null
     }

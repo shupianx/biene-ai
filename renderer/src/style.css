@@ -25,6 +25,8 @@
   --ok:           oklch(64% 0.15 145);
   --warn:         oklch(72% 0.14 85);
   --err:          oklch(58% 0.18 25);
+  --info:         oklch(58% 0.16 245);
+  --info-ink:     #FFFFFF;
 
   /* Selection / interaction tints */
   --sel-bg:       rgba(196, 134, 72, 0.28);
@@ -67,6 +69,8 @@
   --ok:           oklch(70% 0.15 145);
   --warn:         oklch(76% 0.14 85);
   --err:          oklch(66% 0.18 25);
+  --info:         oklch(66% 0.15 245);
+  --info-ink:     #08121F;
 
   --sel-bg:       rgba(214, 150, 82, 0.38);
   --overlay:      rgba(0, 0, 0, 0.62);

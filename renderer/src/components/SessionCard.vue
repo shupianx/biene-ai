@@ -1,38 +1,29 @@
 <template>
   <div
-    ref="cardRef"
     class="card"
-    :class="statusTone"
+    :class="[statusTone, { 'drop-target': isDropTarget, installing: installingSkill }]"
     @mouseenter="hover = true"
     @mouseleave="hover = false"
     @click="emit('select')"
+    @dragenter="onDragEnter"
+    @dragover="onDragOver"
+    @dragleave="onDragLeave"
+    @drop="onDrop"
   >
     <!-- Top strip: name + menu -->
     <div class="top-strip">
       <div class="title-row">
         <div class="name" :title="session.meta.name">{{ session.meta.name }}</div>
         <div class="title-path" :title="session.meta.work_dir">
-          <svg class="path-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="folderIconBody" />
+          <MaterialSymbolsFolderSharp class="path-icon" aria-hidden="true" />
           <span class="path-text">{{ shortDir }}</span>
         </div>
       </div>
-      <div class="menu-wrap" @click.stop>
-        <button
-          class="menu-btn"
-          :class="{ visible: hover || menuOpen, open: menuOpen }"
-          :title="t('common.more')"
-          :aria-label="t('common.more')"
-          @click="menuOpen = !menuOpen"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true" v-html="moreIconBody" />
-        </button>
-        <div v-if="menuOpen" class="menu">
-          <button class="menu-item" @click="onOpenFolder">{{ t('grid.openFolderMenu') }}</button>
-          <button class="menu-item" @click="onSettings">{{ t('common.settings') }}</button>
-          <div class="menu-sep" aria-hidden="true" />
-          <button class="menu-item danger" @click="onDelete">{{ t('common.delete') }}</button>
-        </div>
-      </div>
+      <PopupMenu
+        :items="menuItems"
+        :visible="hover"
+        @select="onMenuSelect"
+      />
     </div>
 
     <!-- Body -->
@@ -40,6 +31,10 @@
       <div v-if="pendingPermLine" class="warn-line">
         <CiOctagonWarning class="warn-icon" aria-hidden="true" />
         <span>{{ pendingPermLine }}</span>
+      </div>
+
+      <div v-if="installFlash" class="install-flash" :class="installFlash.tone">
+        {{ installFlash.message }}
       </div>
 
       <div class="meta-row">
@@ -53,6 +48,15 @@
         <div class="updated">{{ updatedAt }}</div>
       </div>
     </div>
+
+    <ConfirmModal
+      v-if="conflict"
+      :title="t('skillsBrowser.installConflictTitle')"
+      :message="t('skillsBrowser.installConflictMessage', { name: conflict.skillName })"
+      :confirm-label="t('skillsBrowser.installConflictOverwrite')"
+      @cancel="onConflictCancel"
+      @confirm="onConflictConfirm"
+    />
 
     <!-- Footer: profile chips + permission chips -->
     <div class="footer">
@@ -68,14 +72,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import CiOctagonWarning from '~icons/ci/octagon-warning'
+import MaterialSymbolsFolderSharp from '~icons/material-symbols/folder-sharp'
 import type { AgentSession } from '../stores/sessions'
+import { installSkillToSession } from '../api/http'
 import { t } from '../i18n'
 import { getSessionStatusLabel, getSessionStatusTone } from '../utils/sessionStatus'
 import { findDomainOption, findStyleOption } from '../utils/profile'
 import { getPermissionLabel } from '../utils/permissions'
 import { formatMessageTime } from '../utils/messageTime'
+import PopupMenu, { type PopupMenuEntry } from './PopupMenu.vue'
+import ConfirmModal from './ConfirmModal.vue'
+
+const SKILL_MIME = 'application/biene-skill'
 
 const props = defineProps<{ session: AgentSession }>()
 const emit = defineEmits<{
@@ -85,21 +95,24 @@ const emit = defineEmits<{
   (e: 'delete'): void
 }>()
 
-const folderIconBody = '<path fill="currentColor" d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>'
-const moreIconBody = '<path fill="currentColor" d="M6 14q-.825 0-1.412-.587T4 12t.588-1.412T6 10t1.413.588T8 12t-.587 1.413T6 14m6 0q-.825 0-1.412-.587T10 12t.588-1.412T12 10t1.413.588T14 12t-.587 1.413T12 14m6 0q-.825 0-1.412-.587T16 12t.588-1.412T18 10t1.413.588T20 12t-.587 1.413T18 14"/>'
-
 const hover = ref(false)
-const menuOpen = ref(false)
-const cardRef = ref<HTMLElement | null>(null)
+
+const menuItems = computed<PopupMenuEntry[]>(() => [
+  { key: 'open-folder', label: t('grid.openFolderMenu') },
+  { key: 'settings', label: t('common.settings') },
+  { separator: true },
+  { key: 'delete', label: t('common.delete'), danger: true },
+])
 
 const statusTone = computed(() => getSessionStatusTone(props.session))
 const statusLabel = computed(() => getSessionStatusLabel(statusTone.value))
 
 const shortDir = computed(() => {
-  const d = props.session.meta.work_dir
-  const parts = d.split('/')
-  if (parts.length <= 2) return d
-  return '…/' + parts.slice(-2).join('/')
+  const trimmed = props.session.meta.work_dir.replace(/[\\/]+$/, '')
+  if (!trimmed) return props.session.meta.work_dir
+  const parts = trimmed.split(/[\\/]/).filter(Boolean)
+  if (parts.length === 0) return trimmed
+  return parts[parts.length - 1]
 })
 
 const pendingPermLine = computed(() => {
@@ -119,29 +132,100 @@ const styleLabel = computed(() =>
   findStyleOption(props.session.meta.profile.style)?.label ?? ''
 )
 
-function onSettings() {
-  menuOpen.value = false
-  emit('settings')
+function onMenuSelect(key: string) {
+  if (key === 'open-folder') emit('open-folder')
+  else if (key === 'settings') emit('settings')
+  else if (key === 'delete') emit('delete')
 }
 
-function onOpenFolder() {
-  menuOpen.value = false
-  emit('open-folder')
+const dragDepth = ref(0)
+const installingSkill = ref(false)
+const installFlash = ref<{ tone: 'ok' | 'err'; message: string } | null>(null)
+const conflict = ref<{ skillId: string; skillName: string } | null>(null)
+let flashTimer: number | null = null
+
+const isDropTarget = computed(() => dragDepth.value > 0)
+
+function hasSkillPayload(event: DragEvent) {
+  const types = event.dataTransfer?.types
+  if (!types) return false
+  for (let i = 0; i < types.length; i += 1) {
+    if (types[i] === SKILL_MIME) return true
+  }
+  return false
 }
 
-function onDelete() {
-  menuOpen.value = false
-  emit('delete')
+function onDragEnter(event: DragEvent) {
+  if (!hasSkillPayload(event)) return
+  event.preventDefault()
+  dragDepth.value += 1
 }
 
-function handlePointerDown(event: MouseEvent) {
-  if (!menuOpen.value) return
-  if (cardRef.value?.contains(event.target as Node)) return
-  menuOpen.value = false
+function onDragOver(event: DragEvent) {
+  if (!hasSkillPayload(event)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
 }
 
-onMounted(() => document.addEventListener('pointerdown', handlePointerDown))
-onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerDown))
+function onDragLeave(event: DragEvent) {
+  if (!hasSkillPayload(event)) return
+  dragDepth.value = Math.max(0, dragDepth.value - 1)
+}
+
+function scheduleFlashClear() {
+  if (flashTimer != null) window.clearTimeout(flashTimer)
+  flashTimer = window.setTimeout(() => {
+    installFlash.value = null
+    flashTimer = null
+  }, 2400)
+}
+
+async function performInstall(skillId: string) {
+  installingSkill.value = true
+  installFlash.value = null
+  try {
+    const result = await installSkillToSession(props.session.meta.id, skillId)
+    installFlash.value = {
+      tone: 'ok',
+      message: t('skillsBrowser.installSuccess', { name: result.skill_name }),
+    }
+    scheduleFlashClear()
+  } catch (error) {
+    installFlash.value = {
+      tone: 'err',
+      message: error instanceof Error ? error.message : String(error),
+    }
+    scheduleFlashClear()
+  } finally {
+    installingSkill.value = false
+  }
+}
+
+async function onDrop(event: DragEvent) {
+  if (!hasSkillPayload(event)) return
+  event.preventDefault()
+  dragDepth.value = 0
+  const skillId = event.dataTransfer?.getData(SKILL_MIME)?.trim() ?? ''
+  if (!skillId || installingSkill.value) return
+  const installed = props.session.meta.installed_skill_ids ?? []
+  if (installed.includes(skillId)) {
+    const label = event.dataTransfer?.getData('text/plain')?.trim() || skillId
+    conflict.value = { skillId, skillName: label }
+    return
+  }
+  await performInstall(skillId)
+}
+
+function onConflictCancel() {
+  conflict.value = null
+}
+
+async function onConflictConfirm() {
+  const pending = conflict.value
+  conflict.value = null
+  if (!pending) return
+  await performInstall(pending.skillId)
+}
 </script>
 
 <style scoped>
@@ -165,6 +249,75 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
 
 .card.approval { border-color: var(--warn); }
 .card.error    { border-color: var(--err); }
+
+.card.drop-target {
+  border-color: transparent;
+  transform: translate(-2px, -2px);
+}
+
+.card.drop-target::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: -4px;
+  bottom: -4px;
+  pointer-events: none;
+  background: linear-gradient(135deg,
+    #d7b7b2, #c7a7c4, #ada4d3, #72c0d0, #8bc59a, #d7b37d, #d7b7b2);
+  clip-path: polygon(
+    100% 0,
+    100% 100%,
+    0 100%,
+    0 calc(100% - 4px),
+    calc(100% - 4px) calc(100% - 4px),
+    calc(100% - 4px) 0
+  );
+  animation: bieneSkillDropShimmer 1s linear infinite;
+}
+
+.card.drop-target::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background: linear-gradient(135deg,
+    #d7b7b2, #c7a7c4, #ada4d3, #72c0d0, #8bc59a, #d7b37d, #d7b7b2);
+  padding: 1px;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: bieneSkillDropShimmer 1s linear infinite;
+}
+
+@keyframes bieneSkillDropShimmer {
+  from { filter: hue-rotate(0deg); }
+  to   { filter: hue-rotate(360deg); }
+}
+
+.card.installing {
+  cursor: progress;
+}
+
+.install-flash {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  padding: 4px 8px;
+  border: 1px solid currentColor;
+}
+
+.install-flash.ok {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.install-flash.err {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 10%, transparent);
+}
 
 /* Top strip */
 .top-strip {
@@ -198,87 +351,6 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
   max-width: 52%;
 }
 
-.menu-wrap {
-  position: relative;
-}
-
-.menu-btn {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  color: var(--ink-4);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  transition: opacity .12s, background .12s, color .12s;
-}
-
-.menu-btn.visible,
-.menu-btn:focus-visible {
-  opacity: 1;
-}
-
-.menu-btn.open {
-  background: var(--bg-2);
-}
-
-.menu-btn:hover {
-  color: var(--ink-2);
-  background: var(--bg-2);
-}
-
-.menu-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
-.menu {
-  position: absolute;
-  top: 30px;
-  right: 0;
-  min-width: 144px;
-  padding: 4px;
-  background: var(--panel-2);
-  border: 1px solid var(--rule);
-  box-shadow: 3px 3px 0 0 var(--rule);
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.menu-item {
-  border: none;
-  background: transparent;
-  text-align: left;
-  padding: 6px 10px;
-  font-family: var(--sans);
-  font-size: 12px;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-
-.menu-item:hover {
-  background: var(--bg-2);
-}
-
-.menu-item.danger {
-  color: var(--err);
-}
-
-.menu-item.danger:hover {
-  background: var(--err);
-  color: var(--panel-2);
-}
-
-.menu-sep {
-  height: 1px;
-  background: var(--rule-softer);
-  margin: 4px 2px;
-}
-
 /* Body */
 .body {
   padding: 14px 14px 12px;
@@ -291,6 +363,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
 .title-path {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
@@ -300,16 +373,18 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handlePointerD
 }
 
 .path-icon {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
 }
 
 .path-text {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  text-align: right;
 }
 
 .warn-line {

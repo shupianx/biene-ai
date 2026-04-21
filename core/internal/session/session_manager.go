@@ -167,6 +167,10 @@ func (m *SessionManager) Init() {
 		registry.Register(builtins.NewListAgentsTool(m, id))
 		registry.Register(builtins.NewSendToAgentTool(m, id))
 
+		installedIDs, scanErr := skills.InstalledSkillIDsForWorkDir(workDir)
+		if scanErr != nil {
+			log.Printf("scan installed skills for %s: %v", id, scanErr)
+		}
 		sess := &Session{
 			ID:                id,
 			Name:              meta.Name,
@@ -185,6 +189,7 @@ func (m *SessionManager) Init() {
 			thinkingAvailable: thinkingAvailable,
 			thinkingEnabled:   thinkingEnabled,
 			activeSkills:      append([]string(nil), meta.ActiveSkills...),
+			installedSkillIDs: installedIDs,
 			maxTokens:         maxTokens,
 			apiMessages:       apiMsgs,
 			history:           history,
@@ -239,6 +244,11 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	registry.Register(builtins.NewListAgentsTool(m, id))
 	registry.Register(builtins.NewSendToAgentTool(m, id))
 
+	installedIDs, scanErr := skills.InstalledSkillIDsForWorkDir(workDir)
+	if scanErr != nil {
+		log.Printf("scan installed skills for %s: %v", id, scanErr)
+	}
+
 	now := time.Now()
 	sess := &Session{
 		ID:                id,
@@ -257,6 +267,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		modelName:         modelEntry.Name,
 		thinkingAvailable: modelEntry.ThinkingAvailable,
 		thinkingEnabled:   false,
+		installedSkillIDs: installedIDs,
 		maxTokens:         maxTokens,
 		apiMessages:       []api.Message{},
 		history:           []DisplayMessage{},

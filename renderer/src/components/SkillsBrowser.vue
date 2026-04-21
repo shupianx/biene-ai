@@ -18,18 +18,6 @@
           {{ t('common.close') }}
         </button>
       </div>
-      <div class="skills-topbar-path-row">
-        <code class="skills-topbar-path">{{ catalog?.root || rootFallback }}</code>
-        <button
-          class="skills-folder-btn"
-          type="button"
-          :title="t('grid.openFolderMenu')"
-          :aria-label="t('grid.openFolderMenu')"
-          @click="onOpenFolder"
-        >
-          <FolderOpenIcon class="skills-folder-icon" />
-        </button>
-      </div>
     </header>
 
     <p v-if="error" class="skills-error">{{ error }}</p>
@@ -47,6 +35,10 @@
           v-for="skill in catalog.skills"
           :key="skill.id"
           class="skill-list-item"
+          draggable="true"
+          :title="skill.description"
+          @dragstart="onDragStart($event, skill)"
+          @dragend="onDragEnd"
         >
           <span class="skill-list-name">{{ skill.name }}</span>
           <div class="skill-list-actions">
@@ -96,7 +88,6 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import FolderOpenIcon from '~icons/material-symbols/folder-open-outline'
 import DeleteIcon from '~icons/material-symbols/delete-forever-outline-sharp'
 import DefaultOffIcon from '~icons/tabler/file'
 import DefaultOnIcon from '~icons/tabler/file-power'
@@ -109,7 +100,6 @@ import {
   type SkillsCatalog,
 } from '../api/http'
 import { t } from '../i18n'
-import { getDesktopBridge } from '../runtime'
 
 const props = withDefaults(defineProps<{
   embedded?: boolean
@@ -121,6 +111,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'root-change', root: string): void
 }>()
 
 const catalog = ref<SkillsCatalog | null>(null)
@@ -173,17 +164,6 @@ async function onImportSelected(event: Event) {
   }
 }
 
-async function onOpenFolder() {
-  const bridge = getDesktopBridge()
-  if (!bridge?.openPath) return
-
-  try {
-    await bridge.openPath(catalog.value?.root || rootFallback)
-  } catch (nextError) {
-    error.value = nextError instanceof Error ? nextError.message : String(nextError)
-  }
-}
-
 async function onToggleDefaultEnabled(skill: SkillCatalogEntry) {
   busySkillID.value = skill.id
   error.value = ''
@@ -219,6 +199,18 @@ function onToggleDeletePopover(skill: SkillCatalogEntry) {
   deleteConfirmSkillID.value = deleteConfirmSkillID.value === skill.id ? '' : skill.id
 }
 
+function onDragStart(event: DragEvent, skill: SkillCatalogEntry) {
+  if (!event.dataTransfer) return
+  event.dataTransfer.effectAllowed = 'copy'
+  event.dataTransfer.setData('application/biene-skill', skill.id)
+  event.dataTransfer.setData('text/plain', skill.name)
+  document.body.classList.add('biene-skill-dragging')
+}
+
+function onDragEnd() {
+  document.body.classList.remove('biene-skill-dragging')
+}
+
 function onDocumentPointerDown(event: PointerEvent) {
   const target = event.target
   if (!(target instanceof Element)) {
@@ -232,10 +224,12 @@ function onDocumentPointerDown(event: PointerEvent) {
 function applyCatalog(nextCatalog: SkillsCatalog) {
   catalog.value = nextCatalog
   defaultEnabledSkillIDs.value = [...nextCatalog.default_enabled_skill_ids]
+  emit('root-change', nextCatalog.root || rootFallback)
 }
 
 onMounted(() => {
   document.addEventListener('pointerdown', onDocumentPointerDown)
+  emit('root-change', rootFallback)
   void loadSkills()
 })
 
@@ -276,58 +270,11 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
-.skills-topbar-path-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: min(100%, 28rem);
-  padding: 8px 10px;
-  border: 1px solid var(--rule-soft);
-  background: var(--panel);
-}
-
-.skills-topbar-path {
-  min-width: 0;
-  flex: 1;
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--ink-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .skills-topbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: flex-end;
-}
-
-.skills-folder-btn {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: 1px solid var(--rule-soft);
-  background: var(--panel-2);
-  color: var(--ink-3);
-  cursor: pointer;
-  transition: background .14s, color .14s, border-color .14s;
-}
-
-.skills-folder-btn:hover {
-  background: var(--bg-2);
-  border-color: var(--rule);
-  color: var(--ink);
-}
-
-.skills-folder-icon {
-  width: 15px;
-  height: 15px;
 }
 
 .skills-action {
@@ -352,15 +299,15 @@ onBeforeUnmount(() => {
 }
 
 .skills-action-import {
-  border-color: color-mix(in srgb, #68a8b4 34%, var(--rule-soft));
-  background: color-mix(in srgb, #68a8b4 14%, var(--panel-2));
-  color: color-mix(in srgb, #2f6172 72%, var(--ink));
+  border-color: color-mix(in srgb, #93c7a5 28%, var(--rule-soft));
+  background: color-mix(in srgb, #93c7a5 12%, var(--panel-2));
+  color: color-mix(in srgb, #517860 64%, var(--ink));
 }
 
 .skills-action-import:hover:not(:disabled) {
-  border-color: color-mix(in srgb, #68a8b4 48%, var(--rule));
-  background: color-mix(in srgb, #68a8b4 22%, var(--bg-2));
-  color: color-mix(in srgb, #1f4c5d 82%, var(--ink));
+  border-color: color-mix(in srgb, #93c7a5 40%, var(--rule));
+  background: color-mix(in srgb, #93c7a5 18%, var(--bg-2));
+  color: color-mix(in srgb, #436851 74%, var(--ink));
 }
 
 .skills-action-close {
@@ -533,12 +480,13 @@ onBeforeUnmount(() => {
 }
 
 .skills-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 6px;
   padding: 8px;
   flex: 1;
   overflow: auto;
+  align-content: start;
 }
 
 .skill-list-item {
@@ -552,12 +500,17 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--panel) 90%, var(--bg));
   color: inherit;
   text-align: left;
+  cursor: grab;
   transition: background .14s, border-color .14s;
 }
 
 .skill-list-item:hover {
   background: color-mix(in srgb, var(--panel-2) 92%, var(--bg));
   border-color: var(--rule-soft);
+}
+
+.skill-list-item:active {
+  cursor: grabbing;
 }
 
 .skill-list-name {
