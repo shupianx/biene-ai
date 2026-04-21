@@ -25,6 +25,18 @@ type TextBlock struct {
 
 func (TextBlock) blockType() string { return "text" }
 
+// ReasoningBlock holds an assistant turn's chain-of-thought content that must
+// be echoed back to the provider on subsequent turns (OpenAI-compatible
+// `reasoning_content`, Anthropic `thinking` block). Signature is non-empty
+// only for Anthropic, where the server-issued signature must be preserved
+// verbatim.
+type ReasoningBlock struct {
+	Text      string
+	Signature string
+}
+
+func (ReasoningBlock) blockType() string { return "reasoning" }
+
 // ToolUseBlock represents a model-requested tool call.
 type ToolUseBlock struct {
 	ID    string
@@ -64,6 +76,7 @@ type EventType string
 
 const (
 	EventReasoningDelta EventType = "reasoning_delta"
+	EventSignatureDelta EventType = "signature_delta"
 	EventTextDelta      EventType = "text_delta"
 	EventToolUseStart   EventType = "tool_use_start"
 	EventToolUse        EventType = "tool_use" // complete tool_use block ready

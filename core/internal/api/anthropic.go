@@ -91,6 +91,12 @@ func (p *AnthropicProvider) Stream(
 				case anthropic.BetaTextDelta:
 					td := deltaEv.Delta.AsTextDelta()
 					ch <- StreamEvent{Type: EventTextDelta, Text: td.Text}
+				case anthropic.BetaThinkingDelta:
+					tk := deltaEv.Delta.AsThinkingDelta()
+					ch <- StreamEvent{Type: EventReasoningDelta, Text: tk.Thinking}
+				case anthropic.BetaSignatureDelta:
+					sd := deltaEv.Delta.AsSignatureDelta()
+					ch <- StreamEvent{Type: EventSignatureDelta, Text: sd.Signature}
 				case anthropic.BetaInputJSONDelta:
 					ij := deltaEv.Delta.AsInputJSONDelta()
 					toolInputBuf = append(toolInputBuf, ij.PartialJSON...)
@@ -137,6 +143,13 @@ func convertMessagesToAnthropic(msgs []Message) ([]anthropic.BetaMessageParam, e
 			switch v := b.(type) {
 			case TextBlock:
 				blocks = append(blocks, anthropic.NewBetaTextBlock(v.Text))
+			case ReasoningBlock:
+				if v.Signature == "" {
+					// Anthropic rejects thinking blocks without a signature; skip
+					// reasoning captured from providers that don't issue one.
+					continue
+				}
+				blocks = append(blocks, anthropic.NewBetaThinkingBlock(v.Signature, v.Text))
 			case ToolUseBlock:
 				blocks = append(blocks, anthropic.NewBetaToolUseBlock(v.ID, v.Input, v.Name))
 			case ToolResultBlock:

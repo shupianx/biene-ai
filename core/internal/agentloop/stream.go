@@ -16,6 +16,8 @@ func collectStream(
 ) (api.Message, []api.ToolUseBlock, error) {
 	var content []api.ContentBlock
 	var text strings.Builder
+	var reasoning strings.Builder
+	var signature strings.Builder
 	var toolUses []api.ToolUseBlock
 
 done:
@@ -29,7 +31,10 @@ done:
 			}
 			switch ev.Type {
 			case api.EventReasoningDelta:
+				reasoning.WriteString(ev.Text)
 				ch <- Event{Kind: KindReasoningDelta, Text: ev.Text}
+			case api.EventSignatureDelta:
+				signature.WriteString(ev.Text)
 			case api.EventTextDelta:
 				text.WriteString(ev.Text)
 				ch <- Event{Kind: KindTextDelta, Text: ev.Text}
@@ -59,6 +64,15 @@ done:
 
 	if text.Len() > 0 {
 		content = append(content, api.TextBlock{Text: text.String()})
+	}
+
+	if reasoning.Len() > 0 || signature.Len() > 0 {
+		// Anthropic requires the thinking block to precede text/tool_use.
+		head := []api.ContentBlock{api.ReasoningBlock{
+			Text:      reasoning.String(),
+			Signature: signature.String(),
+		}}
+		content = append(head, content...)
 	}
 
 	return api.Message{

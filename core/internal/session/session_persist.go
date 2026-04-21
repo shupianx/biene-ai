@@ -21,6 +21,7 @@ type storedAPIMsg struct {
 type storedBlock struct {
 	Type      string          `json:"type"`
 	Text      string          `json:"text,omitempty"`
+	Signature string          `json:"signature,omitempty"`
 	ID        string          `json:"id,omitempty"`
 	Name      string          `json:"name,omitempty"`
 	Input     json.RawMessage `json:"input,omitempty"`
@@ -36,6 +37,8 @@ func marshalAPIMessage(m api.Message) (json.RawMessage, error) {
 		switch v := block.(type) {
 		case api.TextBlock:
 			b = storedBlock{Type: "text", Text: v.Text}
+		case api.ReasoningBlock:
+			b = storedBlock{Type: "reasoning", Text: v.Text, Signature: v.Signature}
 		case api.ToolUseBlock:
 			b = storedBlock{Type: "tool_use", ID: v.ID, Name: v.Name, Input: v.Input}
 		case api.ToolResultBlock:
@@ -58,6 +61,8 @@ func unmarshalAPIMessage(raw json.RawMessage) (api.Message, error) {
 		switch b.Type {
 		case "text":
 			m.Content = append(m.Content, api.TextBlock{Text: b.Text})
+		case "reasoning":
+			m.Content = append(m.Content, api.ReasoningBlock{Text: b.Text, Signature: b.Signature})
 		case "tool_use":
 			m.Content = append(m.Content, api.ToolUseBlock{ID: b.ID, Name: b.Name, Input: b.Input})
 		case "tool_result":

@@ -280,10 +280,11 @@ type openAIChatCompletionRequest struct {
 }
 
 type openAIChatCompletionMessage struct {
-	Role       string                         `json:"role"`
-	Content    string                         `json:"content,omitempty"`
-	ToolCallID string                         `json:"tool_call_id,omitempty"`
-	ToolCalls  []openAIChatCompletionToolCall `json:"tool_calls,omitempty"`
+	Role             string                         `json:"role"`
+	Content          string                         `json:"content,omitempty"`
+	ReasoningContent string                         `json:"reasoning_content,omitempty"`
+	ToolCallID       string                         `json:"tool_call_id,omitempty"`
+	ToolCalls        []openAIChatCompletionToolCall `json:"tool_calls,omitempty"`
 }
 
 type openAIChatCompletionTool struct {
@@ -365,6 +366,8 @@ func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openAIChatC
 				switch v := b.(type) {
 				case TextBlock:
 					msg.Content = v.Text
+				case ReasoningBlock:
+					msg.ReasoningContent = v.Text
 				case ToolUseBlock:
 					toolCalls = append(toolCalls, openAIChatCompletionToolCall{
 						ID:   v.ID,
