@@ -3,6 +3,7 @@ package api
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -278,10 +279,20 @@ type openAIChatCompletionRequest struct {
 
 type openAIChatCompletionMessage struct {
 	Role             string                         `json:"role"`
-	Content          string                         `json:"content,omitempty"`
+	Content          any                            `json:"content,omitempty"`
 	ReasoningContent string                         `json:"reasoning_content,omitempty"`
 	ToolCallID       string                         `json:"tool_call_id,omitempty"`
 	ToolCalls        []openAIChatCompletionToolCall `json:"tool_calls,omitempty"`
+}
+
+type openAIContentPart struct {
+	Type     string                      `json:"type"`
+	Text     string                      `json:"text,omitempty"`
+	ImageURL *openAIContentPartImageURL  `json:"image_url,omitempty"`
+}
+
+type openAIContentPartImageURL struct {
+	URL string `json:"url"`
 }
 
 type openAIChatCompletionTool struct {
@@ -340,12 +351,27 @@ func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openAIChatC
 	for _, m := range msgs {
 		switch m.Role {
 		case RoleUser:
+			var parts []openAIContentPart
+			var textBuf strings.Builder
 			for _, b := range m.Content {
 				switch v := b.(type) {
 				case TextBlock:
-					out = append(out, openAIChatCompletionMessage{
-						Role:    "user",
-						Content: v.Text,
+					if v.Text == "" {
+						continue
+					}
+					parts = append(parts, openAIContentPart{Type: "text", Text: v.Text})
+					if textBuf.Len() > 0 {
+						textBuf.WriteString("\n")
+					}
+					textBuf.WriteString(v.Text)
+				case ImageBlock:
+					if len(v.Data) == 0 {
+						continue
+					}
+					dataURL := "data:" + v.MediaType + ";base64," + base64.StdEncoding.EncodeToString(v.Data)
+					parts = append(parts, openAIContentPart{
+						Type:     "image_url",
+						ImageURL: &openAIContentPartImageURL{URL: dataURL},
 					})
 				case ToolResultBlock:
 					out = append(out, openAIChatCompletionMessage{
@@ -355,6 +381,22 @@ func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openAIChatC
 					})
 				}
 			}
+			if len(parts) > 0 {
+				hasImage := false
+				for _, p := range parts {
+					if p.Type == "image_url" {
+						hasImage = true
+						break
+					}
+				}
+				msg := openAIChatCompletionMessage{Role: "user"}
+				if hasImage {
+					msg.Content = parts
+				} else {
+					msg.Content = textBuf.String()
+				}
+				out = append(out, msg)
+			}
 
 		case RoleAssistant:
 			msg := openAIChatCompletionMessage{Role: "assistant"}
@@ -362,7 +404,9 @@ func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openAIChatC
 			for _, b := range m.Content {
 				switch v := b.(type) {
 				case TextBlock:
-					msg.Content = v.Text
+					if v.Text != "" {
+						msg.Content = v.Text
+					}
 				case ReasoningBlock:
 					msg.ReasoningContent = v.Text
 				case ToolUseBlock:

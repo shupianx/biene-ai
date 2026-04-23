@@ -51,6 +51,29 @@
           <span class="role-tag">{{ userRoleTag }}</span>
         </div>
         <div
+          v-if="imageAttachments.length"
+          class="user-images"
+        >
+          <a
+            v-for="att in imageAttachments"
+            :key="att.path"
+            class="user-image"
+            :class="{ 'is-loaded': loadedImages.has(att.path) }"
+            :href="assetURL(att.path)"
+            target="_blank"
+            rel="noopener"
+          >
+            <img
+              :src="assetURL(att.path)"
+              :alt="att.name || 'image'"
+              loading="lazy"
+              decoding="async"
+              @load="markImageLoaded(att.path)"
+            />
+          </a>
+        </div>
+        <div
+          v-if="msg.text"
           class="user-text"
           :class="{
             'agent-source-text': msg.author_type === 'agent',
@@ -90,13 +113,31 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import MaterialSymbolsArrowForwardIosRounded from '~icons/material-symbols/arrow-forward-ios-rounded'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import type { DisplayMessage } from '../api/http'
+import { sessionAssetURL } from '../api/http'
 import { t } from '../i18n'
 import { useSessionsStore } from '../stores/sessions'
 import ToolCallCard from './ToolCallCard.vue'
 import { renderMarkdown } from '../utils/markdown'
 import { formatMessageTime } from '../utils/messageTime'
 
-const props = defineProps<{ msg: DisplayMessage }>()
+const props = defineProps<{ msg: DisplayMessage; sessionId: string }>()
+
+const imageAttachments = computed(() =>
+  (props.msg.attachments ?? []).filter(att => att.kind === 'image')
+)
+
+const loadedImages = ref<Set<string>>(new Set())
+
+function assetURL(path: string): string {
+  return sessionAssetURL(props.sessionId, path)
+}
+
+function markImageLoaded(path: string) {
+  if (loadedImages.value.has(path)) return
+  const next = new Set(loadedImages.value)
+  next.add(path)
+  loadedImages.value = next
+}
 const { openAgent } = useAgentNavigation()
 const store = useSessionsStore()
 const REASONING_AUTO_SCROLL_THRESHOLD = 12
@@ -424,6 +465,75 @@ function toggleReasoning() {
   .reasoning-content {
     transition: none;
   }
+}
+
+.user-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+  max-width: 100%;
+}
+
+.user-image {
+  display: inline-block;
+  line-height: 0;
+  min-width: 120px;
+  min-height: 80px;
+  border: 1px solid var(--rule-soft);
+  background-color: var(--bg-2);
+  background-image:
+    linear-gradient(
+      110deg,
+      transparent 30%,
+      color-mix(in srgb, var(--panel-2) 75%, var(--bg-2)) 48%,
+      color-mix(in srgb, var(--panel-2) 85%, var(--bg-2)) 50%,
+      color-mix(in srgb, var(--panel-2) 75%, var(--bg-2)) 52%,
+      transparent 70%
+    );
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  background-position: 140% 0;
+  animation: bieneImgShimmer 1.1s linear infinite;
+  overflow: hidden;
+  transition: border-color .12s;
+}
+
+.user-image.is-loaded {
+  min-width: 0;
+  min-height: 0;
+  background-image: none;
+  background-color: var(--panel-2);
+  animation: none;
+}
+
+.user-image:hover {
+  border-color: var(--rule);
+}
+
+.user-image img {
+  display: block;
+  max-width: 240px;
+  max-height: 240px;
+  height: auto;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity .22s ease-out;
+}
+
+.user-image.is-loaded img {
+  opacity: 1;
+}
+
+@keyframes bieneImgShimmer {
+  0%   { background-position: 140% 0; }
+  100% { background-position: -40% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-image { animation: none; }
+  .user-image img { transition: none; }
 }
 
 .user-text {

@@ -208,13 +208,40 @@ func (s *Session) applyEvent(ev agentloop.Event) {
 	}
 }
 
-// SnapshotHistory returns a copy of the current history (safe for JSON encoding).
-func (s *Session) SnapshotHistory() []DisplayMessage {
+// HistoryPage returns up to limit messages older than the message with id
+// before. An empty before starts from the tail (most recent). The returned
+// slice is in chronological order (oldest first). hasMore reports whether
+// additional messages still precede the oldest one returned.
+func (s *Session) HistoryPage(before string, limit int) ([]DisplayMessage, bool) {
+	if limit <= 0 {
+		limit = 50
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	out := make([]DisplayMessage, len(s.history))
-	copy(out, s.history)
+	end := len(s.history)
+	if before != "" {
+		for i := end - 1; i >= 0; i-- {
+			if s.history[i].ID == before {
+				end = i
+				break
+			}
+		}
+	}
+
+	start := end - limit
+	if start < 0 {
+		start = 0
+	}
+	out := s.cloneHistoryRangeLocked(start, end)
+	return out, start > 0
+}
+
+// cloneHistoryRangeLocked returns a deep-ish copy of s.history[start:end]
+// safe for JSON encoding. Caller must hold s.mu.
+func (s *Session) cloneHistoryRangeLocked(start, end int) []DisplayMessage {
+	out := make([]DisplayMessage, end-start)
+	copy(out, s.history[start:end])
 	for i := range out {
 		if out[i].AgentMeta != nil {
 			out[i].AgentMeta = cloneAgentMessageMeta(out[i].AgentMeta)
@@ -234,6 +261,13 @@ func (s *Session) SnapshotHistory() []DisplayMessage {
 		}
 	}
 	return out
+}
+
+// SnapshotHistory returns a copy of the current history (safe for JSON encoding).
+func (s *Session) SnapshotHistory() []DisplayMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cloneHistoryRangeLocked(0, len(s.history))
 }
 
 // cloneAgentMessageMeta returns a shallow copy of meta, or nil.

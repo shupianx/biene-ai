@@ -28,9 +28,13 @@ export interface AgentSession {
   activeSkills: string[]
   processState: ProcessStateData | null
   _historyLoaded: boolean
+  hasMoreHistory: boolean
+  isLoadingMoreHistory: boolean
   // cleanup fn returned by connectWS
   _disconnect: (() => void) | null
 }
+
+const HISTORY_PAGE_SIZE = 50
 
 interface AttachOptions {
   loadHistory?: boolean
@@ -126,17 +130,44 @@ export const useSessionsStore = defineStore('sessions', () => {
     const sess = sessions.value[id]
     if (!sess || sess._historyLoaded) return
 
-    const history = await getSessionHistory(id)
+    const page = await getSessionHistory(id, { limit: HISTORY_PAGE_SIZE })
     const liveMessages = sess.messages
-    const knownIDs = new Set(history.map((msg) => msg.id))
+    const knownIDs = new Set(page.messages.map((msg) => msg.id))
 
-    sess.messages = history
+    sess.messages = page.messages
     for (const msg of liveMessages) {
       if (!knownIDs.has(msg.id)) {
         sess.messages.push(msg)
       }
     }
     sess._historyLoaded = true
+    sess.hasMoreHistory = page.has_more
+  }
+
+  async function loadMoreHistory(id: string) {
+    const sess = sessions.value[id]
+    if (!sess || !sess._historyLoaded) return
+    if (!sess.hasMoreHistory || sess.isLoadingMoreHistory) return
+    const oldest = sess.messages[0]
+    if (!oldest) return
+
+    sess.isLoadingMoreHistory = true
+    try {
+      const page = await getSessionHistory(id, {
+        before: oldest.id,
+        limit: HISTORY_PAGE_SIZE,
+      })
+      const existingIDs = new Set(sess.messages.map((m) => m.id))
+      const older = page.messages.filter((m) => !existingIDs.has(m.id))
+      if (older.length > 0) {
+        sess.messages = [...older, ...sess.messages]
+      }
+      sess.hasMoreHistory = page.has_more
+    } catch (err) {
+      console.error(`[loadMoreHistory] ${id}:`, err)
+    } finally {
+      sess.isLoadingMoreHistory = false
+    }
   }
 
   // ── Create / delete ───────────────────────────────────────────────────────
@@ -169,7 +200,7 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   // ── Messaging ─────────────────────────────────────────────────────────────
 
-  async function sendMessage(sessionId: string, text: string) {
+  async function sendMessage(sessionId: string, text: string, files: File[] = []) {
     const sess = sessions.value[sessionId]
     if (!sess || sess.isStreaming) {
       console.warn(`[sendMessage] blocked: sess=${!!sess}, isStreaming=${sess?.isStreaming}`)
@@ -180,12 +211,11 @@ export const useSessionsStore = defineStore('sessions', () => {
     sess.isStreaming = true
     sess.messages.push({ id: messageId, role: 'user', text, created_at: createdAt, tool_calls: [] })
     try {
-      await apiSend(
-        sessionId,
-        text,
-        messageId,
-        sess.meta.thinking_available ? Boolean(sess.meta.thinking_enabled) : undefined,
-      )
+      await apiSend(sessionId, text, {
+        clientMessageId: messageId,
+        thinkingEnabled: sess.meta.thinking_available ? Boolean(sess.meta.thinking_enabled) : undefined,
+        files,
+      })
       console.log(`[sendMessage] POST ok for ${sessionId}`)
     } catch (err) {
       console.error(`[sendMessage] POST failed for ${sessionId}:`, err)
@@ -279,6 +309,8 @@ export const useSessionsStore = defineStore('sessions', () => {
         activeSkills: [...(meta.active_skills ?? [])],
         processState: null,
         _historyLoaded: false,
+        hasMoreHistory: false,
+        isLoadingMoreHistory: false,
         _disconnect: null,
       }
       sessions.value[meta.id] = sess
@@ -315,8 +347,13 @@ export const useSessionsStore = defineStore('sessions', () => {
       onMessageAdded({ message }) {
         const s = sessions.value[id]
         if (!s) return
-        // Avoid duplicates (the sender already appended the message optimistically).
-        if (!s.messages.find(m => m.id === message.id)) {
+        // The sender may have optimistically appended the message locally with
+        // just the text. Merge the server's authoritative version (which
+        // includes attachments, author metadata, etc.) into that slot.
+        const existingIdx = s.messages.findIndex(m => m.id === message.id)
+        if (existingIdx >= 0) {
+          s.messages[existingIdx] = { ...s.messages[existingIdx], ...message }
+        } else {
           s.messages.push(message)
         }
         s.isStreaming = true
@@ -455,7 +492,7 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   return {
     sessions, sessionList,
-    init, refresh, syncSession, upsertSessionMeta, removeSessionLocal, ensureSession, ensureHistory, create, update, remove,
+    init, refresh, syncSession, upsertSessionMeta, removeSessionLocal, ensureSession, ensureHistory, loadMoreHistory, create, update, remove,
     sendMessage, setThinkingEnabled, interrupt, resolvePermission,
     stopProcess,
   }

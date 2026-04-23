@@ -120,6 +120,14 @@ export interface AgentMessageMeta {
   in_reply_to?: string
 }
 
+export interface DisplayAttachment {
+  name: string
+  path: string
+  size: number
+  kind?: 'image' | ''
+  media_type?: string
+}
+
 export interface DisplayMessage {
   id: string
   role: 'user' | 'assistant'
@@ -132,18 +140,61 @@ export interface DisplayMessage {
   streaming?: boolean
   tool_calls?: DisplayTool[]
   reasoning?: DisplayReasoning
+  attachments?: DisplayAttachment[]
 }
 
-export function getSessionHistory(sessionId: string) {
-  return get<DisplayMessage[]>(`/api/sessions/${sessionId}/history`)
+export interface HistoryPage {
+  messages: DisplayMessage[]
+  has_more: boolean
 }
 
-export function sendMessage(sessionId: string, text: string, clientMessageId?: string, thinkingEnabled?: boolean) {
-  return post<{ ok: boolean }>(`/api/sessions/${sessionId}/send`, {
-    text,
-    client_message_id: clientMessageId,
-    thinking_enabled: thinkingEnabled,
-  })
+export function getSessionHistory(
+  sessionId: string,
+  options?: { before?: string; limit?: number },
+) {
+  const params = new URLSearchParams()
+  if (options?.before) params.set('before', options.before)
+  if (options?.limit != null) params.set('limit', String(options.limit))
+  const qs = params.toString()
+  const path = `/api/sessions/${sessionId}/history${qs ? `?${qs}` : ''}`
+  return get<HistoryPage>(path)
+}
+
+export function sendMessage(
+  sessionId: string,
+  text: string,
+  options?: {
+    clientMessageId?: string
+    thinkingEnabled?: boolean
+    files?: File[]
+  },
+) {
+  const files = options?.files ?? []
+  if (files.length === 0) {
+    return post<{ ok: boolean }>(`/api/sessions/${sessionId}/send`, {
+      text,
+      client_message_id: options?.clientMessageId,
+      thinking_enabled: options?.thinkingEnabled,
+    })
+  }
+  const form = new FormData()
+  form.append('text', text)
+  if (options?.clientMessageId) form.append('client_message_id', options.clientMessageId)
+  if (options?.thinkingEnabled !== undefined) form.append('thinking_enabled', String(options.thinkingEnabled))
+  for (const file of files) {
+    form.append('files', file, file.name)
+  }
+  return post<{ ok: boolean }>(`/api/sessions/${sessionId}/send`, form)
+}
+
+// Build a URL that serves a chat-level asset (e.g. a user-uploaded image)
+// from the session's .biene/assets/user/ directory. Asset routes are
+// exempted from the auth middleware on the server side (see isPublicAssetPath
+// in server.go) so the URL stays clean for "open in external browser" —
+// path entropy plus CORS are the actual safeguard.
+export function sessionAssetURL(sessionId: string, attachmentPath: string) {
+  const basename = attachmentPath.split('/').pop() ?? ''
+  return buildCoreUrl(`/api/sessions/${sessionId}/assets/${encodeURIComponent(basename)}`)
 }
 
 export function setThinkingEnabled(sessionId: string, enabled: boolean) {

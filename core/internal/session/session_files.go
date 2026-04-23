@@ -2,12 +2,16 @@ package session
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"biene/internal/api"
 	"biene/internal/tools"
 )
 
@@ -19,6 +23,18 @@ func displayTextForInput(authorType, text string, attachments []DisplayAttachmen
 		return trimmed
 	}
 	if len(attachments) == 0 {
+		return ""
+	}
+	// Pure image uploads read better without placeholder text — the thumbnails
+	// speak for themselves.
+	hasNonImage := false
+	for _, a := range attachments {
+		if a.Kind != "image" {
+			hasNonImage = true
+			break
+		}
+	}
+	if !hasNonImage {
 		return ""
 	}
 	if authorType == authorTypeAgent {
@@ -58,7 +74,17 @@ func buildInputText(authorType, authorID, authorName, text string, attachments [
 		sb.WriteString(trimmed)
 	}
 
-	if len(attachments) > 0 {
+	// Image attachments reach the model through a visual content channel;
+	// do not advertise them here as file paths for the model to read_file.
+	var fileAtts []DisplayAttachment
+	for _, att := range attachments {
+		if att.Kind == "image" {
+			continue
+		}
+		fileAtts = append(fileAtts, att)
+	}
+
+	if len(fileAtts) > 0 {
 		if sb.Len() > 0 {
 			sb.WriteString("\n\n")
 		}
@@ -67,7 +93,7 @@ func buildInputText(authorType, authorID, authorName, text string, attachments [
 		} else {
 			sb.WriteString("Files uploaded to your workspace:\n")
 		}
-		for _, att := range attachments {
+		for _, att := range fileAtts {
 			fmt.Fprintf(&sb, "- %s (%d bytes)\n", att.Path, att.Size)
 		}
 	}
@@ -97,8 +123,9 @@ func attachmentPaths(atts []DisplayAttachment) []string {
 // ── File upload / copy ────────────────────────────────────────────────────
 
 type UploadedFile struct {
-	Name string
-	Data []byte
+	Name      string
+	Data      []byte
+	MediaType string
 }
 
 func ReadUploadedFile(name string, r io.Reader) (UploadedFile, error) {
@@ -109,10 +136,164 @@ func ReadUploadedFile(name string, r io.Reader) (UploadedFile, error) {
 	return UploadedFile{Name: name, Data: data}, nil
 }
 
+// IsImageMediaType reports whether the given MIME type is an image the UI and
+// providers should treat as inline visual content.
+func IsImageMediaType(mediaType string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(mediaType)), "image/")
+}
+
+// hydrateImageBlocks returns a copy of msgs where every ImageBlock with an
+// empty Data field has been populated from disk (relative to workDir). Only
+// messages containing images get fresh Content slices; others are shared
+// with the input to avoid extra allocations. An image that fails to load is
+// replaced with a text placeholder so a missing file never aborts a run.
+func hydrateImageBlocks(msgs []api.Message, workDir string) []api.Message {
+	out := make([]api.Message, len(msgs))
+	for i, m := range msgs {
+		out[i] = m
+		needs := false
+		for _, b := range m.Content {
+			if img, ok := b.(api.ImageBlock); ok && len(img.Data) == 0 {
+				needs = true
+				break
+			}
+		}
+		if !needs {
+			continue
+		}
+		fresh := make([]api.ContentBlock, len(m.Content))
+		for j, b := range m.Content {
+			img, ok := b.(api.ImageBlock)
+			if !ok || len(img.Data) > 0 {
+				fresh[j] = b
+				continue
+			}
+			absPath, err := resolveWorkspaceChild(workDir, img.Path)
+			if err != nil {
+				fresh[j] = api.TextBlock{Text: fmt.Sprintf("[image unavailable: %s]", img.Path)}
+				continue
+			}
+			data, err := os.ReadFile(absPath)
+			if err != nil {
+				fresh[j] = api.TextBlock{Text: fmt.Sprintf("[image unavailable: %s]", img.Path)}
+				continue
+			}
+			img.Data = data
+			fresh[j] = img
+		}
+		out[i].Content = fresh
+	}
+	return out
+}
+
+// stripImageBlockData zeroes the transient Data on any ImageBlock in msgs so
+// the long-lived in-memory conversation history does not retain raw image
+// bytes. It is safe to call on slices returned by hydrateImageBlocks because
+// those slices were freshly allocated — originating slices from before the
+// run are untouched (their ImageBlocks already had empty Data).
+func stripImageBlockData(msgs []api.Message) {
+	for i := range msgs {
+		for j, b := range msgs[i].Content {
+			if img, ok := b.(api.ImageBlock); ok && len(img.Data) > 0 {
+				img.Data = nil
+				msgs[i].Content[j] = img
+			}
+		}
+	}
+}
+
+// resolveWorkspaceChild joins workDir with a known-internal relative path
+// (stored by us, not supplied by a tool) and validates the result stays
+// inside workDir. Separate from ResolveWorkspacePath because the .biene
+// guard does not apply to internal state reads.
+func resolveWorkspaceChild(workDir, relPath string) (string, error) {
+	if relPath == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	rootAbs, err := filepath.Abs(workDir)
+	if err != nil {
+		return "", err
+	}
+	target := filepath.Join(rootAbs, filepath.FromSlash(relPath))
+	targetAbs, err := filepath.Abs(target)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(rootAbs, targetAbs)
+	if err != nil {
+		return "", err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q escapes workspace", relPath)
+	}
+	return targetAbs, nil
+}
+
+// StoreUploadedImage persists a single image under .biene/assets/user/ using
+// an opaque timestamp-based filename (originals are discarded since nothing
+// references them by name). Returns a DisplayAttachment with Kind="image".
+func StoreUploadedImage(workDir string, img UploadedFile) (DisplayAttachment, error) {
+	destDir := filepath.Join(workDir, UserAssetsSubdir)
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return DisplayAttachment{}, fmt.Errorf("creating assets directory: %w", err)
+	}
+
+	ext := extensionForMediaType(img.MediaType)
+	if ext == "" {
+		ext = filepath.Ext(img.Name)
+	}
+	filename := newAssetFilename(ext)
+	absPath := filepath.Join(destDir, filename)
+	if err := os.WriteFile(absPath, img.Data, 0o644); err != nil {
+		return DisplayAttachment{}, fmt.Errorf("saving image: %w", err)
+	}
+
+	displayName := strings.TrimSpace(img.Name)
+	return DisplayAttachment{
+		Name:      displayName,
+		Path:      filepath.ToSlash(filepath.Join(UserAssetsSubdir, filename)),
+		Size:      int64(len(img.Data)),
+		Kind:      "image",
+		MediaType: img.MediaType,
+	}, nil
+}
+
+func newAssetFilename(ext string) string {
+	var suffix [2]byte
+	_, _ = rand.Read(suffix[:])
+	stamp := time.Now().Format("2006-01-02_15-04-05")
+	return fmt.Sprintf("%s_%s%s", stamp, hex.EncodeToString(suffix[:]), ext)
+}
+
+func extensionForMediaType(mediaType string) string {
+	switch strings.ToLower(strings.TrimSpace(mediaType)) {
+	case "image/png":
+		return ".png"
+	case "image/jpeg", "image/jpg":
+		return ".jpg"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	}
+	return ""
+}
+
 // UserUploadSubdir is where files uploaded by the user land inside a session's
 // workspace. Using a dedicated folder under inbox/ keeps user and agent
 // deliveries consistent in layout.
 const UserUploadSubdir = "inbox/user"
+
+// UserAssetsSubdir holds chat-level artifacts (pasted/uploaded images) that
+// belong to the conversation rather than the agent's working material. The
+// .biene/ namespace is reserved for session-owned state and is hidden from
+// the tool layer via ResolveWorkspacePath's guard.
+const UserAssetsSubdir = ".biene/assets/user"
+
+// BieneReservedDir is the top-level directory under a session workspace that
+// holds chat-level / internal state (assets, metadata). File tools are not
+// permitted to read or write anywhere under this prefix.
+const BieneReservedDir = ".biene"
 
 // AgentInboxSubdir builds the subdirectory where files from the given source
 // agent should be stored in the receiver's workspace.
@@ -327,5 +508,36 @@ func ResolveWorkspacePath(rootDir, requestedPath string) (string, string, error)
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", "", fmt.Errorf("path %q escapes workspace root", requestedPath)
 	}
+	if rel == BieneReservedDir || strings.HasPrefix(rel, BieneReservedDir+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("path %q is reserved for session state", requestedPath)
+	}
 	return targetAbs, filepath.ToSlash(rel), nil
+}
+
+// ResolveSessionAssetPath resolves a path that must live under the session's
+// asset directory. Unlike ResolveWorkspacePath it deliberately allows paths
+// inside BieneReservedDir — it is used by the HTTP layer to serve user-
+// uploaded images to the renderer, never by agent tools.
+func ResolveSessionAssetPath(rootDir, requestedPath string) (string, error) {
+	if requestedPath == "" {
+		return "", fmt.Errorf("path is required")
+	}
+	rootAbs, err := filepath.Abs(rootDir)
+	if err != nil {
+		return "", err
+	}
+	assetRoot := filepath.Join(rootAbs, filepath.FromSlash(UserAssetsSubdir))
+	target := filepath.Join(assetRoot, filepath.FromSlash(requestedPath))
+	targetAbs, err := filepath.Abs(target)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(assetRoot, targetAbs)
+	if err != nil {
+		return "", err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q escapes assets directory", requestedPath)
+	}
+	return targetAbs, nil
 }

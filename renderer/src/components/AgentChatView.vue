@@ -34,10 +34,18 @@
           <span class="empty-dir-path">{{ session.meta.work_dir }}</span>
         </p>
       </div>
+      <div
+        v-if="session.hasMoreHistory || session.isLoadingMoreHistory"
+        ref="topSentinelRef"
+        class="history-sentinel"
+      >
+        <span v-if="session.isLoadingMoreHistory" class="history-spinner" aria-hidden="true" />
+      </div>
       <MessageItem
         v-for="msg in session.messages"
         :key="msg.id"
         :msg="msg"
+        :session-id="session.meta.id"
       />
       <PermissionDialog
         v-if="session.pendingPermission"
@@ -113,11 +121,13 @@ const USER_IDLE_MS = 300
 const store = useSessionsStore()
 const listRef = ref<HTMLElement | null>(null)
 const inputOverlayRef = ref<HTMLElement | null>(null)
+const topSentinelRef = ref<HTMLElement | null>(null)
 const inputOverlayHeight = ref(112)
 const isUserInteracting = ref(false)
 const pendingAutoScroll = ref(false)
 const lastDistanceToBottom = ref(0)
 let inputOverlayResizeObserver: ResizeObserver | null = null
+let topSentinelObserver: IntersectionObserver | null = null
 let interactionTimer: number | null = null
 
 const statusTone = computed(() => getSessionStatusTone(props.session))
@@ -247,8 +257,58 @@ function onListScroll() {
   syncDistanceToBottom()
 }
 
-function onSend(text: string) {
-  store.sendMessage(props.session.meta.id, text)
+async function triggerLoadMoreHistory() {
+  const sess = props.session
+  if (!sess.hasMoreHistory || sess.isLoadingMoreHistory) return
+  const el = listRef.value
+  if (!el) return
+  // Scroll preservation: anchor on the distance from the current scrollTop
+  // to the bottom. After prepending older messages, restore that distance
+  // so the viewport stays on the same content instead of snapping upward.
+  const anchorFromBottom = el.scrollHeight - el.scrollTop
+  await store.loadMoreHistory(sess.meta.id)
+  await nextTick()
+  if (!listRef.value) return
+  listRef.value.scrollTop = listRef.value.scrollHeight - anchorFromBottom
+  syncDistanceToBottom()
+}
+
+function setupTopSentinelObserver() {
+  topSentinelObserver?.disconnect()
+  topSentinelObserver = null
+  const sentinel = topSentinelRef.value
+  const root = listRef.value
+  if (!sentinel || !root || typeof IntersectionObserver === 'undefined') return
+  topSentinelObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          void triggerLoadMoreHistory()
+          break
+        }
+      }
+    },
+    { root, rootMargin: '160px 0px 0px 0px', threshold: 0 },
+  )
+  topSentinelObserver.observe(sentinel)
+}
+
+watch(
+  [
+    () => props.session.hasMoreHistory,
+    () => props.session._historyLoaded,
+    () => props.session.meta.id,
+  ],
+  () => {
+    nextTick(() => {
+      setupTopSentinelObserver()
+    })
+  },
+  { immediate: true },
+)
+
+function onSend(payload: { text: string; files: File[] }) {
+  store.sendMessage(props.session.meta.id, payload.text, payload.files)
   pendingAutoScroll.value = false
   nextTick(() => {
     scrollToBottom()
@@ -309,6 +369,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   inputOverlayResizeObserver?.disconnect()
   inputOverlayResizeObserver = null
+  topSentinelObserver?.disconnect()
+  topSentinelObserver = null
   clearInteractionTimer()
   window.removeEventListener('keydown', onWindowKeydown, true)
 })
@@ -502,6 +564,22 @@ watch(inputOverlayHeight, () => {
   padding: 4px 28px calc(var(--input-overlay-height) + 20px);
   scrollbar-width: thin;
   scrollbar-color: var(--rule-soft) transparent;
+}
+
+.history-sentinel {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0 4px;
+  min-height: 20px;
+}
+
+.history-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid color-mix(in srgb, var(--ink) 14%, transparent);
+  border-top-color: var(--ink-3);
+  animation: bieneSpin 0.8s linear infinite;
 }
 
 .message-list::-webkit-scrollbar {

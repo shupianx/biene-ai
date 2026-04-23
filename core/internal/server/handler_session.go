@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"biene/internal/prompt"
@@ -117,13 +118,26 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleSessionHistory returns the full display history for a session.
-// Used by clients reconnecting after a page refresh or tab reopen.
-// GET /api/sessions/{id}/history
+// handleSessionHistory returns a page of display messages. Clients paginate
+// from newest to oldest by passing the id of the earliest message they
+// already have as ?before=. Omit ?before= to fetch the most recent page.
+// GET /api/sessions/{id}/history?before=<msg_id>&limit=50
 func (s *Server) handleSessionHistory(w http.ResponseWriter, r *http.Request) {
 	sess := s.lookupSession(w, r)
 	if sess == nil {
 		return
 	}
-	writeJSON(w, http.StatusOK, sess.SnapshotHistory())
+
+	before := strings.TrimSpace(r.URL.Query().Get("before"))
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	messages, hasMore := sess.HistoryPage(before, limit)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"messages": messages,
+		"has_more": hasMore,
+	})
 }

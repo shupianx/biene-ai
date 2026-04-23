@@ -55,6 +55,18 @@ type ToolResultBlock struct {
 
 func (ToolResultBlock) blockType() string { return "tool_result" }
 
+// ImageBlock carries an inline image attached to a user turn. Path is
+// relative to the owning session's workspace and is what gets persisted;
+// Data is the raw image bytes and is populated transiently by the caller
+// just before handing the message to a provider, so DB rows stay small.
+type ImageBlock struct {
+	Path      string
+	MediaType string
+	Data      []byte
+}
+
+func (ImageBlock) blockType() string { return "image" }
+
 // Message is a single turn in the conversation history.
 type Message struct {
 	Role    string

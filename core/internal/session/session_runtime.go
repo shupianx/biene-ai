@@ -86,7 +86,9 @@ func (s *Session) close() {
 // ── Input enqueueing ──────────────────────────────────────────────────────
 
 // EnqueueUserInput appends a user-authored message and triggers the next run when idle.
-func (s *Session) EnqueueUserInput(text string, attachments []DisplayAttachment, messageID string) {
+// images is optional: each entry must have Path and MediaType set (Data is
+// loaded lazily from disk before every provider call).
+func (s *Session) EnqueueUserInput(text string, attachments []DisplayAttachment, images []api.ImageBlock, messageID string) {
 	if messageID == "" {
 		messageID = newMsgID()
 	}
@@ -102,9 +104,19 @@ func (s *Session) EnqueueUserInput(text string, attachments []DisplayAttachment,
 	}
 
 	modelText := buildInputText(authorTypeUser, "", "", text, attachments, nil)
+	content := make([]api.ContentBlock, 0, 1+len(images))
+	if modelText != "" {
+		content = append(content, api.TextBlock{Text: modelText})
+	}
+	for _, img := range images {
+		content = append(content, img)
+	}
+	if len(content) == 0 {
+		return
+	}
 	s.enqueueInput(display, api.Message{
 		Role:    api.RoleUser,
-		Content: []api.ContentBlock{api.TextBlock{Text: modelText}},
+		Content: content,
 	})
 }
 
@@ -173,7 +185,7 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 	s.send(makeFrame("status", statusPayload{Status: s.Status}))
 	meta := s.metaLocked()
 
-	messages := append([]api.Message(nil), s.apiMessages...)
+	messages := hydrateImageBlocks(s.apiMessages, s.WorkDir)
 	registry, _ := registryForToolMode(s.registry, s.toolMode)
 	installedSkills := resolveSkillsForPrompt(s.WorkDir)
 	systemPrompt := prompt.Build(registry, s.WorkDir, s.profile, prompt.AgentIdentity{
@@ -299,6 +311,7 @@ func (s *Session) finishRun(cfg *agentloop.Config, hadError bool, interrupted bo
 	}
 
 	if !interrupted {
+		stripImageBlockData(cfg.Messages)
 		s.apiMessages = cfg.Messages
 	}
 	s.cancelQuery = nil

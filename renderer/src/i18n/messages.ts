@@ -91,6 +91,8 @@ export const messages = {
       placeholder: 'Message this agent… (⇧+⏎ newline, ⏎ send)',
       send: 'Send',
       thinkingToggle: 'Thinking Mode',
+      attachImage: 'Attach image',
+      removeImage: 'Remove image',
     },
     process: {
       logs: 'Logs',
@@ -364,6 +366,8 @@ export const messages = {
       placeholder: '向这个智能体发送消息…（⇧+⏎ 换行，⏎ 发送）',
       send: '发送',
       thinkingToggle: '思考模式',
+      attachImage: '添加图片',
+      removeImage: '移除图片',
     },
     process: {
       logs: '日志',

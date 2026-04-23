@@ -82,6 +82,7 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("POST /api/sessions/{id}/settings", s.handleUpdateSession)
 	mux.HandleFunc("GET /api/sessions/{id}/history", s.handleSessionHistory)
 	mux.HandleFunc("GET /api/sessions/{id}/file", s.handleSessionFile)
+	mux.HandleFunc("GET /api/sessions/{id}/assets/{path...}", s.handleSessionAsset)
 
 	// Per-session chat + realtime events
 	mux.HandleFunc("GET /api/sessions/{id}/ws", s.handleChatWebSocket)
@@ -140,6 +141,10 @@ func authMiddleware(token string, next http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isPublicAssetPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		provided := r.Header.Get(authHeaderName)
 		if provided == "" {
 			provided = r.URL.Query().Get("token")
@@ -150,6 +155,25 @@ func authMiddleware(token string, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isPublicAssetPath identifies chat-level assets (user-uploaded images)
+// that are safe to serve without the shared token. The session ID plus the
+// opaque timestamped filename carry enough entropy (~2^64 combined) that
+// path guessing is not a practical threat, and CORS prevents cross-origin
+// JavaScript from reading the bytes. This keeps "open image in external
+// browser" URLs free of the auth token.
+func isPublicAssetPath(urlPath string) bool {
+	const prefix = "/api/sessions/"
+	if !strings.HasPrefix(urlPath, prefix) {
+		return false
+	}
+	rest := urlPath[len(prefix):]
+	slash := strings.IndexByte(rest, '/')
+	if slash <= 0 {
+		return false
+	}
+	return strings.HasPrefix(rest[slash:], "/assets/")
 }
 
 func tokenMatches(expected, provided string) bool {

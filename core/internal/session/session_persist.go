@@ -28,6 +28,8 @@ type storedBlock struct {
 	ToolUseID string          `json:"tool_use_id,omitempty"`
 	Content   string          `json:"content,omitempty"`
 	IsError   bool            `json:"is_error,omitempty"`
+	Path      string          `json:"path,omitempty"`
+	MediaType string          `json:"media_type,omitempty"`
 }
 
 func marshalAPIMessage(m api.Message) (json.RawMessage, error) {
@@ -43,6 +45,8 @@ func marshalAPIMessage(m api.Message) (json.RawMessage, error) {
 			b = storedBlock{Type: "tool_use", ID: v.ID, Name: v.Name, Input: v.Input}
 		case api.ToolResultBlock:
 			b = storedBlock{Type: "tool_result", ToolUseID: v.ToolUseID, Content: v.Content, IsError: v.IsError}
+		case api.ImageBlock:
+			b = storedBlock{Type: "image", Path: v.Path, MediaType: v.MediaType}
 		default:
 			continue
 		}
@@ -67,6 +71,8 @@ func unmarshalAPIMessage(raw json.RawMessage) (api.Message, error) {
 			m.Content = append(m.Content, api.ToolUseBlock{ID: b.ID, Name: b.Name, Input: b.Input})
 		case "tool_result":
 			m.Content = append(m.Content, api.ToolResultBlock{ToolUseID: b.ToolUseID, Content: b.Content, IsError: b.IsError})
+		case "image":
+			m.Content = append(m.Content, api.ImageBlock{Path: b.Path, MediaType: b.MediaType})
 		}
 	}
 	return m, nil

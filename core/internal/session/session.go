@@ -33,11 +33,15 @@ const (
 	authorTypeAgent = "agent"
 )
 
-// DisplayAttachment is a file rendered alongside a chat message.
+// DisplayAttachment is a file rendered alongside a chat message. Kind
+// distinguishes regular file uploads (routed to inbox/) from inline images
+// stored under .biene/assets/ and rendered as thumbnails.
 type DisplayAttachment struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
-	Size int64  `json:"size"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Size      int64  `json:"size"`
+	Kind      string `json:"kind,omitempty"` // "image" or "" (file)
+	MediaType string `json:"media_type,omitempty"`
 }
 
 // DisplayReasoning stores a persisted reasoning trace for one assistant message.

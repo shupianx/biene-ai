@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -169,6 +170,14 @@ func convertMessagesToAnthropic(msgs []Message) ([]anthropic.BetaMessageParam, e
 				blocks = append(blocks, anthropic.NewBetaToolUseBlock(v.ID, v.Input, v.Name))
 			case ToolResultBlock:
 				blocks = append(blocks, anthropic.NewBetaToolResultBlock(v.ToolUseID, v.Content, v.IsError))
+			case ImageBlock:
+				if len(v.Data) == 0 {
+					continue
+				}
+				blocks = append(blocks, anthropic.NewBetaImageBlock(anthropic.BetaBase64ImageSourceParam{
+					Data:      base64.StdEncoding.EncodeToString(v.Data),
+					MediaType: anthropic.BetaBase64ImageSourceMediaType(v.MediaType),
+				}))
 			default:
 				return nil, fmt.Errorf("unknown content block type: %T", b)
 			}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"biene/internal/api"
 	"biene/internal/session"
 )
 
@@ -44,10 +45,36 @@ func (s *Server) handleChatSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attachments, err := session.StoreUploadedFiles(sess.WorkDir, input.Files)
+	var (
+		fileUploads  []session.UploadedFile
+		imageUploads []session.UploadedFile
+	)
+	for _, f := range input.Files {
+		if session.IsImageMediaType(f.MediaType) {
+			imageUploads = append(imageUploads, f)
+		} else {
+			fileUploads = append(fileUploads, f)
+		}
+	}
+
+	attachments, err := session.StoreUploadedFiles(sess.WorkDir, fileUploads)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	var imageBlocks []api.ImageBlock
+	for _, img := range imageUploads {
+		att, err := session.StoreUploadedImage(sess.WorkDir, img)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		attachments = append(attachments, att)
+		imageBlocks = append(imageBlocks, api.ImageBlock{
+			Path:      att.Path,
+			MediaType: att.MediaType,
+		})
 	}
 
 	if input.ThinkingEnabled != nil {
@@ -57,7 +84,7 @@ func (s *Server) handleChatSend(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	sess.EnqueueUserInput(input.Text, attachments, input.ClientMessageID)
+	sess.EnqueueUserInput(input.Text, attachments, imageBlocks, input.ClientMessageID)
 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
@@ -172,5 +199,13 @@ func readMultipartFile(header *multipart.FileHeader) (session.UploadedFile, erro
 		return session.UploadedFile{}, err
 	}
 	defer f.Close()
-	return session.ReadUploadedFile(header.Filename, f)
+	uploaded, err := session.ReadUploadedFile(header.Filename, f)
+	if err != nil {
+		return session.UploadedFile{}, err
+	}
+	uploaded.MediaType = strings.ToLower(strings.TrimSpace(header.Header.Get("Content-Type")))
+	if uploaded.MediaType == "" || uploaded.MediaType == "application/octet-stream" {
+		uploaded.MediaType = http.DetectContentType(uploaded.Data)
+	}
+	return uploaded, nil
 }
