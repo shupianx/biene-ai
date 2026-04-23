@@ -2,41 +2,6 @@ package config
 
 import "testing"
 
-func TestNormalizeMigratesLegacyDefaultModelNameToID(t *testing.T) {
-	cfg := &Config{
-		DefaultModel: "Main Provider",
-		ModelList: []ModelEntry{
-			{
-				Name:     "Main Provider",
-				Provider: "anthropic",
-				Model:    "claude-opus-4-6",
-			},
-			{
-				Name:     "Backup",
-				Provider: "openai",
-				Model:    "gpt-5",
-			},
-		},
-	}
-
-	changed := Normalize(cfg)
-	if !changed {
-		t.Fatalf("expected normalization to update legacy config")
-	}
-	if cfg.ModelList[0].ID != "main-provider" {
-		t.Fatalf("expected first id to be derived from name, got %q", cfg.ModelList[0].ID)
-	}
-	if cfg.ModelList[1].ID != "backup" {
-		t.Fatalf("expected second id to be derived from name, got %q", cfg.ModelList[1].ID)
-	}
-	if cfg.DefaultModel != "main-provider" {
-		t.Fatalf("expected default model to use id, got %q", cfg.DefaultModel)
-	}
-	if cfg.ModelList[1].Provider != "openai_compatible" {
-		t.Fatalf("expected provider alias to normalize, got %q", cfg.ModelList[1].Provider)
-	}
-}
-
 func TestGetModelUsesID(t *testing.T) {
 	cfg := &Config{
 		DefaultModel: "main",

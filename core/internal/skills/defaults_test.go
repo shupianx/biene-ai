@@ -59,41 +59,6 @@ Use this skill.
 	}
 }
 
-func TestLoadGlobalSkillConfigMigratesLegacyDefaultSkillDir(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-
-	repositoryRoot, err := EnsureRepositoryRoot()
-	if err != nil {
-		t.Fatalf("EnsureRepositoryRoot returned error: %v", err)
-	}
-
-	legacyDir := filepath.Join(repositoryRoot, "triage")
-	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	configPath, err := bienehome.SkillConfigPath()
-	if err != nil {
-		t.Fatalf("SkillConfigPath returned error: %v", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(configPath, []byte("{\n  \"defaultSkillDir\": "+jsonString(legacyDir)+"\n}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := loadSkillRepositoryConfig()
-	if err != nil {
-		t.Fatalf("loadSkillRepositoryConfig returned error: %v", err)
-	}
-	if len(cfg.DefaultEnabledSkillDirs) != 1 || cfg.DefaultEnabledSkillDirs[0] != filepath.Clean(legacyDir) {
-		t.Fatalf("expected migrated legacy dir, got %#v", cfg.DefaultEnabledSkillDirs)
-	}
-}
-
 func jsonString(value string) string {
 	return `"` + value + `"`
 }

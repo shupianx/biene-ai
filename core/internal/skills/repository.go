@@ -47,7 +47,7 @@ func LoadRepositoryConfig() (RepositoryConfig, error) {
 // SaveRepositoryConfig writes the normalized skill repository config.
 func SaveRepositoryConfig(cfg RepositoryConfig) (RepositoryConfig, error) {
 	normalized := RepositoryConfig{
-		DefaultEnabledSkillDirs: normalizeDefaultEnabledSkillDirs(cfg.DefaultEnabledSkillDirs, ""),
+		DefaultEnabledSkillDirs: normalizeDefaultEnabledSkillDirs(cfg.DefaultEnabledSkillDirs),
 	}
 
 	path, err := bienehome.SkillConfigPath()

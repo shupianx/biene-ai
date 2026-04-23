@@ -8,7 +8,6 @@
     ]"
   >
     <div class="titlebar-brand">
-      <span class="brand-mark" aria-hidden="true">B</span>
       <span class="brand-name">BIENE</span>
       <span class="brand-divider" aria-hidden="true" />
       <span class="brand-context">{{ contextLabel }}</span>
@@ -101,21 +100,6 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
   display: inline-flex;
   align-items: center;
   gap: 10px;
-}
-
-.brand-mark {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--bg);
-  font-family: var(--mono);
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0;
-  flex-shrink: 0;
 }
 
 .brand-name {

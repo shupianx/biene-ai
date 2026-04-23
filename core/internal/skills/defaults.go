@@ -14,7 +14,6 @@ import (
 
 type skillRepositoryConfig struct {
 	DefaultEnabledSkillDirs []string `json:"defaultEnabledSkillDirs"`
-	DefaultSkillDir         string   `json:"defaultSkillDir,omitempty"`
 }
 
 func loadSkillRepositoryConfig() (skillRepositoryConfig, error) {
@@ -36,30 +35,25 @@ func loadSkillRepositoryConfig() (skillRepositoryConfig, error) {
 		return skillRepositoryConfig{}, err
 	}
 
-	cfg.DefaultEnabledSkillDirs = normalizeDefaultEnabledSkillDirs(cfg.DefaultEnabledSkillDirs, cfg.DefaultSkillDir)
+	cfg.DefaultEnabledSkillDirs = normalizeDefaultEnabledSkillDirs(cfg.DefaultEnabledSkillDirs)
 	return cfg, nil
 }
 
-func normalizeDefaultEnabledSkillDirs(items []string, legacy string) []string {
-	seen := make(map[string]struct{}, len(items)+1)
-	out := make([]string, 0, len(items)+1)
+func normalizeDefaultEnabledSkillDirs(items []string) []string {
+	seen := make(map[string]struct{}, len(items))
+	out := make([]string, 0, len(items))
 
-	add := func(value string) {
-		value = filepath.Clean(value)
+	for _, item := range items {
+		value := filepath.Clean(item)
 		if value == "." || value == "" {
-			return
+			continue
 		}
 		if _, ok := seen[value]; ok {
-			return
+			continue
 		}
 		seen[value] = struct{}{}
 		out = append(out, value)
 	}
-
-	for _, item := range items {
-		add(item)
-	}
-	add(legacy)
 	return out
 }
 

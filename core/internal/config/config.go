@@ -110,8 +110,7 @@ func Save(cfg *Config) error {
 	return nil
 }
 
-// Normalize fills defaults, migrates legacy name-based configs to id-based
-// configs, and rewrites provider/id fields into a stable shape.
+// Normalize fills defaults and rewrites provider/id fields into a stable shape.
 func Normalize(cfg *Config) bool {
 	if cfg == nil {
 		return false
@@ -122,7 +121,6 @@ func Normalize(cfg *Config) bool {
 		cfg.ModelList = []ModelEntry{}
 	}
 
-	legacyNameToID := make(map[string]string, len(cfg.ModelList))
 	usedIDs := make(map[string]struct{}, len(cfg.ModelList))
 	for i := range cfg.ModelList {
 		entry := &cfg.ModelList[i]
@@ -182,7 +180,6 @@ func Normalize(cfg *Config) bool {
 			entry.ID = id
 			changed = true
 		}
-		legacyNameToID[entry.Name] = entry.ID
 	}
 
 	defaultModel := strings.TrimSpace(cfg.DefaultModel)
@@ -205,9 +202,6 @@ func Normalize(cfg *Config) bool {
 		}
 	case hasModelID(cfg.ModelList, sanitizeModelID(defaultModel)):
 		cfg.DefaultModel = sanitizeModelID(defaultModel)
-		changed = true
-	case legacyNameToID[defaultModel] != "":
-		cfg.DefaultModel = legacyNameToID[defaultModel]
 		changed = true
 	default:
 		cfg.DefaultModel = cfg.ModelList[0].ID
