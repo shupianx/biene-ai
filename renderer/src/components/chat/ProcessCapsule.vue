@@ -122,8 +122,8 @@ function onStop() {
 .capsule-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 5px;
+  padding: 6px 5px 6px 10px;
   background: transparent;
   max-width: 100%;
   pointer-events: auto;
@@ -193,13 +193,13 @@ function onStop() {
   flex-shrink: 0;
   padding: 2px 10px;
   background: transparent;
-  border: 1px solid var(--rule-softer);
+  border: none;
   color: var(--ink-2);
   font: inherit;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background .12s, color .12s, border-color .12s;
+  transition: background .12s, color .12s;
 }
 
 .capsule-action.icon-only {
@@ -221,7 +221,6 @@ function onStop() {
 .capsule-action:hover:not(:disabled) {
   background: var(--bg-2);
   color: var(--ink);
-  border-color: var(--rule-soft);
 }
 
 .capsule-action:disabled {
@@ -231,12 +230,10 @@ function onStop() {
 
 .capsule-action.danger {
   color: var(--err);
-  border-color: color-mix(in srgb, var(--err) 40%, transparent);
 }
 
 .capsule-action.danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--err) 10%, transparent);
   color: var(--err);
-  border-color: var(--err);
 }
 </style>
