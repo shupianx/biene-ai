@@ -28,14 +28,7 @@
 
     <!-- Body -->
     <div class="body">
-      <div v-if="pendingPermLine" class="warn-line">
-        <CiOctagonWarning class="warn-icon" aria-hidden="true" />
-        <span>{{ pendingPermLine }}</span>
-      </div>
-
-      <div v-if="installFlash" class="install-flash" :class="installFlash.tone">
-        {{ installFlash.message }}
-      </div>
+      <NoticeBoard :stack="noticeStack" @expire="onNoticeExpire" />
 
       <div class="meta-row">
         <div class="status-tag" :class="statusTone">
@@ -75,6 +68,8 @@
 import { computed, ref } from 'vue'
 import CiOctagonWarning from '~icons/ci/octagon-warning'
 import MaterialSymbolsFolderSharp from '~icons/material-symbols/folder-sharp'
+import MaterialSymbolsCheck from '~icons/material-symbols/check'
+import MaterialSymbolsErrorCircle from '~icons/material-symbols/error-circle-rounded-outline-sharp'
 import type { AgentSession } from '../../stores/sessions'
 import { installSkillToSession } from '../../api/http'
 import { t } from '../../i18n'
@@ -84,6 +79,10 @@ import { getPermissionLabel } from '../../utils/permissions'
 import { formatMessageTime } from '../../utils/messageTime'
 import PopupMenu, { type PopupMenuEntry } from '../ui/PopupMenu.vue'
 import ConfirmModal from '../ui/ConfirmModal.vue'
+import NoticeBoard from '../ui/NoticeBoard.vue'
+import { createNoticeId, type Notice } from '../ui/notice'
+
+const TRANSIENT_TTL_MS = 2400
 
 const SKILL_MIME = 'application/biene-skill'
 
@@ -115,13 +114,33 @@ const shortDir = computed(() => {
   return parts[parts.length - 1]
 })
 
-const pendingPermLine = computed(() => {
+const permNotice = computed<Notice | null>(() => {
   const perm = props.session.pendingPermission
-  if (!perm) return ''
-  const label = getPermissionLabel(perm.permission)
+  if (!perm) return null
+  const label = t('permissions.requestLabel', {
+    label: getPermissionLabel(perm.permission),
+  })
   const tool = perm.tool_name ?? ''
-  return tool ? `${label} · ${tool}` : label
+  return {
+    id: 'perm',
+    tone: 'warn',
+    icon: CiOctagonWarning,
+    text: tool ? `${label} · ${tool}` : label,
+  }
 })
+
+const transients = ref<Notice[]>([])
+
+const noticeStack = computed<Notice[]>(() => {
+  const list: Notice[] = []
+  if (permNotice.value) list.push(permNotice.value)
+  list.push(...transients.value)
+  return list
+})
+
+function onNoticeExpire(id: string) {
+  transients.value = transients.value.filter(n => n.id !== id)
+}
 
 const updatedAt = computed(() => formatMessageTime(props.session.meta.last_active))
 
@@ -140,9 +159,7 @@ function onMenuSelect(key: string) {
 
 const dragDepth = ref(0)
 const installingSkill = ref(false)
-const installFlash = ref<{ tone: 'ok' | 'err'; message: string } | null>(null)
 const conflict = ref<{ skillId: string; skillName: string } | null>(null)
-let flashTimer: number | null = null
 
 const isDropTarget = computed(() => dragDepth.value > 0)
 
@@ -172,30 +189,25 @@ function onDragLeave(event: DragEvent) {
   dragDepth.value = Math.max(0, dragDepth.value - 1)
 }
 
-function scheduleFlashClear() {
-  if (flashTimer != null) window.clearTimeout(flashTimer)
-  flashTimer = window.setTimeout(() => {
-    installFlash.value = null
-    flashTimer = null
-  }, 2400)
-}
-
 async function performInstall(skillId: string) {
   installingSkill.value = true
-  installFlash.value = null
   try {
     const result = await installSkillToSession(props.session.meta.id, skillId)
-    installFlash.value = {
+    transients.value.push({
+      id: createNoticeId('ok'),
       tone: 'ok',
-      message: t('skillsBrowser.installSuccess', { name: result.skill_name }),
-    }
-    scheduleFlashClear()
+      icon: MaterialSymbolsCheck,
+      text: t('skillsBrowser.installSuccess', { name: result.skill_name }),
+      ttlMs: TRANSIENT_TTL_MS,
+    })
   } catch (error) {
-    installFlash.value = {
+    transients.value.push({
+      id: createNoticeId('err'),
       tone: 'err',
-      message: error instanceof Error ? error.message : String(error),
-    }
-    scheduleFlashClear()
+      icon: MaterialSymbolsErrorCircle,
+      text: error instanceof Error ? error.message : String(error),
+      ttlMs: TRANSIENT_TTL_MS,
+    })
   } finally {
     installingSkill.value = false
   }
@@ -301,24 +313,6 @@ async function onConflictConfirm() {
   cursor: progress;
 }
 
-.install-flash {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  padding: 4px 8px;
-  border: 1px solid currentColor;
-}
-
-.install-flash.ok {
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 10%, transparent);
-}
-
-.install-flash.err {
-  color: var(--err);
-  background: color-mix(in srgb, var(--err) 10%, transparent);
-}
-
 /* Top strip */
 .top-strip {
   display: grid;
@@ -385,25 +379,6 @@ async function onConflictConfirm() {
   white-space: nowrap;
   min-width: 0;
   text-align: right;
-}
-
-.warn-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--warn);
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.warn-icon {
-  width: 13px;
-  height: 13px;
-  flex: 0 0 auto;
 }
 
 .meta-row {
