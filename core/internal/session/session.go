@@ -134,6 +134,14 @@ type Session struct {
 	// slice is persisted via SessionMeta so shares survive restarts.
 	sharesGranted []GrantedShare
 
+	// pendingSystemNotes queues "something happened outside the agent's
+	// loop that the agent should know next turn" strings. Today this is
+	// only populated when the user manually stops the background process
+	// via the UI button — the agent otherwise has no way to hear about
+	// state changes it didn't cause. Drained (and cleared) when the
+	// next user-authored input is enqueued.
+	pendingSystemNotes []string
+
 	// apiMessages is the canonical conversation passed into the next model turn.
 	apiMessages []api.Message
 

@@ -33,13 +33,17 @@ func (s *Server) handleActiveProcesses(w http.ResponseWriter, _ *http.Request) {
 }
 
 // handleProcessStop terminates the session's background process.
+// Uses StopProcessByUser (not StopProcess) so the session records a
+// one-shot system note — the agent's next turn is informed that the
+// user interrupted the process, preventing stale assumptions like
+// "your dev server is still running on port 5173".
 // POST /api/sessions/{id}/process/stop
 func (s *Server) handleProcessStop(w http.ResponseWriter, r *http.Request) {
 	sess := s.lookupSession(w, r)
 	if sess == nil {
 		return
 	}
-	if err := sess.StopProcess(); err != nil {
+	if err := sess.StopProcessByUser(); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

@@ -2,6 +2,8 @@ package session
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"biene/internal/processes"
 )
@@ -40,6 +42,68 @@ func (s *Session) ResizeProcess(cols, rows uint16) error {
 		return fmt.Errorf("process controller unavailable")
 	}
 	return s.processes.Resize(cols, rows)
+}
+
+// StopProcessByUser is the HTTP-side entry point for the capsule's stop
+// button. It differs from StopProcess only in that it also queues a
+// system note so the agent learns about the manual interruption on its
+// next turn — otherwise the agent would keep believing the process is
+// still running and, for example, reply "your dev server is already
+// live at http://localhost:5173" the next time it is asked to start
+// one. The agent-initiated stop_process tool deliberately does not go
+// through here since the agent already knows from the tool's return.
+func (s *Session) StopProcessByUser() error {
+	if s.processes == nil {
+		return fmt.Errorf("process controller unavailable")
+	}
+	pre := s.processes.State()
+	if err := s.processes.Stop(); err != nil {
+		return err
+	}
+	if pre.Active {
+		s.appendSystemNote(describeManualProcessStop(pre, s.processes.State()))
+	}
+	return nil
+}
+
+// appendSystemNote queues a one-shot note for the next user turn.
+func (s *Session) appendSystemNote(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	s.mu.Lock()
+	s.pendingSystemNotes = append(s.pendingSystemNotes, text)
+	s.mu.Unlock()
+}
+
+// drainSystemNotesLocked returns and clears the queued notes. Caller
+// must hold s.mu.
+func (s *Session) drainSystemNotesLocked() []string {
+	if len(s.pendingSystemNotes) == 0 {
+		return nil
+	}
+	notes := s.pendingSystemNotes
+	s.pendingSystemNotes = nil
+	return notes
+}
+
+func describeManualProcessStop(pre, post processes.State) string {
+	cmd := pre.Command
+	if len(pre.Args) > 0 {
+		cmd = fmt.Sprintf("%s %s", pre.Command, strings.Join(pre.Args, " "))
+	}
+	when := time.Now().Format("15:04:05")
+	if post.ExitCode != nil {
+		return fmt.Sprintf(
+			"The background process `%s` was stopped by the user at %s (exit code %d). It is no longer running; start it again if you need to.",
+			cmd, when, *post.ExitCode,
+		)
+	}
+	return fmt.Sprintf(
+		"The background process `%s` was stopped by the user at %s. It is no longer running; start it again if you need to.",
+		cmd, when,
+	)
 }
 
 // SubscribeProcessLogs returns a channel that receives live log lines from

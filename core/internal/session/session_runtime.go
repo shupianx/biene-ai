@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"biene/internal/agentloop"
@@ -104,6 +105,23 @@ func (s *Session) EnqueueUserInput(text string, attachments []DisplayAttachment,
 	}
 
 	modelText := buildInputText(authorTypeUser, "", "", text, attachments, nil)
+
+	// Prepend any queued "something happened while the agent wasn't
+	// looking" notes so the agent sees them as part of this turn's
+	// context. Currently only the capsule's manual stop button writes
+	// here; see Session.StopProcessByUser.
+	s.mu.Lock()
+	notes := s.drainSystemNotesLocked()
+	s.mu.Unlock()
+	if len(notes) > 0 {
+		header := "(System context: " + strings.Join(notes, " ") + ")"
+		if modelText == "" {
+			modelText = header
+		} else {
+			modelText = header + "\n\n" + modelText
+		}
+	}
+
 	content := make([]api.ContentBlock, 0, 1+len(images))
 	if modelText != "" {
 		content = append(content, api.TextBlock{Text: modelText})
