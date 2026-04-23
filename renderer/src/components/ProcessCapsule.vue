@@ -9,29 +9,37 @@
     >
       <span class="dot" />
       <span class="command">{{ commandLabel }}</span>
-      <span v-if="cwd" class="cwd">· {{ cwd }}</span>
-      <span class="elapsed">· {{ elapsedLabel }}</span>
+      <span v-if="cwdDisplay" class="cwd" :title="cwd">{{ cwdDisplay }}</span>
+      <span class="elapsed">{{ elapsedLabel }}</span>
     </button>
     <button
-      class="capsule-action"
+      class="capsule-action icon-only"
       type="button"
+      :aria-label="logsOpen ? t('process.collapse') : t('process.expand')"
+      :title="logsOpen ? t('process.collapse') : t('process.expand')"
       @click="emit('toggle-logs')"
     >
-      {{ logsOpen ? t('process.collapse') : t('process.expand') }}
+      <MaterialSymbolsMinimize v-if="logsOpen" class="action-icon" aria-hidden="true" />
+      <GgMaximize v-else class="action-icon" aria-hidden="true" />
     </button>
     <button
-      class="capsule-action danger"
+      class="capsule-action icon-only danger"
       type="button"
       :disabled="stopping"
+      :aria-label="stopping ? t('process.stopping') : t('process.stop')"
+      :title="stopping ? t('process.stopping') : t('process.stop')"
       @click="onStop"
     >
-      {{ stopping ? t('process.stopping') : t('process.stop') }}
+      <MaterialSymbolsStopCircleOutline class="action-icon" aria-hidden="true" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import GgMaximize from '~icons/gg/maximize'
+import MaterialSymbolsMinimize from '~icons/material-symbols/minimize'
+import MaterialSymbolsStopCircleOutline from '~icons/material-symbols/stop-circle-outline'
 import type { ProcessStateData } from '../types/events'
 import { t } from '../i18n'
 
@@ -58,6 +66,16 @@ const fullCommand = computed(() => {
 const commandLabel = computed(() => fullCommand.value || '')
 
 const cwd = computed(() => props.state?.cwd || '')
+
+// Trim from the front so the trailing segments (the actual project / file
+// name) stay visible when the path is long.
+const CWD_MAX_CHARS = 28
+const cwdDisplay = computed(() => {
+  const p = cwd.value
+  if (!p) return ''
+  if (p.length <= CWD_MAX_CHARS) return p
+  return '…' + p.slice(p.length - CWD_MAX_CHARS + 1)
+})
 
 const statusClass = computed(() => {
   const status = props.state?.status ?? 'idle'
@@ -159,12 +177,16 @@ function onStop() {
 .elapsed {
   color: var(--ink-3);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .cwd {
-  max-width: 22ch;
+  margin-left: 10px;
+}
+
+.elapsed {
+  margin-left: auto;
+  padding-left: 8px;
+  flex-shrink: 0;
 }
 
 .capsule-action {
@@ -178,6 +200,22 @@ function onStop() {
   text-transform: uppercase;
   cursor: pointer;
   transition: background .12s, color .12s, border-color .12s;
+}
+
+.capsule-action.icon-only {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0;
+}
+
+.action-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .capsule-action:hover:not(:disabled) {

@@ -7,7 +7,7 @@
           class="tool-icon-svg"
           aria-hidden="true"
         />
-        <MoreHorizIcon
+        <EosIconsThreeDotsLoading
           v-else-if="tc.status === 'composing'"
           class="tool-icon-svg"
           aria-hidden="true"
@@ -54,7 +54,7 @@
 import { ref, computed } from 'vue'
 import type { DisplayTool } from '../api/http'
 import EosIconsBubbleLoading from '~icons/eos-icons/bubble-loading'
-import MoreHorizIcon from '~icons/material-symbols/more-horiz'
+import EosIconsThreeDotsLoading from '~icons/eos-icons/three-dots-loading'
 import CheckIcon from '~icons/material-symbols/check'
 import ErrorCircleIcon from '~icons/material-symbols/error-circle-rounded-outline-sharp'
 import StopCircleIcon from '~icons/material-symbols/stop-circle-outline'
