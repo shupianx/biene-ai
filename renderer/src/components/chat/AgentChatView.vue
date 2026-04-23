@@ -61,7 +61,7 @@
 
     <div ref="inputOverlayRef" class="input-overlay">
       <div
-        v-if="session.processState?.active"
+        v-if="showProcessWindow"
         class="process-window"
         :class="{ expanded: logsOpen }"
       >
@@ -70,8 +70,11 @@
           :state="session.processState"
           :logs-open="logsOpen"
           :stopping="isStopping"
+          :post-exit="postExit"
           @toggle-logs="onToggleLogs"
           @stop="onStopProcess"
+          @cancel-post-exit="cancelPostExitCountdown"
+          @close="resetPostExit"
         />
         <Transition name="log-reveal">
           <ProcessLogPanel
@@ -226,12 +229,81 @@ function requestAutoScroll({ force = false } = {}) {
   })
 }
 
+// Post-exit countdown: when a process ends with status="exited" (clean
+// exit, code 0), keep the capsule visible for a few seconds with a blue
+// banner so the user sees "it finished" rather than watching the panel
+// disappear and wondering if it crashed. Any click on the capsule during
+// the countdown freezes the banner ("you cancelled the close") and the
+// window stays until a new process runs.
+// This block sits above the session.meta.id watcher because that watcher
+// runs with immediate: true; the sync initial call would reach into
+// resetPostExit() and trip the Temporal Dead Zone if these let/const
+// declarations lived below it.
+const POST_EXIT_COUNTDOWN_SECONDS = 4
+type PostExitState =
+  | { kind: 'idle' }
+  | { kind: 'counting'; secondsLeft: number }
+  | { kind: 'canceled' }
+  // Process exited with a non-zero code — something went wrong and the
+  // user almost certainly wants to read the output. No auto-close; the
+  // capsule sits with a red banner until the user clicks × or another
+  // process starts.
+  | { kind: 'failed'; exitCode: number }
+const postExit = ref<PostExitState>({ kind: 'idle' })
+let postExitTimer: number | null = null
+
+const showProcessWindow = computed(() => {
+  if (props.session.processState?.active) return true
+  return postExit.value.kind !== 'idle'
+})
+
+function clearPostExitTimer() {
+  if (postExitTimer != null) {
+    window.clearInterval(postExitTimer)
+    postExitTimer = null
+  }
+}
+
+function resetPostExit() {
+  clearPostExitTimer()
+  postExit.value = { kind: 'idle' }
+}
+
+function startPostExitCountdown() {
+  clearPostExitTimer()
+  postExit.value = { kind: 'counting', secondsLeft: POST_EXIT_COUNTDOWN_SECONDS }
+  postExitTimer = window.setInterval(() => {
+    if (postExit.value.kind !== 'counting') {
+      clearPostExitTimer()
+      return
+    }
+    const next = postExit.value.secondsLeft - 1
+    if (next <= 0) {
+      resetPostExit()
+    } else {
+      postExit.value = { kind: 'counting', secondsLeft: next }
+    }
+  }, 1000)
+}
+
+function cancelPostExitCountdown() {
+  if (postExit.value.kind !== 'counting') return
+  clearPostExitTimer()
+  postExit.value = { kind: 'canceled' }
+}
+
+function enterFailedPostExit(exitCode: number) {
+  clearPostExitTimer()
+  postExit.value = { kind: 'failed', exitCode }
+}
+
 watch(
   () => props.session.meta.id,
   () => {
     clearInteractionTimer()
     isUserInteracting.value = false
     pendingAutoScroll.value = false
+    resetPostExit()
     nextTick(() => {
       scrollToBottom()
     })
@@ -349,8 +421,37 @@ async function onStopProcess() {
 
 watch(
   () => props.session.processState?.active,
-  (active) => {
-    if (!active) logsOpen.value = false
+  (active, wasActive) => {
+    if (!active) {
+      logsOpen.value = false
+    }
+    if (active) {
+      // A new process started — discard any lingering post-exit banner.
+      resetPostExit()
+      return
+    }
+    // Post-exit routing:
+    //   - status 'exited' + exit_code 0       → 4-second countdown banner
+    //   - status 'exited' + exit_code non-zero → persistent red banner
+    //   - status 'killed' (user or agent stop) → hide immediately
+    //   - status 'failed' (exec init error)    → hide immediately
+    // Note: the backend classifies non-zero exits under status='exited'
+    // too, so we disambiguate via exit_code here.
+    if (!wasActive) {
+      resetPostExit()
+      return
+    }
+    const st = props.session.processState
+    if (st?.status === 'exited') {
+      const code = st.exit_code ?? 0
+      if (code === 0) {
+        startPostExitCountdown()
+      } else {
+        enterFailedPostExit(code)
+      }
+    } else {
+      resetPostExit()
+    }
   },
 )
 
@@ -373,6 +474,7 @@ onBeforeUnmount(() => {
   topSentinelObserver?.disconnect()
   topSentinelObserver = null
   clearInteractionTimer()
+  clearPostExitTimer()
   window.removeEventListener('keydown', onWindowKeydown, true)
 })
 
