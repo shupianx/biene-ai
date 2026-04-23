@@ -23,6 +23,25 @@ func (s *Session) StopProcess() error {
 	return s.processes.Stop()
 }
 
+// WriteProcessInput forwards bytes to the background process's PTY master
+// so interactive CLIs receive them as if the user typed them into a real
+// terminal.
+func (s *Session) WriteProcessInput(data []byte) error {
+	if s.processes == nil {
+		return fmt.Errorf("process controller unavailable")
+	}
+	return s.processes.WriteInput(data)
+}
+
+// ResizeProcess updates the background process's PTY window size so
+// curses-style UIs redraw to the visible panel dimensions.
+func (s *Session) ResizeProcess(cols, rows uint16) error {
+	if s.processes == nil {
+		return fmt.Errorf("process controller unavailable")
+	}
+	return s.processes.Resize(cols, rows)
+}
+
 // SubscribeProcessLogs returns a channel that receives live log lines from
 // the session's background process. Output events deliver line data;
 // started/stopped events reflect state transitions. The caller must invoke

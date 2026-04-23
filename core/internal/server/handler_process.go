@@ -1,10 +1,10 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -46,10 +46,18 @@ func (s *Server) handleProcessStop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sess.ProcessState())
 }
 
-// handleProcessLogsWebSocket streams live log lines for the session's
-// background process. Lines are sent as JSON `{"line":"..."}` frames.
-// State transitions arrive as `{"state":{...}}`. Closed when the client
-// disconnects.
+// handleProcessLogsWebSocket is a bidirectional PTY bridge between the
+// session's background process and the renderer's xterm.js terminal.
+//
+// Server → client frames:
+//
+//	{"output":"<base64>"}   — PTY byte chunk (may contain ANSI escapes)
+//	{"state":{...}}         — process lifecycle transitions
+//
+// Client → server frames:
+//
+//	{"input":"<base64>"}    — keystrokes / raw bytes to write into PTY
+//	{"resize":{"cols":N,"rows":M}}
 //
 // GET /api/sessions/{id}/process/logs/ws
 func (s *Server) handleProcessLogsWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -65,26 +73,38 @@ func (s *Server) handleProcessLogsWebSocket(w http.ResponseWriter, r *http.Reque
 	}
 	defer conn.Close()
 
-	backlog, events, unsubscribe, err := sess.SubscribeProcessLogsWithBacklog(64 * 1024)
+	// A larger backlog than the line-based version since raw PTY output
+	// includes escape sequences; 256 KiB keeps a typical interactive
+	// redraw history intact on reconnect.
+	backlog, events, unsubscribe, err := sess.SubscribeProcessLogsWithBacklog(256 * 1024)
 	if err != nil {
 		conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"process controller unavailable"}`))
 		return
 	}
 	defer unsubscribe()
 
-	// Deliver the current state first so the client can render immediately.
-	if err := writeProcessLogFrame(conn, processLogFrame{State: ptrState(sess.ProcessState())}); err != nil {
+	var writeMu sync.Mutex
+	writeFrame := func(frame processLogFrame) error {
+		payload, err := json.Marshal(frame)
+		if err != nil {
+			return err
+		}
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		return conn.WriteMessage(websocket.TextMessage, payload)
+	}
+
+	// Current state first so the renderer can render the capsule shell
+	// before any bytes arrive.
+	state := sess.ProcessState()
+	if err := writeFrame(processLogFrame{State: &state}); err != nil {
 		return
 	}
 
-	// Replay the log file content so the client sees output that arrived
-	// before it subscribed. Each line is sent as its own frame so the
-	// frontend can append without splitting.
 	if len(backlog) > 0 {
-		for _, line := range strings.Split(strings.TrimRight(string(backlog), "\n"), "\n") {
-			if err := writeProcessLogFrame(conn, processLogFrame{Line: line}); err != nil {
-				return
-			}
+		if err := writeFrame(processLogFrame{Output: base64.StdEncoding.EncodeToString(backlog)}); err != nil {
+			return
 		}
 	}
 
@@ -94,12 +114,32 @@ func (s *Server) handleProcessLogsWebSocket(w http.ResponseWriter, r *http.Reque
 		doneOnce.Do(func() { close(done) })
 	}
 
+	// Reader goroutine: parse client frames and route them into the
+	// session's PTY. A failure here (connection drop / bad message)
+	// tears down the whole bridge.
 	go func() {
 		defer closeDone()
-		conn.SetReadLimit(512)
+		// 64 KiB allows the renderer to paste whole buffers without
+		// tripping gorilla's default limit of 512 bytes.
+		conn.SetReadLimit(64 * 1024)
 		for {
-			if _, _, err := conn.NextReader(); err != nil {
+			_, data, err := conn.ReadMessage()
+			if err != nil {
 				return
+			}
+			var frame inboundProcessFrame
+			if err := json.Unmarshal(data, &frame); err != nil {
+				continue
+			}
+			if frame.Input != "" {
+				decoded, err := base64.StdEncoding.DecodeString(frame.Input)
+				if err != nil {
+					continue
+				}
+				_ = sess.WriteProcessInput(decoded)
+			}
+			if frame.Resize != nil {
+				_ = sess.ResizeProcess(frame.Resize.Cols, frame.Resize.Rows)
 			}
 		}
 	}()
@@ -115,26 +155,32 @@ func (s *Server) handleProcessLogsWebSocket(w http.ResponseWriter, r *http.Reque
 			if !ok {
 				return
 			}
-			frame := processLogFrame{}
+			var frame processLogFrame
 			switch ev.Kind {
 			case "output":
-				frame.Line = ev.Line
+				if len(ev.Bytes) == 0 {
+					continue
+				}
+				frame.Output = base64.StdEncoding.EncodeToString(ev.Bytes)
 			case "started", "stopped":
 				st := ev.State
 				frame.State = &st
 			default:
 				continue
 			}
-			if err := writeProcessLogFrame(conn, frame); err != nil {
+			if err := writeFrame(frame); err != nil {
 				closeDone()
 				return
 			}
 		case <-pingTicker.C:
-			if err := conn.WriteControl(
+			writeMu.Lock()
+			err := conn.WriteControl(
 				websocket.PingMessage,
 				[]byte("ping"),
 				time.Now().Add(5*time.Second),
-			); err != nil {
+			)
+			writeMu.Unlock()
+			if err != nil {
 				closeDone()
 				return
 			}
@@ -143,19 +189,16 @@ func (s *Server) handleProcessLogsWebSocket(w http.ResponseWriter, r *http.Reque
 }
 
 type processLogFrame struct {
-	Line  string           `json:"line,omitempty"`
-	State *processes.State `json:"state,omitempty"`
+	Output string           `json:"output,omitempty"`
+	State  *processes.State `json:"state,omitempty"`
 }
 
-func writeProcessLogFrame(conn *websocket.Conn, frame processLogFrame) error {
-	payload, err := json.Marshal(frame)
-	if err != nil {
-		return err
-	}
-	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-	return conn.WriteMessage(websocket.TextMessage, payload)
+type inboundProcessFrame struct {
+	Input  string            `json:"input,omitempty"`
+	Resize *processResizeMsg `json:"resize,omitempty"`
 }
 
-func ptrState(s processes.State) *processes.State {
-	return &s
+type processResizeMsg struct {
+	Cols uint16 `json:"cols"`
+	Rows uint16 `json:"rows"`
 }

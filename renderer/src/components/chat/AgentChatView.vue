@@ -418,6 +418,9 @@ watch(inputOverlayHeight, () => {
 
 .process-window.expanded {
   border-color: var(--rule);
+}
+
+.process-window.expanded:focus-within {
   box-shadow: 2px 2px 0 0 var(--rule);
 }
 

@@ -162,49 +162,109 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
   }
 }
 
-export interface ProcessLogsWSHandlers {
-  onLine: (line: string) => void
+export interface ProcessTerminalHandlers {
+  onOutput: (chunk: Uint8Array) => void
   onState: (state: ProcessStateData) => void
   onError?: (event: Event) => void
 }
 
+export interface ProcessTerminalHandle {
+  close: () => void
+  writeInput: (data: string | Uint8Array) => void
+  resize: (cols: number, rows: number) => void
+}
+
 interface ProcessLogFrame {
-  line?: string
+  output?: string
   state?: ProcessStateData
 }
 
-/** Opens a WebSocket that streams the session's background-process logs.
- *  The server sends the current state first, then line events until close. */
+function encodeBase64(input: string | Uint8Array): string {
+  const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin)
+}
+
+function decodeBase64(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return bytes
+}
+
+/** Opens a bidirectional WebSocket to the session's background-process PTY.
+ *  Output chunks arrive as Uint8Array (raw PTY bytes, potentially with ANSI
+ *  escape sequences); the caller can push keystrokes via writeInput and the
+ *  terminal's visible dimensions via resize. */
 export function connectProcessLogsWS(
   sessionId: string,
-  handlers: ProcessLogsWSHandlers,
-): () => void {
+  handlers: ProcessTerminalHandlers,
+): ProcessTerminalHandle {
   const url = buildCoreWebSocketUrl(`/api/sessions/${sessionId}/process/logs/ws`)
-  let ws: WebSocket | null = null
   let closed = false
+  let ready = false
+  const pendingSends: string[] = []
+  const ws = new WebSocket(url)
 
-  ws = new WebSocket(url)
+  const send = (frame: unknown) => {
+    const payload = JSON.stringify(frame)
+    if (!ready) {
+      pendingSends.push(payload)
+      return
+    }
+    try {
+      ws.send(payload)
+    } catch (err) {
+      console.warn(`[process-terminal WS] send failed for ${sessionId}:`, err)
+    }
+  }
+
+  ws.onopen = () => {
+    ready = true
+    while (pendingSends.length > 0) {
+      const payload = pendingSends.shift()!
+      try {
+        ws.send(payload)
+      } catch (err) {
+        console.warn(`[process-terminal WS] flush failed for ${sessionId}:`, err)
+        break
+      }
+    }
+  }
+
   ws.onmessage = (event) => {
     try {
       const frame = JSON.parse(event.data) as ProcessLogFrame
-      if (frame.line !== undefined) {
-        handlers.onLine(frame.line)
+      if (frame.output) {
+        handlers.onOutput(decodeBase64(frame.output))
       }
       if (frame.state) {
         handlers.onState(frame.state)
       }
     } catch (err) {
-      console.warn(`[process-logs WS] invalid message for ${sessionId}:`, err)
+      console.warn(`[process-terminal WS] invalid message for ${sessionId}:`, err)
     }
   }
+
   ws.onerror = (event) => {
     if (!closed) handlers.onError?.(event)
   }
 
-  return () => {
-    closed = true
-    ws?.close()
-    ws = null
+  return {
+    close() {
+      closed = true
+      ready = false
+      ws.close()
+    },
+    writeInput(data) {
+      if (!data) return
+      send({ input: encodeBase64(data) })
+    },
+    resize(cols, rows) {
+      if (!cols || !rows) return
+      send({ resize: { cols, rows } })
+    },
   }
 }
 

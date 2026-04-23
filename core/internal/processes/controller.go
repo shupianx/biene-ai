@@ -1,20 +1,24 @@
 // Package processes manages a single long-running background process
-// per agent session. It captures interleaved stdout/stderr to a log
-// file, streams live lines to subscribers, and enforces a 1:1 process
-// slot with automatic replacement on restart.
+// per agent session. The process runs under a pseudo-terminal (PTY)
+// so interactive CLIs like `npm create vue` can detect a real TTY,
+// use raw-mode keystrokes, and render ANSI-based UIs. Output is
+// captured to a log file and fanned out to live subscribers as byte
+// chunks; input and window-resize signals flow back into the PTY.
 package processes
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/creack/pty"
 )
 
 // Status is the lifecycle state of the current or most recent process.
@@ -75,8 +79,8 @@ type ReadResult struct {
 // Event is a live stream notification.
 type Event struct {
 	Kind  string // "output" | "started" | "stopped"
-	Line  string // present when Kind=="output"; bare line, no trailing newline
-	State State  // present for "started"/"stopped"
+	Bytes []byte // PTY byte chunk when Kind=="output" (raw, may contain ANSI)
+	State State  // populated for "started" / "stopped"
 }
 
 const (
@@ -84,6 +88,16 @@ const (
 	logFileName    = "current.log"
 	defaultMaxRead = 32 * 1024
 	subscriberBuf  = 128
+
+	// PTY defaults for processes whose subscriber hasn't sent a real
+	// window size yet. Interactive CLIs resize themselves once the
+	// client connects and emits its actual dimensions.
+	defaultCols uint16 = 100
+	defaultRows uint16 = 30
+
+	// Read buffer for the PTY pump. Large enough to capture an ANSI
+	// screen redraw in one go on typical terminals.
+	pumpBufferSize = 8 * 1024
 )
 
 // Controller manages one background process for one agent session.
@@ -93,6 +107,7 @@ type Controller struct {
 
 	mu          sync.Mutex
 	cmd         *exec.Cmd
+	pty         *os.File // PTY master; nil when idle
 	state       State
 	logFile     *os.File
 	subscribers map[int]chan Event
@@ -149,26 +164,20 @@ func (c *Controller) Start(opts StartOptions) (StartResult, error) {
 
 	cmd := exec.Command(opts.Command, opts.Args...)
 	cmd.Dir = opts.Cwd
-	if len(opts.Env) > 0 {
-		cmd.Env = os.Environ()
-		for k, v := range opts.Env {
-			cmd.Env = append(cmd.Env, k+"="+v)
-		}
-	}
-	setProcessGroup(cmd)
-
-	stdoutR, err := cmd.StdoutPipe()
-	if err != nil {
-		logFile.Close()
-		return StartResult{}, fmt.Errorf("stdout pipe: %w", err)
-	}
-	stderrR, err := cmd.StderrPipe()
-	if err != nil {
-		logFile.Close()
-		return StartResult{}, fmt.Errorf("stderr pipe: %w", err)
+	// Start from the controller process's own environment — we need the
+	// augmented PATH that Electron built from the user's login shell (see
+	// resolveLoginShellPath in electron/main.cjs) so commands like npm
+	// can find node on a macOS .app launch. Merge opts.Env on top, then
+	// advertise a modern terminal so interactive CLIs render colour and
+	// recognise key sequences. pty.Start later owns SysProcAttr
+	// (Setsid/Setctty) — do not set Setpgid here.
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	for k, v := range opts.Env {
+		cmd.Env = append(cmd.Env, k+"="+v)
 	}
 
-	if err := cmd.Start(); err != nil {
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: defaultCols, Rows: defaultRows})
+	if err != nil {
 		logFile.Close()
 		c.state = State{
 			Status:  StatusFailed,
@@ -182,6 +191,7 @@ func (c *Controller) Start(opts StartOptions) (StartResult, error) {
 
 	started := time.Now()
 	c.cmd = cmd
+	c.pty = ptmx
 	c.logFile = logFile
 	c.doneCh = make(chan struct{})
 	c.state = State{
@@ -195,11 +205,13 @@ func (c *Controller) Start(opts StartOptions) (StartResult, error) {
 		LogFile:   c.logPath,
 	}
 
-	// Fan-out stdout + stderr line-by-line into the log file and subscribers.
+	// The PTY master is a single byte stream carrying both stdout and
+	// stderr interleaved — that is intentional, real terminals don't
+	// distinguish them either. Log file and subscribers get the raw
+	// bytes so xterm.js can render ANSI faithfully.
 	var drain sync.WaitGroup
-	drain.Add(2)
-	go c.pump(&drain, stdoutR)
-	go c.pump(&drain, stderrR)
+	drain.Add(1)
+	go c.pumpPTY(&drain, ptmx)
 
 	go c.wait(cmd, &drain)
 
@@ -220,6 +232,9 @@ func (c *Controller) Stop() error {
 	doneCh := c.doneCh
 	c.mu.Unlock()
 
+	// PTY-backed processes are their own session thanks to pty.Start's
+	// Setsid=true; killing the group delivers SIGKILL to the shell and
+	// anything it spawned.
 	if err := killProcessGroup(cmd); err != nil {
 		return fmt.Errorf("kill process group: %w", err)
 	}
@@ -369,6 +384,14 @@ func (c *Controller) ReadOutput(opts ReadOptions) (ReadResult, error) {
 		content = lastLines(content, opts.TailLines)
 	}
 
+	// The log file captures raw PTY bytes, which include ANSI escape
+	// sequences and other control codes used by interactive CLIs to
+	// draw their UIs. Strip them here so callers (the agent's
+	// read_process_output tool) see clean text; the live WebSocket
+	// stream still gets the raw bytes so xterm.js can render the UI
+	// faithfully.
+	content = stripANSI(content)
+
 	return ReadResult{
 		State:       state,
 		Content:     content,
@@ -384,29 +407,82 @@ func (c *Controller) isRunning() bool {
 	return c.state.Status == StatusRunning
 }
 
-func (c *Controller) pump(wg *sync.WaitGroup, r io.ReadCloser) {
+// pumpPTY reads byte chunks from the PTY master, appends them to the
+// log file, and fans them out to subscribers. The loop exits when the
+// master closes (process exited) or when Read returns an error.
+func (c *Controller) pumpPTY(wg *sync.WaitGroup, ptmx *os.File) {
 	defer wg.Done()
-	defer r.Close()
 
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 4096), 1024*1024)
-	for scanner.Scan() {
-		text := scanner.Text()
-		c.mu.Lock()
-		if c.logFile != nil {
-			_, _ = c.logFile.WriteString(text + "\n")
+	buf := make([]byte, pumpBufferSize)
+	for {
+		n, err := ptmx.Read(buf)
+		if n > 0 {
+			chunk := make([]byte, n)
+			copy(chunk, buf[:n])
+			c.mu.Lock()
+			if c.logFile != nil {
+				_, _ = c.logFile.Write(chunk)
+			}
+			c.broadcastLocked(Event{Kind: "output", Bytes: chunk})
+			c.mu.Unlock()
 		}
-		c.broadcastLocked(Event{Kind: "output", Line: text})
-		c.mu.Unlock()
+		if err != nil {
+			// EOF or the PTY was closed during Stop — normal exit path.
+			return
+		}
 	}
+}
+
+// WriteInput forwards a byte chunk to the PTY master as if it were
+// typed into the terminal. The chunk typically carries a single key
+// press (possibly an ANSI escape sequence for arrow keys) from the
+// renderer; no buffering or newline handling is done here — the raw
+// bytes hit the process' stdin verbatim.
+func (c *Controller) WriteInput(data []byte) error {
+	c.mu.Lock()
+	ptmx := c.pty
+	running := c.state.Status == StatusRunning
+	c.mu.Unlock()
+
+	if !running || ptmx == nil {
+		return errors.New("no running process")
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	_, err := ptmx.Write(data)
+	return err
+}
+
+// Resize updates the PTY window size. Interactive CLIs that query
+// TIOCGWINSZ will immediately notice and redraw to fit.
+func (c *Controller) Resize(cols, rows uint16) error {
+	if cols == 0 || rows == 0 {
+		return nil
+	}
+	c.mu.Lock()
+	ptmx := c.pty
+	c.mu.Unlock()
+	if ptmx == nil {
+		return nil
+	}
+	return pty.Setsize(ptmx, &pty.Winsize{Cols: cols, Rows: rows})
 }
 
 func (c *Controller) wait(cmd *exec.Cmd, drain *sync.WaitGroup) {
 	runErr := cmd.Wait()
+	// Closing the PTY master unblocks the pump's Read call so drain
+	// finishes promptly.
+	c.mu.Lock()
+	if c.pty != nil {
+		_ = c.pty.Close()
+	}
+	c.mu.Unlock()
 	drain.Wait()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.pty = nil
 
 	exited := time.Now()
 	c.state.Active = false
@@ -460,6 +536,20 @@ func (c *Controller) broadcastLocked(ev Event) {
 			_ = id
 		}
 	}
+}
+
+// ansiSequence matches the control sequences a PTY-backed process emits
+// when it treats the terminal as a real TTY: CSI sequences (SGR colours,
+// cursor movement, screen clears), OSC sequences (terminal title), and
+// single-char escape codes. Stripped before returning log content to
+// the agent so a tail doesn't look like binary noise.
+var ansiSequence = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]`)
+
+func stripANSI(s string) string {
+	if s == "" {
+		return s
+	}
+	return ansiSequence.ReplaceAllString(s, "")
 }
 
 // lastLines returns the final n lines of s, joined with their original

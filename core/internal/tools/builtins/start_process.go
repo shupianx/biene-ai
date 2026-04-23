@@ -28,10 +28,16 @@ func (t *StartProcessTool) Name() string { return "start_process" }
 func (t *StartProcessTool) PermissionKey() tools.PermissionKey { return tools.PermissionExecute }
 
 func (t *StartProcessTool) Description() string {
-	return `Start a long-running background process (dev servers, watchers, build daemons).
+	return `Start a long-running background process (dev servers, watchers, build daemons, interactive scaffolders).
 Each agent session has exactly one background process slot. Starting a new process automatically stops the previous one.
-Use read_process_output to inspect logs while it runs, and stop_process to terminate it explicitly.
+The process runs under a real pseudo-terminal, so interactive CLIs that require a TTY (for example npm create vue, pnpm create, yarn create, git commit without -m, or anything using prompts / inquirer) will work and can be driven by the user directly in the capsule's terminal panel.
+Use read_process_output to inspect the log; the tool returns plain text with ANSI control codes already stripped.
+Use stop_process to terminate explicitly.
 This tool does not support shell syntax (no pipes, redirects, globs, or variable expansion). Pass environment variables via the env object.
+
+Interactive commands — hand-off protocol:
+When you start a command that will prompt the user (picking a template, typing a project name, confirming y/N), do not keep calling tools in the same turn. The user needs to see the terminal and type into it; your next tool call, if any, should verify the outcome (list_files, read_file, another process). Check read_process_output and the process state before assuming the interactive phase is over.
+
 For short one-shot commands whose output you need in-line, use run_command instead.`
 }
 

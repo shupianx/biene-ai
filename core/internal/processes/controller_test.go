@@ -135,10 +135,11 @@ func TestControllerSubscribeReceivesOutput(t *testing.T) {
 			case "started":
 				gotStarted = true
 			case "output":
-				if strings.TrimSpace(ev.Line) == "one" {
+				chunk := string(ev.Bytes)
+				if strings.Contains(chunk, "one") {
 					gotOne = true
 				}
-				if strings.TrimSpace(ev.Line) == "two" {
+				if strings.Contains(chunk, "two") {
 					gotTwo = true
 				}
 			case "stopped":
