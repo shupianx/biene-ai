@@ -52,14 +52,14 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { DisplayTool } from '../api/http'
+import type { DisplayTool } from '../../api/http'
 import EosIconsBubbleLoading from '~icons/eos-icons/bubble-loading'
 import EosIconsThreeDotsLoading from '~icons/eos-icons/three-dots-loading'
 import CheckIcon from '~icons/material-symbols/check'
 import ErrorCircleIcon from '~icons/material-symbols/error-circle-rounded-outline-sharp'
 import StopCircleIcon from '~icons/material-symbols/stop-circle-outline'
 import DeniedIcon from '~icons/tabler/cancel'
-import { t } from '../i18n'
+import { t } from '../../i18n'
 
 const props = defineProps<{ tc: DisplayTool }>()
 const expanded = ref(false)

@@ -111,14 +111,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import MaterialSymbolsArrowForwardIosRounded from '~icons/material-symbols/arrow-forward-ios-rounded'
-import { useAgentNavigation } from '../composables/useAgentNavigation'
-import type { DisplayMessage } from '../api/http'
-import { sessionAssetURL } from '../api/http'
-import { t } from '../i18n'
-import { useSessionsStore } from '../stores/sessions'
+import { useAgentNavigation } from '../../composables/useAgentNavigation'
+import type { DisplayMessage } from '../../api/http'
+import { sessionAssetURL } from '../../api/http'
+import { t } from '../../i18n'
+import { useSessionsStore } from '../../stores/sessions'
 import ToolCallCard from './ToolCallCard.vue'
-import { renderMarkdown } from '../utils/markdown'
-import { formatMessageTime } from '../utils/messageTime'
+import { renderMarkdown } from '../../utils/markdown'
+import { formatMessageTime } from '../../utils/messageTime'
 
 const props = defineProps<{ msg: DisplayMessage; sessionId: string }>()
 

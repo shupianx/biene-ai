@@ -34,16 +34,15 @@
         @compositionend="onCompositionEnd"
       />
       <div class="composer-actions">
-        <button
+        <IconButton
           class="attach-btn"
-          type="button"
           :disabled="disabled"
           :aria-label="t('input.attachImage')"
           :title="t('input.attachImage')"
           @click="openFilePicker"
         >
           <MaterialSymbolsImageOutline class="attach-icon" aria-hidden="true" />
-        </button>
+        </IconButton>
         <input
           ref="fileInputRef"
           class="file-input"
@@ -95,8 +94,9 @@
 import { computed, ref, nextTick, onBeforeUnmount } from 'vue'
 import MynauiSend from '~icons/mynaui/send'
 import MaterialSymbolsImageOutline from '~icons/material-symbols/image-outline'
-import ToggleSwitch from './ToggleSwitch.vue'
-import { t } from '../i18n'
+import IconButton from '../ui/IconButton.vue'
+import ToggleSwitch from '../ui/ToggleSwitch.vue'
+import { t } from '../../i18n'
 
 interface StagedImage {
   id: string
@@ -358,27 +358,6 @@ textarea:disabled {
 
 .attach-btn {
   margin-right: auto;
-  height: 26px;
-  width: 26px;
-  border: none;
-  background: transparent;
-  color: var(--ink-3);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  transition: color .12s, background-color .12s;
-}
-
-.attach-btn:hover:not(:disabled) {
-  color: var(--ink);
-  background-color: var(--bg-2);
-}
-
-.attach-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .attach-icon {

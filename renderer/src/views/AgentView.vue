@@ -11,9 +11,9 @@
         <span class="status-dot" />
         <span>{{ stateBadge }}</span>
       </div>
-      <button class="close-btn" type="button" :aria-label="t('common.close')" @click="closeAgentView">
-        <svg viewBox="0 0 24 24" aria-hidden="true" v-html="closeIconBody" />
-      </button>
+      <IconButton :aria-label="t('common.close')" @click="closeAgentView">
+        <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="closeIconBody" />
+      </IconButton>
     </header>
 
     <div class="state-page">
@@ -30,7 +30,7 @@
           <span class="state-meta-label">{{ t('agent.requestedId') }}</span>
           <code class="state-meta-value">{{ sessionId }}</code>
         </div>
-        <button v-if="isMissing" class="state-btn" @click="closeAgentView">{{ t('common.back') }}</button>
+        <AppButton v-if="isMissing" variant="primary" @click="closeAgentView">{{ t('common.back') }}</AppButton>
       </div>
     </div>
   </div>
@@ -44,7 +44,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import AgentChatView from '../components/AgentChatView.vue'
+import AgentChatView from '../components/chat/AgentChatView.vue'
+import AppButton from '../components/ui/AppButton.vue'
+import IconButton from '../components/ui/IconButton.vue'
 import { t } from '../i18n'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import { useSessionsStore } from '../stores/sessions'
@@ -223,26 +225,7 @@ onBeforeUnmount(() => {
   animation: bienePulse 1.6s ease-in-out infinite;
 }
 
-.close-btn {
-  -webkit-app-region: no-drag;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--ink-3);
-  cursor: pointer;
-  transition: background .12s, color .12s, border-color .12s;
-}
-
-.close-btn:hover {
-  background: var(--bg-2);
-  border-color: var(--rule-softer);
-  color: var(--ink);
-}
-
-.close-btn svg {
+.close-icon {
   width: 14px;
   height: 14px;
 }
@@ -352,26 +335,4 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
-.state-btn {
-  height: 30px;
-  padding: 0 14px;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--panel-2);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: transform .12s, box-shadow .12s;
-}
-
-.state-btn:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 2px 2px 0 0 var(--rule);
-}
 </style>

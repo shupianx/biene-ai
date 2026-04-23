@@ -40,8 +40,8 @@ import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import GgMaximize from '~icons/gg/maximize'
 import MaterialSymbolsMinimize from '~icons/material-symbols/minimize'
 import MaterialSymbolsStopCircleOutline from '~icons/material-symbols/stop-circle-outline'
-import type { ProcessStateData } from '../types/events'
-import { t } from '../i18n'
+import type { ProcessStateData } from '../../types/events'
+import { t } from '../../i18n'
 
 const props = defineProps<{
   state: ProcessStateData | null

@@ -122,30 +122,31 @@
     </section>
 
     <template #footer>
-      <button class="btn-cancel" @click="emit('close')">{{ t('common.cancel') }}</button>
-      <button class="btn-create" :disabled="submitDisabled" @click="submit">{{ t('common.create') }}</button>
+      <AppButton variant="neutral" @click="emit('close')">{{ t('common.cancel') }}</AppButton>
+      <AppButton variant="primary" :disabled="submitDisabled" @click="submit">{{ t('common.create') }}</AppButton>
     </template>
   </BaseModal>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { fetchConfig, type AgentProfile, type ConfigModelEntry, type SessionPermissions } from '../api/http'
+import { fetchConfig, type AgentProfile, type ConfigModelEntry, type SessionPermissions } from '../../api/http'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
-import AutoGrowTextarea from './AutoGrowTextarea.vue'
-import BaseModal from './BaseModal.vue'
-import PopupMenu, { type PopupMenuEntry } from './PopupMenu.vue'
-import ToggleSwitch from './ToggleSwitch.vue'
-import { t } from '../i18n'
-import { isAgentNameTaken } from '../utils/agentNames'
-import { defaultPermissions, listPermissionDefinitions } from '../utils/permissions'
+import AppButton from '../ui/AppButton.vue'
+import AutoGrowTextarea from '../ui/AutoGrowTextarea.vue'
+import BaseModal from '../ui/BaseModal.vue'
+import PopupMenu, { type PopupMenuEntry } from '../ui/PopupMenu.vue'
+import ToggleSwitch from '../ui/ToggleSwitch.vue'
+import { t } from '../../i18n'
+import { isAgentNameTaken } from '../../utils/agentNames'
+import { defaultPermissions, listPermissionDefinitions } from '../../utils/permissions'
 import {
   defaultProfile,
   findDomainOption,
   findStyleOption,
   listDomainOptions,
   listStyleOptions,
-} from '../utils/profile'
+} from '../../utils/profile'
 
 const props = defineProps<{
   defaultName: string
@@ -522,47 +523,4 @@ function submit() {
   margin: 0;
 }
 
-.btn-cancel,
-.btn-create {
-  height: 30px;
-  padding: 0 14px;
-  border: 1px solid var(--rule);
-  background: var(--panel-2);
-  color: var(--ink-2);
-  cursor: pointer;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  transition: transform .12s, box-shadow .12s;
-}
-
-.btn-cancel:hover,
-.btn-create:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow: 2px 2px 0 0 var(--rule);
-}
-
-.btn-cancel:active,
-.btn-create:active:not(:disabled) {
-  transform: translate(0, 0);
-  box-shadow: none;
-}
-
-.btn-create {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--panel-2);
-}
-
-.btn-create:disabled {
-  opacity: .4;
-  cursor: not-allowed;
-}
-
-.btn-create:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 </style>

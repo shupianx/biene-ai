@@ -90,14 +90,9 @@
     </div>
 
     <template #footer>
-      <button
-        class="primary-btn"
-        type="button"
-        :disabled="saveDisabled"
-        @click="submit"
-      >
+      <AppButton variant="primary" :disabled="saveDisabled" @click="submit">
         {{ saving ? t('welcome.saving') : t('welcome.saveButton') }}
-      </button>
+      </AppButton>
     </template>
   </BaseModal>
 </template>
@@ -105,11 +100,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
-import { saveConfig, type ConfigModelEntry, type CoreConfig } from '../api/http'
-import { providerTemplateList, providerTemplates, type ProviderTemplateKey } from '../constants/providerTemplates'
-import { t } from '../i18n'
-import BaseModal from './BaseModal.vue'
-import PopupMenu, { type PopupMenuEntry } from './PopupMenu.vue'
+import { saveConfig, type ConfigModelEntry, type CoreConfig } from '../../api/http'
+import { providerTemplateList, providerTemplates, type ProviderTemplateKey } from '../../constants/providerTemplates'
+import { t } from '../../i18n'
+import AppButton from '../ui/AppButton.vue'
+import BaseModal from '../ui/BaseModal.vue'
+import PopupMenu, { type PopupMenuEntry } from '../ui/PopupMenu.vue'
 
 type TemplateID = 'none' | ProviderTemplateKey
 
@@ -352,36 +348,6 @@ async function submit() {
 
 .select-trigger.open .chevron {
   transform: rotate(180deg);
-}
-
-.primary-btn {
-  height: 32px;
-  padding: 0 18px;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--bg);
-  cursor: pointer;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  transition: transform .12s, box-shadow .12s;
-}
-
-.primary-btn:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow: 2px 2px 0 0 var(--rule);
-}
-
-.primary-btn:active:not(:disabled) {
-  transform: translate(0, 0);
-  box-shadow: none;
-}
-
-.primary-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 @media (max-width: 560px) {

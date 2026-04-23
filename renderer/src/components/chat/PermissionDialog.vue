@@ -39,11 +39,11 @@
     </div>
 
     <div class="actions">
-      <button v-if="isExpired" class="btn deny" @click="onDeny">{{ t('common.close') }}</button>
+      <AppButton v-if="isExpired" variant="neutral" @click="onDeny">{{ t('common.close') }}</AppButton>
       <template v-else>
-        <button class="btn deny"   @click="onDeny">{{ t('permissions.deny') }}</button>
-        <button class="btn allow"  @click="onAllow('allow')">{{ t('permissions.allowOnce') }}</button>
-        <button class="btn always" @click="onAllow('always')">{{ t('permissions.allowAlways') }}</button>
+        <AppButton variant="neutral" @click="onDeny">{{ t('permissions.deny') }}</AppButton>
+        <AppButton variant="primary" @click="onAllow('allow')">{{ t('permissions.allowOnce') }}</AppButton>
+        <AppButton variant="danger"  @click="onAllow('always')">{{ t('permissions.allowAlways') }}</AppButton>
       </template>
     </div>
   </div>
@@ -51,10 +51,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { PermissionRequest } from '../stores/sessions'
-import type { CollisionStrategy, FileCollision } from '../types/events'
-import { t } from '../i18n'
-import { getPermissionDescription, getPermissionLabel } from '../utils/permissions'
+import type { PermissionRequest } from '../../stores/sessions'
+import type { CollisionStrategy, FileCollision } from '../../types/events'
+import { t } from '../../i18n'
+import { getPermissionDescription, getPermissionLabel } from '../../utils/permissions'
+import AppButton from '../ui/AppButton.vue'
 
 const props = defineProps<{ req: PermissionRequest | null }>()
 const emit = defineEmits<{
@@ -292,44 +293,4 @@ function onAllow(kind: 'allow' | 'always') {
   flex-wrap: wrap;
 }
 
-.btn {
-  height: 30px;
-  padding: 0 14px;
-  border: 1px solid var(--rule);
-  background: var(--panel-2);
-  color: var(--ink-2);
-  cursor: pointer;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  transition: transform .12s, box-shadow .12s, background .12s;
-}
-
-.btn:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 2px 2px 0 0 var(--rule);
-}
-
-.btn:active {
-  transform: translate(0, 0);
-  box-shadow: none;
-}
-
-.deny {
-  color: var(--ink-3);
-}
-
-.allow {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--panel-2);
-}
-
-.always {
-  background: var(--err);
-  border-color: var(--err);
-  color: var(--panel-2);
-}
 </style>

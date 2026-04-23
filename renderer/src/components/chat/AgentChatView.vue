@@ -19,9 +19,9 @@
         <span class="status-dot" />
         <span>{{ statusLabel }}</span>
       </div>
-      <button class="close-btn" type="button" :aria-label="t('common.close')" @click="emit('close')">
-        <svg viewBox="0 0 24 24" aria-hidden="true" v-html="closeIconBody" />
-      </button>
+      <IconButton :aria-label="t('common.close')" @click="emit('close')">
+        <svg class="close-icon" viewBox="0 0 24 24" aria-hidden="true" v-html="closeIconBody" />
+      </IconButton>
     </header>
 
     <!-- Message list -->
@@ -98,16 +98,17 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { AgentSession } from '../stores/sessions'
+import type { AgentSession } from '../../stores/sessions'
 import MynauiLightningSolid from '~icons/mynaui/lightning-solid'
-import { t } from '../i18n'
-import { useSessionsStore } from '../stores/sessions'
+import { t } from '../../i18n'
+import { useSessionsStore } from '../../stores/sessions'
 import MessageItem from './MessageItem.vue'
 import InputBar from './InputBar.vue'
 import PermissionDialog from './PermissionDialog.vue'
 import ProcessCapsule from './ProcessCapsule.vue'
+import IconButton from '../ui/IconButton.vue'
 import ProcessLogPanel from './ProcessLogPanel.vue'
-import { getSessionStatusLabel, getSessionStatusTone } from '../utils/sessionStatus'
+import { getSessionStatusLabel, getSessionStatusTone } from '../../utils/sessionStatus'
 
 const props = defineProps<{ session: AgentSession }>()
 const emit = defineEmits<{
@@ -531,26 +532,7 @@ watch(inputOverlayHeight, () => {
   animation: bienePulse 1.6s ease-in-out infinite;
 }
 
-.close-btn {
-  -webkit-app-region: no-drag;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--ink-3);
-  cursor: pointer;
-  transition: background .12s, color .12s, border-color .12s;
-}
-
-.close-btn:hover {
-  background: var(--bg-2);
-  border-color: var(--rule-softer);
-  color: var(--ink);
-}
-
-.close-btn svg {
+.close-icon {
   width: 14px;
   height: 14px;
 }

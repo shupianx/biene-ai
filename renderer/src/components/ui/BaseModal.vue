@@ -4,12 +4,12 @@
       <div class="modal" :style="{ maxWidth }">
         <header class="modal-header">
           <span class="modal-title">{{ title }}</span>
-          <button
+          <IconButton
             v-if="dismissable"
-            class="close-btn"
+            size="small"
             :aria-label="t('common.close')"
             @click="emit('close')"
-          >✕</button>
+          >✕</IconButton>
         </header>
 
         <div class="modal-body">
@@ -25,7 +25,8 @@
 </template>
 
 <script setup lang="ts">
-import { t } from '../i18n'
+import IconButton from './IconButton.vue'
+import { t } from '../../i18n'
 
 const props = withDefaults(defineProps<{
   title: string
@@ -87,25 +88,6 @@ function onBackdropClick() {
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ink);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--ink-4);
-  font-size: 14px;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  line-height: 1;
-  transition: background 0.12s, color 0.12s;
-}
-
-.close-btn:hover {
-  background: var(--bg-2);
   color: var(--ink);
 }
 

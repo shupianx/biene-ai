@@ -46,9 +46,9 @@
             <span class="setting-label">{{ t('modal.modelProviders') }}</span>
             <span class="setting-hint">{{ t('modal.modelProvidersHint') }}</span>
           </div>
-          <button class="section-action" type="button" :disabled="configSaving" @click="openAddProvider">
+          <AppButton variant="neutral" :disabled="configSaving" @click="openAddProvider">
             {{ t('modal.addProvider') }}
-          </button>
+          </AppButton>
         </div>
 
         <p v-if="configError" class="config-error">{{ configError }}</p>
@@ -84,9 +84,9 @@
                 >
                   {{ t('modal.makeDefaultProvider') }}
                 </button>
-                <button class="card-btn" type="button" :disabled="configSaving" @click="openEditProvider(entry)">
+                <AppButton variant="neutral" :disabled="configSaving" @click="openEditProvider(entry)">
                   {{ t('common.edit') }}
-                </button>
+                </AppButton>
                 <span
                   class="tooltip-anchor"
                   :class="{ 'has-tooltip': !!providerDeleteDisabledReason(entry.id) }"
@@ -199,35 +199,36 @@
           </div>
 
           <div class="provider-editor-actions">
-            <button class="card-btn soft" type="button" :disabled="configSaving" @click="cancelProviderEditor">
+            <AppButton variant="neutral" :disabled="configSaving" @click="cancelProviderEditor">
               {{ t('common.cancel') }}
-            </button>
-            <button class="primary-btn" type="button" :disabled="configSaving" @click="saveProviderDraft">
+            </AppButton>
+            <AppButton variant="primary" :disabled="configSaving" @click="saveProviderDraft">
               {{ t('common.save') }}
-            </button>
+            </AppButton>
           </div>
         </div>
       </section>
     </div>
 
     <template #footer>
-      <button class="btn-close" type="button" @click="emit('close')">{{ t('common.close') }}</button>
+      <AppButton variant="neutral" @click="emit('close')">{{ t('common.close') }}</AppButton>
     </template>
   </BaseModal>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
-import { fetchConfig, listSessions, saveConfig, type ConfigModelEntry, type CoreConfig, type SessionMeta } from '../api/http'
-import { providerTemplateList, providerTemplates, type ProviderTemplateKey } from '../constants/providerTemplates'
+import { fetchConfig, listSessions, saveConfig, type ConfigModelEntry, type CoreConfig, type SessionMeta } from '../../api/http'
+import { providerTemplateList, providerTemplates, type ProviderTemplateKey } from '../../constants/providerTemplates'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
-import BaseModal from './BaseModal.vue'
-import PopupMenu, { type PopupMenuEntry } from './PopupMenu.vue'
-import ToggleSwitch from './ToggleSwitch.vue'
-import { useTheme } from '../composables/useTheme'
-import { useDesktopSettings } from '../composables/useDesktopSettings'
-import { t } from '../i18n'
-import type { AppLocale } from '../i18n/messages'
+import AppButton from '../ui/AppButton.vue'
+import BaseModal from '../ui/BaseModal.vue'
+import PopupMenu, { type PopupMenuEntry } from '../ui/PopupMenu.vue'
+import ToggleSwitch from '../ui/ToggleSwitch.vue'
+import { useTheme } from '../../composables/useTheme'
+import { useDesktopSettings } from '../../composables/useDesktopSettings'
+import { t } from '../../i18n'
+import type { AppLocale } from '../../i18n/messages'
 
 type ProviderEditorMode = 'add' | 'edit' | null
 type ProviderTemplateID = 'none' | ProviderTemplateKey
@@ -695,10 +696,8 @@ onMounted(() => {
   white-space: normal;
 }
 
-.section-action,
-.card-btn,
-.btn-close,
-.primary-btn {
+.card-btn {
+  /* Variant styles below extend the shared AppButton visual language. */
   height: 30px;
   padding: 0 14px;
   border: 1px solid var(--rule);
@@ -713,25 +712,17 @@ onMounted(() => {
   transition: transform .12s, box-shadow .12s, background .12s, color .12s, border-color .12s;
 }
 
-.section-action:hover,
-.card-btn:hover,
-.btn-close:hover,
-.primary-btn:hover {
+.card-btn:hover:not(:disabled) {
   transform: translate(-1px, -1px);
   box-shadow: 2px 2px 0 0 var(--rule);
 }
 
-.section-action:active,
-.card-btn:active,
-.btn-close:active,
-.primary-btn:active {
+.card-btn:active:not(:disabled) {
   transform: translate(0, 0);
   box-shadow: none;
 }
 
-.section-action:disabled,
-.card-btn:disabled,
-.primary-btn:disabled {
+.card-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
@@ -844,17 +835,6 @@ onMounted(() => {
 .card-btn.danger {
   color: var(--err);
   border-color: color-mix(in srgb, var(--err) 40%, var(--rule));
-}
-
-.card-btn.soft {
-  background: var(--bg-2);
-  border-color: var(--bg-2);
-  color: var(--ink-2);
-}
-
-.card-btn.soft:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--bg-2) 82%, var(--ink));
-  border-color: color-mix(in srgb, var(--bg-2) 82%, var(--ink));
 }
 
 .card-btn.accent {
@@ -996,12 +976,6 @@ onMounted(() => {
   gap: 8px;
 }
 
-.primary-btn {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--bg);
-}
-
 @media (max-width: 760px) {
   .setting-row,
   .section-head,
@@ -1010,8 +984,7 @@ onMounted(() => {
     align-items: stretch;
   }
 
-  .language-group,
-  .section-action {
+  .language-group {
     width: 100%;
   }
 

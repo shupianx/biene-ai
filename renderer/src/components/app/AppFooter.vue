@@ -37,10 +37,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useCoreHeartbeat } from '../composables/useCoreHeartbeat'
-import { t } from '../i18n'
-import { getCoreBaseUrl, getDesktopBridge } from '../runtime'
-import { useSessionsStore } from '../stores/sessions'
+import { useCoreHeartbeat } from '../../composables/useCoreHeartbeat'
+import { t } from '../../i18n'
+import { getCoreBaseUrl, getDesktopBridge } from '../../runtime'
+import { useSessionsStore } from '../../stores/sessions'
 
 const bridge = getDesktopBridge()
 const isElectron = bridge?.isElectron ?? false

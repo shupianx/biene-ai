@@ -13,15 +13,13 @@
       <span class="brand-context">{{ contextLabel }}</span>
     </div>
     <div class="titlebar-actions" @click.stop>
-      <button
-        class="titlebar-button"
-        type="button"
+      <IconButton
         :aria-label="t('titleBar.openSettingsMenu')"
         :title="t('titleBar.openSettingsMenu')"
         @click="onSettingsMenu"
       >
         <RiSettings3Line class="titlebar-icon" aria-hidden="true" />
-      </button>
+      </IconButton>
     </div>
     <DesktopSettingsModal v-if="settingsModalOpen" @close="settingsModalOpen = false" />
   </header>
@@ -30,9 +28,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import RiSettings3Line from '~icons/ri/settings-3-line'
-import { getDesktopBridge } from '../runtime'
+import { getDesktopBridge } from '../../runtime'
 import DesktopSettingsModal from './DesktopSettingsModal.vue'
-import { t } from '../i18n'
+import IconButton from '../ui/IconButton.vue'
+import { t } from '../../i18n'
 
 const bridge = getDesktopBridge()
 const platform = bridge?.platform ?? 'web'
@@ -132,25 +131,6 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
   align-items: center;
   gap: 6px;
   -webkit-app-region: no-drag;
-}
-
-.titlebar-button {
-  width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--ink-3);
-  cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s;
-}
-
-.titlebar-button:hover {
-  background: var(--bg-2);
-  border-color: var(--rule-softer);
-  color: var(--ink);
 }
 
 .titlebar-icon {

@@ -22,8 +22,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import AppTitleBar from './components/AppTitleBar.vue'
-import AppFooter from './components/AppFooter.vue'
+import AppTitleBar from './components/app/AppTitleBar.vue'
+import AppFooter from './components/app/AppFooter.vue'
 import { useCoreHeartbeat } from './composables/useCoreHeartbeat'
 import { t } from './i18n'
 import { getDesktopBridge } from './runtime'

@@ -98,8 +98,8 @@ import {
   saveSkillsConfig,
   type SkillCatalogEntry,
   type SkillsCatalog,
-} from '../api/http'
-import { t } from '../i18n'
+} from '../../api/http'
+import { t } from '../../i18n'
 
 const props = withDefaults(defineProps<{
   embedded?: boolean

@@ -9,9 +9,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ProcessStateData } from '../types/events'
-import { connectProcessLogsWS } from '../api/ws'
-import { t } from '../i18n'
+import type { ProcessStateData } from '../../types/events'
+import { connectProcessLogsWS } from '../../api/ws'
+import { t } from '../../i18n'
 
 const props = defineProps<{
   sessionId: string
