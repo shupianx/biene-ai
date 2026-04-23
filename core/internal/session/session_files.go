@@ -285,15 +285,11 @@ func extensionForMediaType(mediaType string) string {
 const UserUploadSubdir = "inbox/user"
 
 // UserAssetsSubdir holds chat-level artifacts (pasted/uploaded images) that
-// belong to the conversation rather than the agent's working material. The
-// .biene/ namespace is reserved for session-owned state and is hidden from
-// the tool layer via ResolveWorkspacePath's guard.
+// belong to the conversation rather than the agent's working material.
+// The agent's file tools are blocked from this prefix via
+// tools.IsReservedWorkspacePath; other subdirectories of .biene/ (notably
+// skills/) remain writable so the agent can author them.
 const UserAssetsSubdir = ".biene/assets/user"
-
-// BieneReservedDir is the top-level directory under a session workspace that
-// holds chat-level / internal state (assets, metadata). File tools are not
-// permitted to read or write anywhere under this prefix.
-const BieneReservedDir = ".biene"
 
 // AgentInboxSubdir builds the subdirectory where files from the given source
 // agent should be stored in the receiver's workspace.
@@ -508,7 +504,7 @@ func ResolveWorkspacePath(rootDir, requestedPath string) (string, string, error)
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", "", fmt.Errorf("path %q escapes workspace root", requestedPath)
 	}
-	if rel == BieneReservedDir || strings.HasPrefix(rel, BieneReservedDir+string(filepath.Separator)) {
+	if tools.IsReservedWorkspacePath(rel) {
 		return "", "", fmt.Errorf("path %q is reserved for session state", requestedPath)
 	}
 	return targetAbs, filepath.ToSlash(rel), nil
@@ -516,8 +512,8 @@ func ResolveWorkspacePath(rootDir, requestedPath string) (string, string, error)
 
 // ResolveSessionAssetPath resolves a path that must live under the session's
 // asset directory. Unlike ResolveWorkspacePath it deliberately allows paths
-// inside BieneReservedDir — it is used by the HTTP layer to serve user-
-// uploaded images to the renderer, never by agent tools.
+// inside .biene/ — it is used by the HTTP layer to serve user-uploaded
+// images to the renderer, never by agent tools.
 func ResolveSessionAssetPath(rootDir, requestedPath string) (string, error) {
 	if requestedPath == "" {
 		return "", fmt.Errorf("path is required")

@@ -93,9 +93,6 @@ func (t *ListFilesTool) Execute(_ context.Context, raw json.RawMessage) (string,
 	if err != nil {
 		return "", fmt.Errorf("list_files: %w", err)
 	}
-	if isHiddenListPath(relPath) {
-		return "", fmt.Errorf("list_files: %s is hidden", requestedPath)
-	}
 
 	info, err := os.Lstat(resolvedPath)
 	if err != nil {
@@ -129,7 +126,8 @@ func listDirectoryShallow(absDir, relDir string) (string, error) {
 	var sb strings.Builder
 	count := 0
 	for _, entry := range entries {
-		if isHiddenListName(entry.Name()) {
+		childRel := joinListRel(relDir, entry.Name())
+		if tools.IsReservedWorkspacePath(childRel) {
 			continue
 		}
 		if count >= maxListEntries {
@@ -141,7 +139,6 @@ func listDirectoryShallow(absDir, relDir string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("list_files: reading entry info: %w", err)
 		}
-		childRel := joinListRel(relDir, entry.Name())
 		sb.WriteString(formatListEntry(childRel, filepath.Join(absDir, entry.Name()), info))
 		sb.WriteByte('\n')
 		count++
@@ -161,7 +158,8 @@ func listDirectoryRecursive(absDir, relDir string, maxDepth int) (string, error)
 		if path == absDir {
 			return nil
 		}
-		if isHiddenListName(d.Name()) {
+		childRel := joinListRel(relDir, strings.TrimPrefix(path, absDir))
+		if tools.IsReservedWorkspacePath(childRel) {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -184,7 +182,6 @@ func listDirectoryRecursive(absDir, relDir string, maxDepth int) (string, error)
 			return err
 		}
 
-		childRel := joinListRel(relDir, strings.TrimPrefix(path, absDir))
 		sb.WriteString(formatListEntry(childRel, path, info))
 		sb.WriteByte('\n')
 		count++
@@ -236,23 +233,6 @@ func normalizeListRoot(rel string) string {
 		return "."
 	}
 	return rel
-}
-
-func isHiddenListName(name string) bool {
-	return name == ".biene"
-}
-
-func isHiddenListPath(relPath string) bool {
-	relPath = filepath.Clean(strings.TrimSpace(relPath))
-	if relPath == "." || relPath == "" {
-		return false
-	}
-	for _, part := range strings.Split(filepath.ToSlash(relPath), "/") {
-		if isHiddenListName(part) {
-			return true
-		}
-	}
-	return false
 }
 
 func truncateListOutput(result string) string {

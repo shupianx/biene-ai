@@ -135,7 +135,7 @@ func TestListFilesToolHidesBieneDirectory(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected explicit .biene listing to be rejected")
 	}
-	if !strings.Contains(err.Error(), "hidden") {
-		t.Fatalf("expected hidden error, got: %v", err)
+	if !strings.Contains(err.Error(), "reserved") {
+		t.Fatalf("expected reserved-path error, got: %v", err)
 	}
 }

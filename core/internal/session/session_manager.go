@@ -167,6 +167,9 @@ func (m *SessionManager) Init() {
 		procCtl := processes.New(workDir)
 		registry.Register(builtins.NewListAgentsTool(m, id))
 		registry.Register(builtins.NewSendToAgentTool(m, id))
+		registry.Register(builtins.NewShareToAgentTool(m, id))
+		registry.Register(builtins.NewUnshareToAgentTool(m, id))
+		registry.Register(builtins.NewListSharesTool(m, id))
 		registry.Register(builtins.NewStartProcessTool(workDir, procCtl))
 		registry.Register(builtins.NewReadProcessOutputTool(procCtl))
 		registry.Register(builtins.NewStopProcessTool(procCtl))
@@ -196,6 +199,7 @@ func (m *SessionManager) Init() {
 			thinkingOff:       modelEntry.ThinkingOff,
 			activeSkills:      append([]string(nil), meta.ActiveSkills...),
 			installedSkillIDs: installedIDs,
+			sharesGranted:     append([]GrantedShare(nil), meta.SharesGranted...),
 			apiMessages:       apiMsgs,
 			history:           history,
 			pendingPermission: clonePermissionPayload(meta.PendingPermission),
@@ -503,6 +507,11 @@ func (m *SessionManager) Delete(id string) bool {
 	}
 	m.mu.Unlock()
 	if ok {
+		sess.mu.Lock()
+		grants := append([]GrantedShare(nil), sess.sharesGranted...)
+		sess.mu.Unlock()
+		m.cleanupSharesForDeletedSession(id, grants)
+
 		m.emitSessionDeleted(id)
 		sess.close()
 		if sess.store != nil {

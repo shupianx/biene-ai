@@ -88,6 +88,16 @@ const (
 	ToolModeWorkspaceChange ToolMode = "workspace_change"
 )
 
+// GrantedShare records one outgoing workspace share from this agent. The
+// actual symlink lives in the target agent's workspace at
+// shared/<this-agent-id>/<basename(source_path)>; this record is the
+// sender's side of the bookkeeping used for unshare and cleanup.
+type GrantedShare struct {
+	TargetAgentID string    `json:"target_agent_id"`
+	SourcePath    string    `json:"source_path"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 // Session is one agent instance with its own workspace and conversation history.
 type Session struct {
 	ID         string        `json:"id"`
@@ -119,6 +129,10 @@ type Session struct {
 	// <WorkDir>/.biene/skills. It is refreshed from disk on install/uninstall
 	// so the frontend can detect drag-and-drop name collisions locally.
 	installedSkillIDs []string
+
+	// sharesGranted tracks outgoing shares this agent has created. The
+	// slice is persisted via SessionMeta so shares survive restarts.
+	sharesGranted []GrantedShare
 
 	// apiMessages is the canonical conversation passed into the next model turn.
 	apiMessages []api.Message
@@ -167,6 +181,7 @@ type SessionMeta struct {
 	PendingPermission *PermissionRequestPayload `json:"pending_permission,omitempty"`
 	ActiveSkills      []string                  `json:"active_skills,omitempty"`
 	InstalledSkillIDs []string                  `json:"installed_skill_ids"`
+	SharesGranted     []GrantedShare            `json:"shares_granted,omitempty"`
 	CreatedAt         time.Time                 `json:"created_at"`
 	LastActive        time.Time                 `json:"last_active"`
 }
@@ -192,6 +207,7 @@ func (s *Session) metaLocked() SessionMeta {
 		PendingPermission: clonePermissionPayload(s.pendingPermission),
 		ActiveSkills:      append([]string(nil), s.activeSkills...),
 		InstalledSkillIDs: append([]string(nil), s.installedSkillIDs...),
+		SharesGranted:     append([]GrantedShare(nil), s.sharesGranted...),
 		CreatedAt:         s.CreatedAt,
 		LastActive:        s.LastActive,
 	}

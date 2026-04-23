@@ -38,6 +38,14 @@ func (d *listAgentsTestDirectory) DetectFileCollisions(string, string, []string)
 	return nil, nil
 }
 
+func (d *listAgentsTestDirectory) CreateShare(context.Context, string, string, string) (string, error) {
+	return "", nil
+}
+
+func (d *listAgentsTestDirectory) RemoveShare(string, string, string) error { return nil }
+
+func (d *listAgentsTestDirectory) ListShares(string) []tools.SharedEntry { return nil }
+
 func TestListAgentsToolIncludesCurrentAgentAndPeers(t *testing.T) {
 	directory := &listAgentsTestDirectory{
 		agents: []tools.AgentPeer{

@@ -5,10 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"biene/internal/tools"
 )
 
 // resolvePath confines file access to rootDir when provided.
-// It returns both the absolute path and the path relative to rootDir.
+// It returns both the absolute path and the path relative to rootDir,
+// and rejects paths targeting reserved session-state areas.
 func resolvePath(rootDir, requestedPath string) (string, string, error) {
 	if requestedPath == "" {
 		return "", "", fmt.Errorf("path is required")
@@ -45,6 +48,12 @@ func resolvePath(rootDir, requestedPath string) (string, string, error) {
 	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", "", fmt.Errorf("path %q escapes workspace root", requestedPath)
+	}
+	if tools.IsReservedWorkspacePath(rel) {
+		return "", "", fmt.Errorf("path %q is reserved for session state", requestedPath)
+	}
+	if err := tools.ValidateSharedAccess(rootAbs, rel); err != nil {
+		return "", "", err
 	}
 
 	return targetAbs, filepath.ToSlash(rel), nil
