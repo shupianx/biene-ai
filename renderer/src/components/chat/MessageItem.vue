@@ -73,6 +73,20 @@
           </a>
         </div>
         <div
+          v-if="fileAttachments.length"
+          class="user-files"
+        >
+          <div
+            v-for="att in fileAttachments"
+            :key="att.path"
+            class="user-file"
+            :title="att.path"
+          >
+            <MaterialSymbolsAttachFile class="user-file-icon" aria-hidden="true" />
+            <span class="user-file-name">{{ att.name || att.path }}</span>
+          </div>
+        </div>
+        <div
           v-if="msg.text"
           class="user-text"
           :class="{
@@ -81,7 +95,7 @@
           }"
           dir="auto"
         >
-          <div class="user-body">{{ msg.text }}</div>
+          <div class="user-body" v-html="userBodyHtml" />
         </div>
       </template>
       <ToolCallCard
@@ -111,6 +125,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import MaterialSymbolsArrowForwardIosRounded from '~icons/material-symbols/arrow-forward-ios-rounded'
+import MaterialSymbolsAttachFile from '~icons/material-symbols/attach-file'
 import { useAgentNavigation } from '../../composables/useAgentNavigation'
 import type { DisplayMessage } from '../../api/http'
 import { sessionAssetURL } from '../../api/http'
@@ -118,12 +133,17 @@ import { t } from '../../i18n'
 import { useSessionsStore } from '../../stores/sessions'
 import ToolCallCard from './ToolCallCard.vue'
 import { renderMarkdown } from '../../utils/markdown'
+import { renderMentionText } from '../../utils/mentions'
 import { formatMessageTime } from '../../utils/messageTime'
 
 const props = defineProps<{ msg: DisplayMessage; sessionId: string }>()
 
 const imageAttachments = computed(() =>
   (props.msg.attachments ?? []).filter(att => att.kind === 'image')
+)
+
+const fileAttachments = computed(() =>
+  (props.msg.attachments ?? []).filter(att => att.kind !== 'image')
 )
 
 const loadedImages = ref<Set<string>>(new Set())
@@ -145,6 +165,10 @@ const REASONING_AUTO_SCROLL_DURATION_MS = 180
 
 const renderedText = computed(() =>
   renderMarkdown(props.msg.text)
+)
+
+const userBodyHtml = computed(() =>
+  renderMentionText(props.msg.text)
 )
 
 const assistantHasText = computed(() =>
@@ -531,6 +555,44 @@ function toggleReasoning() {
   100% { background-position: -40% 0; }
 }
 
+.user-files {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-bottom: 6px;
+  max-width: 100%;
+}
+
+.user-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--rule-soft);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.3;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.user-file-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  color: var(--ink-4);
+}
+
+.user-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .user-image { animation: none; }
   .user-image img { transition: none; }
@@ -551,6 +613,25 @@ function toggleReasoning() {
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.user-body :deep(.mention-chip),
+.markdown :deep(.mention-chip) {
+  display: inline-block;
+  padding: 0 6px;
+  margin: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 15%, var(--panel-2));
+  color: var(--accent);
+  font-size: 0.95em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.user-body :deep(.mention-chip.kind-skill),
+.markdown :deep(.mention-chip.kind-skill) {
+  background: color-mix(in srgb, var(--info) 15%, var(--panel-2));
+  color: var(--info);
 }
 
 .user-text.agent-source-text {

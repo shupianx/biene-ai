@@ -1,5 +1,6 @@
 import hljs from 'highlight.js/lib/common'
 import { Marked } from 'marked'
+import { chipHtml, type TokenKind } from './mentions'
 
 const ALLOWED_TAGS = new Set([
   'a',
@@ -21,6 +22,7 @@ const ALLOWED_TAGS = new Set([
   'ol',
   'p',
   'pre',
+  'span',
   'strong',
   'table',
   'tbody',
@@ -47,6 +49,7 @@ const ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
   img: new Set(['src', 'alt', 'title']),
   input: new Set(['type', 'checked', 'disabled']),
   ol: new Set(['start']),
+  span: new Set(['class', 'data-kind', 'data-value', 'data-label']),
   td: new Set(['align']),
   th: new Set(['align']),
 }
@@ -57,6 +60,44 @@ const markdown = new Marked({
   async: false,
   breaks: true,
   gfm: true,
+})
+
+// Treat inline tokens (@[Name](agent:<ID>), /[Name](skill:<Name>)) as
+// first-class inline tokens, rendered directly as chips. Keeps the markdown
+// pipeline clean and gives tokens the same lifecycle as other inline nodes.
+markdown.use({
+  extensions: [
+    {
+      name: 'inlineToken',
+      level: 'inline',
+      start(src: string) {
+        const a = src.indexOf('@[')
+        const s = src.indexOf('/[')
+        if (a === -1) return s === -1 ? undefined : s
+        if (s === -1) return a
+        return Math.min(a, s)
+      },
+      tokenizer(src: string) {
+        const m = /^([@/])\[([^\]]+)\]\((agent|skill):([^)]+)\)/.exec(src)
+        if (!m) return undefined
+        const trigger = m[1]
+        const kind = m[3] as TokenKind
+        // Reject mismatched trigger/kind pairs so '/[x](agent:y)' doesn't
+        // sneak through as a valid chip.
+        if ((trigger === '@') !== (kind === 'agent')) return undefined
+        return {
+          type: 'inlineToken',
+          raw: m[0],
+          kind,
+          value: m[4],
+          label: m[2],
+        }
+      },
+      renderer(token: { kind: TokenKind; value: string; label: string }) {
+        return chipHtml(token.kind, token.value, token.label)
+      },
+    },
+  ],
 })
 
 export function renderMarkdown(source: string): string {
@@ -177,6 +218,18 @@ function sanitizeElement(element: Element) {
       return
     }
     element.setAttribute('disabled', '')
+  }
+
+  // Only permit <span> in its mention-chip shape; any other span is
+  // unwrapped so raw LLM HTML can't sneak styled text through.
+  if (tag === 'span') {
+    if (
+      element.getAttribute('class')?.trim() !== 'mention-chip' ||
+      !element.hasAttribute('data-agent-id')
+    ) {
+      unwrapElement(element)
+      return
+    }
   }
 
   if (tag === 'li' && element.querySelector(':scope > input[type="checkbox"]')) {
