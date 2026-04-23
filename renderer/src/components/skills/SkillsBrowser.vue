@@ -89,8 +89,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import DeleteIcon from '~icons/material-symbols/delete-forever-outline-sharp'
-import DefaultOffIcon from '~icons/tabler/file'
-import DefaultOnIcon from '~icons/tabler/file-power'
+import DefaultOffIcon from '~icons/basil/lightning-alt-outline'
+import DefaultOnIcon from '~icons/basil/lightning-alt-solid'
 import {
   deleteSkill,
   importSkillFolder,
@@ -558,7 +558,6 @@ onBeforeUnmount(() => {
 
 .skill-action:disabled {
   opacity: 0.55;
-  cursor: progress;
 }
 
 .skill-action-icon {

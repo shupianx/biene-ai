@@ -6,18 +6,13 @@
           <span class="setting-label">{{ t('modal.language') }}</span>
           <span class="setting-hint">{{ t('modal.languageHint') }}</span>
         </div>
-        <div class="language-group" :aria-label="t('modal.language')">
-          <button
-            v-for="option in localeOptions"
-            :key="option.value"
-            class="language-btn"
-            :class="{ active: locale === option.value }"
-            type="button"
-            @click="onLocaleChange(option.value)"
-          >
-            {{ option.label }}
-          </button>
-        </div>
+        <SelectField
+          class="language-select"
+          :model-value="locale"
+          :options="localeOptions"
+          :aria-label="t('modal.language')"
+          @update:model-value="onLocaleChange($event)"
+        />
       </div>
 
       <div class="setting-row">
@@ -224,6 +219,7 @@ import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
 import AppButton from '../ui/AppButton.vue'
 import BaseModal from '../ui/BaseModal.vue'
 import PopupMenu, { type PopupMenuEntry } from '../ui/PopupMenu.vue'
+import SelectField from '../ui/SelectField.vue'
 import ToggleSwitch from '../ui/ToggleSwitch.vue'
 import { useTheme } from '../../composables/useTheme'
 import { useDesktopSettings } from '../../composables/useDesktopSettings'
@@ -615,42 +611,8 @@ onMounted(() => {
   color: var(--ink-4);
 }
 
-.language-group {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--rule-soft);
-  background: var(--panel-2);
+.language-select {
   flex-shrink: 0;
-}
-
-.language-btn {
-  min-width: 92px;
-  height: 30px;
-  padding: 0 12px;
-  border: none;
-  background: transparent;
-  color: var(--ink-3);
-  cursor: pointer;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  transition: background .12s, color .12s;
-}
-
-.language-btn + .language-btn {
-  border-left: 1px solid var(--rule-soft);
-}
-
-.language-btn:hover {
-  background: var(--hover-soft);
-  color: var(--ink);
-}
-
-.language-btn.active {
-  background: var(--ink);
-  color: var(--bg);
 }
 
 .providers-section {
@@ -837,6 +799,14 @@ onMounted(() => {
   border-color: color-mix(in srgb, var(--err) 40%, var(--rule));
 }
 
+.card-btn.danger:not(:disabled) {
+  background: color-mix(in srgb, var(--err) 10%, transparent);
+}
+
+.card-btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--err) 18%, transparent);
+}
+
 .card-btn.accent {
   background: transparent;
   border-color: var(--info);
@@ -984,13 +954,8 @@ onMounted(() => {
     align-items: stretch;
   }
 
-  .language-group {
+  .language-select {
     width: 100%;
-  }
-
-  .language-btn {
-    flex: 1 1 0;
-    min-width: 0;
   }
 
   .providers-grid,

@@ -33,8 +33,8 @@
           aria-hidden="true"
         />
       </span>
-      <span class="tool-name">{{ tc.tool_name }}</span>
-      <span class="tool-summary">{{ tc.tool_summary }}</span>
+      <span class="tool-name">{{ displayName }}</span>
+      <span class="tool-summary">{{ displaySummary }}</span>
       <span class="expand-icon">{{ expanded ? '▲' : '▼' }}</span>
     </div>
     <div v-if="expanded" class="tool-body">
@@ -63,6 +63,45 @@ import { t } from '../../i18n'
 
 const props = defineProps<{ tc: DisplayTool }>()
 const expanded = ref(false)
+
+// Map a raw tool identifier (e.g. "read_file") to a localized label.
+// Falls back to the raw name when no mapping exists, so newly added tools
+// still show up sensibly until their label is added to messages.ts.
+const displayName = computed(() => {
+  const raw = props.tc.tool_name
+  const key = `tool.names.${raw}`
+  const translated = t(key)
+  return translated === key ? raw : translated
+})
+
+// Some tool summaries are canned English phrases (e.g. "list available
+// agents"); others are dynamic strings (file paths, command lines) that
+// should pass through untouched. We only translate the known static set.
+const STATIC_SUMMARY_MAP: Record<string, string> = {
+  'list available agents': 'tool.summaries.list_available_agents',
+  'list installed skills': 'tool.summaries.list_skills',
+  'list skills': 'tool.summaries.list_skills',
+  'prepare file write': 'tool.summaries.prepare_file_write',
+  'load skill': 'tool.summaries.load_skill',
+  '<invalid input>': 'tool.summaries.invalid_input',
+}
+
+const displaySummary = computed(() => {
+  const raw = props.tc.tool_summary ?? ''
+  const trimmed = raw.trim()
+  if (!trimmed) return raw
+
+  const mapped = STATIC_SUMMARY_MAP[trimmed]
+  if (mapped) return t(mapped)
+
+  // "load skill <name>" has a dynamic name portion; match the prefix.
+  if (trimmed.startsWith('load skill ')) {
+    const name = trimmed.slice('load skill '.length)
+    return t('tool.summaries.load_skill_named', { name })
+  }
+
+  return raw
+})
 
 const statusClass = computed(() => ({
   'status-composing': props.tc.status === 'composing',
