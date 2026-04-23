@@ -3,7 +3,10 @@ const path = require('path')
 const { spawn, spawnSync } = require('child_process')
 
 const rootDir = path.resolve(__dirname, '..')
-const rendererUrl = 'http://127.0.0.1:5173'
+// Must use 'localhost' (not 127.0.0.1) to match renderer/vite.config.ts:
+// Vite binds to ::1 when host is 'localhost' on Node 17+, and a raw IPv4
+// probe would miss it.
+const rendererUrl = 'http://localhost:5173'
 const electronCli = path.join(rootDir, 'node_modules', 'electron', 'cli.js')
 
 let rendererProcess = null
