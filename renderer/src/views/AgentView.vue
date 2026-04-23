@@ -99,7 +99,12 @@ watch(
       return
     }
 
-    await store.syncSession(id, true, true)
+    // Populate the full session roster so features like @mention have peers
+    // to pick from. init() is idempotent, so reopening this window is cheap.
+    await Promise.all([
+      store.init(false, true),
+      store.syncSession(id, true, true),
+    ])
     loading.value = false
   },
   { immediate: true },

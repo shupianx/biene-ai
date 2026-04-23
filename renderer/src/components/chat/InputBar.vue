@@ -19,16 +19,18 @@
           </button>
         </div>
       </div>
-      <textarea
-        ref="taRef"
-        v-model="text"
-        :disabled="disabled"
-        :placeholder="t('input.placeholder')"
-        rows="1"
-        @keydown.enter.exact.prevent="onEnter"
-        @input="resize"
+      <div
+        ref="editorRef"
+        class="editor"
+        :class="{ empty: isEmpty }"
+        :contenteditable="!disabled"
+        role="textbox"
+        :aria-disabled="disabled ? 'true' : 'false'"
+        :data-placeholder="t('input.placeholder')"
+        @input="onInput"
+        @keydown="onKeydown"
         @focus="focused = true"
-        @blur="focused = false"
+        @blur="onBlur"
         @paste="onPaste"
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"
@@ -87,15 +89,26 @@
         </button>
       </div>
     </div>
+    <AgentMentionMenu
+      :visible="mentionOpen"
+      :candidates="filteredCandidates"
+      :selected-index="selectedCandidateIndex"
+      :position="mentionPosition"
+      :kind="activeQuery?.kind"
+      @pick="pickCandidate"
+      @hover="selectedCandidateIndex = $event"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, nextTick, onBeforeUnmount } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import MynauiSend from '~icons/mynaui/send'
 import MaterialSymbolsImageOutline from '~icons/material-symbols/image-outline'
 import IconButton from '../ui/IconButton.vue'
 import ToggleSwitch from '../ui/ToggleSwitch.vue'
+import AgentMentionMenu, { type MentionCandidate } from './AgentMentionMenu.vue'
+import { chipToInlineText, type TokenKind } from '../../utils/mentions'
 import { t } from '../../i18n'
 
 interface StagedImage {
@@ -110,6 +123,8 @@ const props = defineProps<{
   interrupting?: boolean
   thinkingAvailable?: boolean
   thinkingEnabled?: boolean
+  mentionCandidates?: MentionCandidate[]
+  skillCandidates?: MentionCandidate[]
 }>()
 const emit = defineEmits<{
   (e: 'send', payload: { text: string; files: File[] }): void
@@ -117,20 +132,58 @@ const emit = defineEmits<{
   (e: 'interrupt'): void
 }>()
 
-const text  = ref('')
-const taRef = ref<HTMLTextAreaElement | null>(null)
+const editorRef = ref<HTMLDivElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const stagedImages = ref<StagedImage[]>([])
 const isComposing = ref(false)
 const focused = ref(false)
+const isEmpty = ref(true)
 let compositionLockedUntil = 0
+
+// ── Mention / skill state ─────────────────────────────────────────────────
+// Both triggers share one popup, one query cursor, and one keyboard loop;
+// only the candidate source and the chip's kind differ per trigger.
+
+interface ActiveQuery {
+  kind: TokenKind
+  textNode: Text
+  atIdx: number       // index of the trigger character in the text node
+  caretOffset: number // current cursor offset within the text node
+  query: string       // what the user has typed after the trigger
+}
+
+const activeQuery = ref<ActiveQuery | null>(null)
+const mentionOpen = computed(() => activeQuery.value !== null)
+const selectedCandidateIndex = ref(0)
+const mentionPosition = ref({ left: 0, top: 0 })
+
+const filteredCandidates = computed<MentionCandidate[]>(() => {
+  const q = activeQuery.value
+  if (!q) return []
+  const all = q.kind === 'skill'
+    ? props.skillCandidates ?? []
+    : props.mentionCandidates ?? []
+  const needle = q.query.trim().toLowerCase()
+  if (!needle) return all
+  return all.filter(c =>
+    c.name.toLowerCase().includes(needle) || c.id.toLowerCase().includes(needle)
+  )
+})
+
+watch(filteredCandidates, (list) => {
+  if (selectedCandidateIndex.value >= list.length) {
+    selectedCandidateIndex.value = 0
+  }
+})
+
+// ── Button state ──────────────────────────────────────────────────────────
 
 const buttonDisabled = computed(() => {
   if (props.interruptible) {
     return Boolean(props.interrupting)
   }
   if (props.disabled) return true
-  return !text.value.trim() && stagedImages.value.length === 0
+  return isEmpty.value && stagedImages.value.length === 0
 })
 
 const buttonTitle = computed(() =>
@@ -146,11 +199,15 @@ const actionLabel = computed(() => {
   return t('input.send')
 })
 
-function resize() {
-  const el = taRef.value
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+// ── Composition (IME) ─────────────────────────────────────────────────────
+
+function onBlur() {
+  focused.value = false
+  // Allow a pick via mousedown (preventDefault keeps focus) to commit before
+  // we tear down the menu; otherwise a real focus loss closes it.
+  window.setTimeout(() => {
+    if (document.activeElement !== editorRef.value) closeMention()
+  }, 100)
 }
 
 function onCompositionStart() {
@@ -160,13 +217,329 @@ function onCompositionStart() {
 function onCompositionEnd() {
   isComposing.value = false
   compositionLockedUntil = Date.now() + 30
+  // IME commit fires a composition text insertion; re-scan for mention.
+  scanMentionQuery()
+  updateEmpty()
 }
 
-function onEnter(event: KeyboardEvent) {
-  if (isComposing.value || event.isComposing) return
+// ── Editor events ─────────────────────────────────────────────────────────
+
+function onInput() {
+  updateEmpty()
+  if (isComposing.value) return
+  scanMentionQuery()
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (isComposing.value) return
   if (Date.now() < compositionLockedUntil) return
-  if (props.interruptible) return
-  submit()
+
+  if (mentionOpen.value) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      moveSelection(1)
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      moveSelection(-1)
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMention()
+      return
+    }
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      const picked = filteredCandidates.value[selectedCandidateIndex.value]
+      if (picked) {
+        event.preventDefault()
+        pickCandidate(picked)
+        return
+      }
+      // no candidates: fall through to normal behavior
+    }
+  }
+
+  if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
+    if (props.interruptible) {
+      event.preventDefault()
+      return
+    }
+    event.preventDefault()
+    submit()
+    return
+  }
+  if (event.key === 'Enter' && event.shiftKey) {
+    event.preventDefault()
+    insertTextAtCaret('\n')
+    updateEmpty()
+    scanMentionQuery()
+  }
+}
+
+// ── Mention query detection ───────────────────────────────────────────────
+
+function scanMentionQuery() {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || !editorRef.value) {
+    closeMention()
+    return
+  }
+  const range = sel.getRangeAt(0)
+  if (!range.collapsed) {
+    closeMention()
+    return
+  }
+  const anchor = range.startContainer
+  if (!editorRef.value.contains(anchor) || anchor.nodeType !== Node.TEXT_NODE) {
+    closeMention()
+    return
+  }
+  const textNode = anchor as Text
+  const caretOffset = range.startOffset
+  const before = textNode.data.slice(0, caretOffset)
+  const trigger = findActiveTrigger(before)
+  if (!trigger) {
+    closeMention()
+    return
+  }
+  const query = before.slice(trigger.idx + 1)
+  activeQuery.value = { kind: trigger.kind, textNode, atIdx: trigger.idx, caretOffset, query }
+  updateMentionPosition()
+}
+
+// Scans backward from the caret for the nearest active trigger character.
+// Rules:
+//   '@' triggers anywhere (a name may include no preceding space, e.g.
+//   "foo@bar" — matching was user-requested for agent mentions).
+//   '/' triggers only at word boundaries so paths like "src/utils/foo"
+//   don't open the skill menu on every slash.
+// Returns null once whitespace between trigger and caret ends the query.
+function findActiveTrigger(text: string): { kind: TokenKind; idx: number } | null {
+  for (let i = text.length - 1; i >= 0; i--) {
+    const ch = text[i]
+    if (ch === '@') return { kind: 'agent', idx: i }
+    if (ch === '/') {
+      if (i === 0 || /\s/.test(text[i - 1])) return { kind: 'skill', idx: i }
+      return null
+    }
+    if (/\s/.test(ch)) return null
+  }
+  return null
+}
+
+// These must stay in sync with AgentMentionMenu.vue's styles. They are
+// approximations used to decide whether the menu fits below the caret
+// before it is actually painted; good-enough numbers beat measuring in a
+// post-paint pass (which would cause a visible reposition jitter).
+const MENTION_MENU_WIDTH = 260
+const MENTION_MENU_ITEM_HEIGHT = 32
+const MENTION_MENU_VPAD = 8
+const MENTION_MENU_MAX_HEIGHT = 240
+const MENTION_MENU_GAP = 4
+const MENTION_MENU_VIEWPORT_MARGIN = 8
+
+function estimateMenuHeight(count: number): number {
+  if (count === 0) return 40
+  return Math.min(
+    count * MENTION_MENU_ITEM_HEIGHT + MENTION_MENU_VPAD,
+    MENTION_MENU_MAX_HEIGHT,
+  )
+}
+
+function updateMentionPosition() {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return
+  const range = sel.getRangeAt(0).cloneRange()
+  range.collapse(true)
+  // getBoundingClientRect on a collapsed range returns a zero-width rect at
+  // the caret position — unlike getClientRects, which Chromium returns as an
+  // empty list for collapsed ranges. top/left are still valid.
+  const rect = range.getBoundingClientRect()
+  const caretValid = rect.top !== 0 || rect.left !== 0 || rect.height !== 0
+
+  let caretLeft: number
+  let caretTop: number
+  let caretBottom: number
+  if (caretValid) {
+    caretLeft = rect.left
+    caretTop = rect.top
+    caretBottom = rect.bottom
+  } else {
+    const editorRect = editorRef.value?.getBoundingClientRect()
+    if (!editorRect) return
+    caretLeft = editorRect.left
+    caretTop = editorRect.bottom
+    caretBottom = editorRect.bottom
+  }
+
+  const menuHeight = estimateMenuHeight(filteredCandidates.value.length)
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const spaceBelow = vh - caretBottom - MENTION_MENU_VIEWPORT_MARGIN
+  const spaceAbove = caretTop - MENTION_MENU_VIEWPORT_MARGIN
+
+  // Prefer below; flip above only when below is too tight AND above has
+  // strictly more room. Keeps the menu in one place when both sides fit.
+  const flipUp = spaceBelow < menuHeight && spaceAbove > spaceBelow
+  const top = flipUp
+    ? caretTop - menuHeight - MENTION_MENU_GAP
+    : caretBottom + MENTION_MENU_GAP
+
+  const left = Math.max(
+    MENTION_MENU_VIEWPORT_MARGIN,
+    Math.min(caretLeft, vw - MENTION_MENU_WIDTH - MENTION_MENU_VIEWPORT_MARGIN),
+  )
+  const clampedTop = Math.max(
+    MENTION_MENU_VIEWPORT_MARGIN,
+    Math.min(top, vh - menuHeight - MENTION_MENU_VIEWPORT_MARGIN),
+  )
+  mentionPosition.value = { left, top: clampedTop }
+}
+
+function moveSelection(delta: number) {
+  const list = filteredCandidates.value
+  if (!list.length) return
+  const next = (selectedCandidateIndex.value + delta + list.length) % list.length
+  selectedCandidateIndex.value = next
+}
+
+function closeMention() {
+  activeQuery.value = null
+  selectedCandidateIndex.value = 0
+}
+
+function pickCandidate(candidate: MentionCandidate) {
+  const q = activeQuery.value
+  if (!q || !editorRef.value) return
+  const { kind, textNode, atIdx, caretOffset } = q
+
+  // Replace the trigger + query span in the text node with a chip + space.
+  const range = document.createRange()
+  range.setStart(textNode, atIdx)
+  range.setEnd(textNode, caretOffset)
+  range.deleteContents()
+
+  const triggerChar = kind === 'skill' ? '/' : '@'
+  const span = document.createElement('span')
+  span.className = `mention-chip kind-${kind}`
+  span.contentEditable = 'false'
+  span.dataset.kind = kind
+  span.dataset.value = candidate.id
+  span.dataset.label = candidate.name
+  span.textContent = `${triggerChar}${candidate.name}`
+
+  range.insertNode(span)
+  const space = document.createTextNode(' ')
+  span.after(space)
+
+  const sel = window.getSelection()
+  const caret = document.createRange()
+  caret.setStart(space, 1)
+  caret.collapse(true)
+  sel?.removeAllRanges()
+  sel?.addRange(caret)
+
+  closeMention()
+  updateEmpty()
+}
+
+// ── Text insertion & paste ────────────────────────────────────────────────
+
+function insertTextAtCaret(text: string) {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return
+  const range = sel.getRangeAt(0)
+  range.deleteContents()
+  const node = document.createTextNode(text)
+  range.insertNode(node)
+  const after = document.createRange()
+  after.setStart(node, node.length)
+  after.collapse(true)
+  sel.removeAllRanges()
+  sel.addRange(after)
+}
+
+function onPaste(event: ClipboardEvent) {
+  const cd = event.clipboardData
+  if (!cd) return
+
+  const images: File[] = []
+  for (const item of Array.from(cd.items)) {
+    if (item.kind !== 'file') continue
+    if (!item.type.startsWith('image/')) continue
+    const file = item.getAsFile()
+    if (file) images.push(file)
+  }
+  if (images.length) {
+    event.preventDefault()
+    stageImages(images)
+    return
+  }
+
+  const text = cd.getData('text/plain')
+  if (text == null) return
+  event.preventDefault()
+  insertTextAtCaret(text)
+  updateEmpty()
+  scanMentionQuery()
+}
+
+// ── Empty detection ───────────────────────────────────────────────────────
+
+function updateEmpty() {
+  const root = editorRef.value
+  if (!root) {
+    isEmpty.value = true
+    return
+  }
+  const raw = (root.textContent ?? '').replace(/ /g, ' ')
+  const hasMention = Boolean(root.querySelector('.mention-chip'))
+  isEmpty.value = raw.trim().length === 0 && !hasMention
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────
+
+function extractMessage(): string {
+  const root = editorRef.value
+  if (!root) return ''
+  return walk(root).replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+function walk(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return (node as Text).data
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return ''
+  const el = node as HTMLElement
+  if (el.classList.contains('mention-chip')) {
+    return chipToInlineText(el)
+  }
+  if (el.tagName === 'BR') return '\n'
+  let out = ''
+  for (const child of Array.from(el.childNodes)) {
+    out += walk(child)
+  }
+  if (el.tagName === 'DIV' || el.tagName === 'P') out += '\n'
+  return out
+}
+
+function clearEditor() {
+  if (editorRef.value) editorRef.value.innerHTML = ''
+  closeMention()
+  isEmpty.value = true
+}
+
+async function submit() {
+  if (props.disabled) return
+  const text = extractMessage()
+  if (!text && stagedImages.value.length === 0) return
+  const files = stagedImages.value.map(img => img.file)
+  clearEditor()
+  clearStagedImages()
+  await nextTick()
+  emit('send', { text, files })
 }
 
 function handleAction() {
@@ -176,6 +549,8 @@ function handleAction() {
   }
   submit()
 }
+
+// ── Image attachments (unchanged) ─────────────────────────────────────────
 
 function openFilePicker() {
   fileInputRef.value?.click()
@@ -187,20 +562,6 @@ function onFileInputChange(event: Event) {
   const files = Array.from(input.files)
   stageImages(files)
   input.value = ''
-}
-
-function onPaste(event: ClipboardEvent) {
-  if (!event.clipboardData) return
-  const images: File[] = []
-  for (const item of Array.from(event.clipboardData.items)) {
-    if (item.kind !== 'file') continue
-    if (!item.type.startsWith('image/')) continue
-    const file = item.getAsFile()
-    if (file) images.push(file)
-  }
-  if (images.length === 0) return
-  event.preventDefault()
-  stageImages(images)
 }
 
 function stageImages(files: File[]) {
@@ -226,18 +587,6 @@ function clearStagedImages() {
     URL.revokeObjectURL(img.previewUrl)
   }
   stagedImages.value = []
-}
-
-async function submit() {
-  const value = text.value.trim()
-  if (props.disabled) return
-  if (!value && stagedImages.value.length === 0) return
-  const files = stagedImages.value.map(img => img.file)
-  text.value = ''
-  clearStagedImages()
-  await nextTick()
-  if (taRef.value) taRef.value.style.height = 'auto'
-  emit('send', { text: value, files })
 }
 
 onBeforeUnmount(() => {
@@ -322,28 +671,53 @@ onBeforeUnmount(() => {
   background: rgba(20, 18, 15, 0.88);
 }
 
-textarea {
+.editor {
+  position: relative;
   width: 100%;
   min-height: 40px;
-  resize: none;
-  border: none;
+  max-height: 160px;
+  overflow-y: auto;
   padding: 0;
   font-size: 14px;
   font-family: var(--sans);
   line-height: 1.55;
-  outline: none;
-  background: transparent;
   color: var(--ink);
-  max-height: 160px;
-  overflow-y: auto;
+  background: transparent;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-textarea::placeholder {
+.editor.empty::before {
+  content: attr(data-placeholder);
   color: var(--ink-4);
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
-textarea:disabled {
+.editor[aria-disabled='true'] {
   color: var(--ink-4);
+  cursor: not-allowed;
+}
+
+.editor :deep(.mention-chip) {
+  display: inline-block;
+  padding: 0 6px;
+  margin: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 15%, var(--panel-2));
+  color: var(--accent);
+  font-size: 13px;
+  line-height: 1.4;
+  user-select: all;
+  white-space: nowrap;
+}
+
+.editor :deep(.mention-chip.kind-skill) {
+  background: color-mix(in srgb, var(--info) 15%, var(--panel-2));
+  color: var(--info);
 }
 
 .composer-actions {

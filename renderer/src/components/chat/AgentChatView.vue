@@ -91,6 +91,8 @@
         :interrupting="session.isInterrupting"
         :thinking-available="session.meta.thinking_available"
         :thinking-enabled="Boolean(session.meta.thinking_enabled)"
+        :mention-candidates="mentionCandidates"
+        :skill-candidates="skillCandidates"
         @send="onSend"
         @update:thinking-enabled="onThinkingEnabledChange"
         @interrupt="onInterrupt"
@@ -112,6 +114,7 @@ import ProcessCapsule from './ProcessCapsule.vue'
 import IconButton from '../ui/IconButton.vue'
 import ProcessLogPanel from './ProcessLogPanel.vue'
 import { getSessionStatusLabel, getSessionStatusTone } from '../../utils/sessionStatus'
+import { listSkills, type SkillCatalogEntry } from '../../api/http'
 
 const props = defineProps<{ session: AgentSession }>()
 const emit = defineEmits<{
@@ -136,6 +139,48 @@ let interactionTimer: number | null = null
 
 const statusTone = computed(() => getSessionStatusTone(props.session))
 const statusLabel = computed(() => getSessionStatusLabel(statusTone.value))
+
+const mentionCandidates = computed(() =>
+  store.sessionList
+    .filter(sess => sess.meta.id !== props.session.meta.id)
+    .map(sess => ({ id: sess.meta.id, name: sess.meta.name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+)
+
+// Skill catalog is fetched once per view and held as a ref; the candidate
+// list is derived by joining it with the session's installed_skill_ids.
+// The chip's "id" carries the skill NAME (what use_skill expects), since
+// skill names — not IDs — are how the LLM references them.
+const skillCatalog = ref<SkillCatalogEntry[]>([])
+
+async function refreshSkillCatalog() {
+  try {
+    const catalog = await listSkills()
+    skillCatalog.value = catalog.skills
+  } catch (error) {
+    console.warn('[agent-view] failed to load skill catalog', error)
+  }
+}
+
+const skillCandidates = computed(() => {
+  const installed = new Set(props.session.meta.installed_skill_ids ?? [])
+  return skillCatalog.value
+    .filter(skill => installed.has(skill.id))
+    .map(skill => ({ id: skill.name, name: skill.name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
+
+// If the session gains a skill we haven't seen yet (e.g. user drops a new
+// skill onto the card), refetch the catalog so the picker shows it.
+watch(
+  () => props.session.meta.installed_skill_ids ?? [],
+  (ids) => {
+    const known = new Set(skillCatalog.value.map(s => s.id))
+    if (ids.some(id => !known.has(id))) {
+      void refreshSkillCatalog()
+    }
+  },
+)
 
 const lastIsUser = computed(() => {
   const msgs = props.session.messages
@@ -466,6 +511,7 @@ onMounted(() => {
     inputOverlayResizeObserver.observe(inputOverlayRef.value)
   })
   window.addEventListener('keydown', onWindowKeydown, true)
+  void refreshSkillCatalog()
 })
 
 onBeforeUnmount(() => {
