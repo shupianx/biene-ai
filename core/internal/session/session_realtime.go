@@ -13,6 +13,7 @@ func (s *Session) setPendingPermission(req webperm.PermissionRequest) *Permissio
 		ToolName:    req.ToolName,
 		ToolSummary: req.ToolSummary,
 		ToolInput:   req.ToolInput,
+		Context:     req.Context,
 	}
 
 	s.mu.Lock()

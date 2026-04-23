@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -26,7 +27,9 @@ func (s *Session) CancelCurrentQuery() {
 }
 
 // ResolvePermission resolves a pending permission request and returns fresh session metadata.
-func (s *Session) ResolvePermission(requestID string, decision permission.Decision) (SessionMeta, error) {
+// `resolution` is an optional UI-supplied payload (e.g. collision handling strategy)
+// that is forwarded into the tool's Execute context.
+func (s *Session) ResolvePermission(requestID string, decision permission.Decision, resolution json.RawMessage) (SessionMeta, error) {
 	s.mu.Lock()
 	expired := s.pendingPermission != nil &&
 		s.pendingPermission.RequestID == requestID &&
@@ -36,7 +39,7 @@ func (s *Session) ResolvePermission(requestID string, decision permission.Decisi
 		s.clearPendingPermission(requestID)
 		return s.Meta(), nil
 	}
-	if err := s.checker.Resolve(requestID, decision); err != nil {
+	if err := s.checker.Resolve(requestID, decision, resolution); err != nil {
 		return SessionMeta{}, err
 	}
 	return s.Meta(), nil

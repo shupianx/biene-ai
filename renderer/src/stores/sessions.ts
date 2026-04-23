@@ -249,13 +249,17 @@ export const useSessionsStore = defineStore('sessions', () => {
     return state
   }
 
-  async function resolvePermission(sessionId: string, decision: 'allow' | 'always' | 'deny') {
+  async function resolvePermission(
+    sessionId: string,
+    decision: 'allow' | 'always' | 'deny',
+    resolution?: Record<string, unknown>,
+  ) {
     const sess = sessions.value[sessionId]
     if (!sess?.pendingPermission) return
     const requestId = sess.pendingPermission.request_id
     sess.pendingPermission = null
     sess.meta.pending_permission = undefined
-    sess.meta = await apiResolve(sessionId, requestId, decision)
+    sess.meta = await apiResolve(sessionId, requestId, decision, resolution)
   }
 
   // ── Internal: attach a session to realtime updates and load its history ───

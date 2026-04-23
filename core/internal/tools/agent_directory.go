@@ -19,11 +19,28 @@ type AgentPeer struct {
 	Status  string
 }
 
+// CollisionResolution controls how a sender's file is written into the
+// receiver's inbox when a file with the same name already exists.
+type CollisionResolution string
+
+const (
+	CollisionRename    CollisionResolution = "rename"
+	CollisionOverwrite CollisionResolution = "overwrite"
+	CollisionSkip      CollisionResolution = "skip"
+)
+
+// FileCollision describes one name conflict discovered before delivery.
+type FileCollision struct {
+	RequestedPath string `json:"requested_path"`
+	TargetPath    string `json:"target_path"`
+}
+
 // DeliveryRequest is one outbound agent-to-agent message.
 type DeliveryRequest struct {
-	TargetAgentID string
-	Message       string
-	FilePaths     []string
+	TargetAgentID      string
+	Message            string
+	FilePaths          []string
+	CollisionStrategy  CollisionResolution
 }
 
 // DeliveryResult captures the outcome of an inter-agent transfer.
@@ -31,6 +48,9 @@ type DeliveryResult struct {
 	TargetID    string
 	TargetName  string
 	StoredPaths []string
+	Skipped     []string
+	Overwritten []string
+	Renamed     []string
 	MessageMeta AgentMessageMeta
 }
 
@@ -38,4 +58,5 @@ type DeliveryResult struct {
 type AgentDirectory interface {
 	ListAgents(excludeID string) []AgentPeer
 	DeliverFromAgent(ctx context.Context, fromAgentID string, req DeliveryRequest) (DeliveryResult, error)
+	DetectFileCollisions(fromAgentID, targetAgentID string, filePaths []string) ([]FileCollision, error)
 }

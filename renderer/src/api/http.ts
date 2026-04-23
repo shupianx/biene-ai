@@ -156,10 +156,16 @@ export function interruptSession(id: string) {
   return post<{ ok: boolean }>(`/api/sessions/${id}/interrupt`)
 }
 
-export function resolvePermission(sessionId: string, requestId: string, decision: 'allow' | 'always' | 'deny') {
+export function resolvePermission(
+  sessionId: string,
+  requestId: string,
+  decision: 'allow' | 'always' | 'deny',
+  resolution?: Record<string, unknown>,
+) {
   return post<SessionMeta>(`/api/sessions/${sessionId}/permission`, {
     request_id: requestId,
     decision,
+    ...(resolution ? { resolution } : {}),
   })
 }
 

@@ -8,9 +8,10 @@ import (
 )
 
 type preparedPermission struct {
-	done    chan struct{}
-	allowed bool
-	err     error
+	done       chan struct{}
+	allowed    bool
+	resolution json.RawMessage
+	err        error
 }
 
 func startPreparedPermission(
@@ -21,13 +22,13 @@ func startPreparedPermission(
 ) *preparedPermission {
 	prep := &preparedPermission{done: make(chan struct{})}
 	go func() {
-		prep.allowed, prep.err = checker.Check(ctx, tool, input)
+		prep.allowed, prep.resolution, prep.err = checker.Check(ctx, tool, input)
 		close(prep.done)
 	}()
 	return prep
 }
 
-func (p *preparedPermission) Wait() (bool, error) {
+func (p *preparedPermission) Wait() (bool, json.RawMessage, error) {
 	<-p.done
-	return p.allowed, p.err
+	return p.allowed, p.resolution, p.err
 }

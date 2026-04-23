@@ -109,11 +109,23 @@ func ReadUploadedFile(name string, r io.Reader) (UploadedFile, error) {
 	return UploadedFile{Name: name, Data: data}, nil
 }
 
-func StoreUploadedFiles(workDir, subdir string, files []UploadedFile) ([]DisplayAttachment, error) {
+// UserUploadSubdir is where files uploaded by the user land inside a session's
+// workspace. Using a dedicated folder under inbox/ keeps user and agent
+// deliveries consistent in layout.
+const UserUploadSubdir = "inbox/user"
+
+// AgentInboxSubdir builds the subdirectory where files from the given source
+// agent should be stored in the receiver's workspace.
+func AgentInboxSubdir(sourceAgentID string) string {
+	return filepath.ToSlash(filepath.Join("inbox", sourceAgentID))
+}
+
+func StoreUploadedFiles(workDir string, files []UploadedFile) ([]DisplayAttachment, error) {
 	if len(files) == 0 {
 		return nil, nil
 	}
 
+	subdir := UserUploadSubdir
 	destDir := filepath.Join(workDir, subdir)
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return nil, fmt.Errorf("creating upload directory: %w", err)
@@ -145,59 +157,130 @@ func StoreUploadedFiles(workDir, subdir string, files []UploadedFile) ([]Display
 	return attachments, nil
 }
 
-func copyFilesBetweenWorkspaces(ctx context.Context, fromWorkDir, toWorkDir, subdir, sourceAgentID string, filePaths []string) ([]DisplayAttachment, error) {
+// agentCopyOutcome reports which incoming files were written, skipped,
+// overwritten or renamed so the sender can surface the details to its user.
+type agentCopyOutcome struct {
+	Attachments []DisplayAttachment
+	Skipped     []string
+	Overwritten []string
+	Renamed     []string
+}
+
+func copyFilesBetweenWorkspaces(
+	ctx context.Context,
+	fromWorkDir, toWorkDir, sourceAgentID string,
+	filePaths []string,
+	strategy tools.CollisionResolution,
+) (agentCopyOutcome, error) {
+	var outcome agentCopyOutcome
 	if len(filePaths) == 0 {
-		return nil, nil
+		return outcome, nil
 	}
 
+	if strategy == "" {
+		strategy = tools.CollisionRename
+	}
+
+	subdir := AgentInboxSubdir(sourceAgentID)
 	destDir := filepath.Join(toWorkDir, subdir)
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return nil, fmt.Errorf("creating inbox directory: %w", err)
+		return outcome, fmt.Errorf("creating inbox directory: %w", err)
 	}
 
-	var attachments []DisplayAttachment
 	for _, requestedPath := range filePaths {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return outcome, ctx.Err()
 		default:
 		}
 
 		sourcePath, _, err := ResolveWorkspacePath(fromWorkDir, requestedPath)
 		if err != nil {
-			return nil, fmt.Errorf("copying %q: %w", requestedPath, err)
+			return outcome, fmt.Errorf("copying %q: %w", requestedPath, err)
 		}
 
+		info, err := os.Stat(sourcePath)
+		if err != nil {
+			return outcome, fmt.Errorf("stat %q: %w", requestedPath, err)
+		}
+		if info.IsDir() {
+			return outcome, fmt.Errorf("directories are not supported: %q", requestedPath)
+		}
+
+		data, err := os.ReadFile(sourcePath)
+		if err != nil {
+			return outcome, fmt.Errorf("reading %q: %w", requestedPath, err)
+		}
+
+		baseName := filepath.Base(sourcePath)
+		destAbs := filepath.Join(destDir, baseName)
+		_, statErr := os.Stat(destAbs)
+		exists := statErr == nil
+
+		finalName := baseName
+		switch {
+		case exists && strategy == tools.CollisionSkip:
+			outcome.Skipped = append(outcome.Skipped, filepath.ToSlash(filepath.Join(subdir, baseName)))
+			continue
+		case exists && strategy == tools.CollisionOverwrite:
+			outcome.Overwritten = append(outcome.Overwritten, filepath.ToSlash(filepath.Join(subdir, baseName)))
+		case exists: // CollisionRename (default)
+			unique, absPath, err := uniqueDestPath(destDir, baseName)
+			if err != nil {
+				return outcome, err
+			}
+			finalName = unique
+			destAbs = absPath
+			outcome.Renamed = append(outcome.Renamed, filepath.ToSlash(filepath.Join(subdir, finalName)))
+		}
+
+		if err := os.WriteFile(destAbs, data, 0o644); err != nil {
+			return outcome, fmt.Errorf("writing inbox file %q: %w", finalName, err)
+		}
+
+		outcome.Attachments = append(outcome.Attachments, DisplayAttachment{
+			Name: baseName,
+			Path: filepath.ToSlash(filepath.Join(subdir, finalName)),
+			Size: info.Size(),
+		})
+	}
+
+	return outcome, nil
+}
+
+// detectAgentInboxCollisions reports which of the requested source files
+// would clash with existing names in the target's inbox directory.
+func detectAgentInboxCollisions(fromWorkDir, toWorkDir, sourceAgentID string, filePaths []string) ([]tools.FileCollision, error) {
+	if len(filePaths) == 0 {
+		return nil, nil
+	}
+
+	subdir := AgentInboxSubdir(sourceAgentID)
+	destDir := filepath.Join(toWorkDir, subdir)
+
+	var collisions []tools.FileCollision
+	for _, requestedPath := range filePaths {
+		sourcePath, _, err := ResolveWorkspacePath(fromWorkDir, requestedPath)
+		if err != nil {
+			return nil, fmt.Errorf("resolving %q: %w", requestedPath, err)
+		}
 		info, err := os.Stat(sourcePath)
 		if err != nil {
 			return nil, fmt.Errorf("stat %q: %w", requestedPath, err)
 		}
 		if info.IsDir() {
-			return nil, fmt.Errorf("directories are not supported: %q", requestedPath)
+			continue
 		}
-
-		data, err := os.ReadFile(sourcePath)
-		if err != nil {
-			return nil, fmt.Errorf("reading %q: %w", requestedPath, err)
+		baseName := filepath.Base(sourcePath)
+		candidate := filepath.Join(destDir, baseName)
+		if _, err := os.Stat(candidate); err == nil {
+			collisions = append(collisions, tools.FileCollision{
+				RequestedPath: requestedPath,
+				TargetPath:    filepath.ToSlash(filepath.Join(subdir, baseName)),
+			})
 		}
-
-		prefixedName := sourceAgentID + "-" + filepath.Base(sourcePath)
-		relativeName, absPath, err := uniqueDestPath(destDir, prefixedName)
-		if err != nil {
-			return nil, err
-		}
-		if err := os.WriteFile(absPath, data, 0o644); err != nil {
-			return nil, fmt.Errorf("writing inbox file %q: %w", prefixedName, err)
-		}
-
-		attachments = append(attachments, DisplayAttachment{
-			Name: filepath.Base(sourcePath),
-			Path: filepath.ToSlash(filepath.Join(subdir, relativeName)),
-			Size: info.Size(),
-		})
 	}
-
-	return attachments, nil
+	return collisions, nil
 }
 
 // ── Path helpers ──────────────────────────────────────────────────────────

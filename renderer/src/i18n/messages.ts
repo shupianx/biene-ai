@@ -204,6 +204,13 @@ export const messages = {
       deny: 'Deny',
       expiredDescription: 'This approval request was interrupted when the app stopped. It cannot be resumed; send the message again if you want to retry.',
       expiredLabel: 'Expired',
+      collisions: {
+        title: 'Filename conflicts',
+        description: 'These files already exist in the recipient\'s inbox. Pick how to handle them:',
+        rename: 'Rename new files',
+        overwrite: 'Overwrite existing',
+        skip: 'Skip existing',
+      },
       execute: {
         description: 'Allows running workspace commands and scripts.',
         label: 'Command execution',
@@ -467,6 +474,13 @@ export const messages = {
       approvalDescription: '这个智能体想要使用受保护的能力。',
       allowAlways: '始终允许',
       allowOnce: '允许一次',
+      collisions: {
+        title: '文件名冲突',
+        description: '以下文件在对方收件箱中已存在，请选择处理方式：',
+        rename: '重命名新文件',
+        overwrite: '覆盖已有文件',
+        skip: '跳过已有文件',
+      },
       deny: '拒绝',
       expiredDescription: '这个审批请求在应用停止时被中断了，当前已经不能继续；如果你想重试，需要重新发送消息。',
       expiredLabel: '已过期',

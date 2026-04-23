@@ -458,18 +458,39 @@ func (m *SessionManager) DeliverFromAgent(ctx context.Context, fromAgentID strin
 
 	messageMeta := fromSess.prepareOutboundAgentDelivery(req.TargetAgentID)
 
-	attachments, err := copyFilesBetweenWorkspaces(ctx, fromSess.WorkDir, toSess.WorkDir, "inbox", fromSess.ID, req.FilePaths)
+	outcome, err := copyFilesBetweenWorkspaces(ctx, fromSess.WorkDir, toSess.WorkDir, fromSess.ID, req.FilePaths, req.CollisionStrategy)
 	if err != nil {
 		return tools.DeliveryResult{}, err
 	}
 
-	toSess.enqueueAgentInput(fromSess.ID, fromSess.Name, req.Message, attachments, messageMeta)
+	toSess.enqueueAgentInput(fromSess.ID, fromSess.Name, req.Message, outcome.Attachments, messageMeta)
 	return tools.DeliveryResult{
 		TargetID:    toSess.ID,
 		TargetName:  toSess.Name,
-		StoredPaths: attachmentPaths(attachments),
+		StoredPaths: attachmentPaths(outcome.Attachments),
+		Skipped:     outcome.Skipped,
+		Overwritten: outcome.Overwritten,
+		Renamed:     outcome.Renamed,
 		MessageMeta: messageMeta,
 	}, nil
+}
+
+// DetectFileCollisions reports which requested source files would clash with
+// existing names in the target agent's inbox folder. Called before the sender
+// requests permission so the UI can surface conflicts to the user.
+func (m *SessionManager) DetectFileCollisions(fromAgentID, targetAgentID string, filePaths []string) ([]tools.FileCollision, error) {
+	if len(filePaths) == 0 {
+		return nil, nil
+	}
+	fromSess := m.Get(fromAgentID)
+	if fromSess == nil {
+		return nil, fmt.Errorf("source agent %q not found", fromAgentID)
+	}
+	toSess := m.Get(targetAgentID)
+	if toSess == nil {
+		return nil, fmt.Errorf("target agent %q not found", targetAgentID)
+	}
+	return detectAgentInboxCollisions(fromSess.WorkDir, toSess.WorkDir, fromSess.ID, filePaths)
 }
 
 // Delete cancels the session's query, removes it from the manager,

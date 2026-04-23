@@ -37,18 +37,19 @@ func NewChecker(autoMode bool) *Checker {
 }
 
 // Check decides whether a tool call should proceed, prompting via stdin if needed.
-func (c *Checker) Check(_ context.Context, tool tools.Tool, input json.RawMessage) (bool, error) {
+// The CLI checker never returns resolution data.
+func (c *Checker) Check(_ context.Context, tool tools.Tool, input json.RawMessage) (bool, json.RawMessage, error) {
 	if c.autoMode || c.alwaysAllow[tool.Name()] {
-		return true, nil
+		return true, nil, nil
 	}
 	if tool.PermissionKey() == tools.PermissionNone {
-		return true, nil
+		return true, nil, nil
 	}
 	type readOnlyChecker interface {
 		ReadOnlyForInput(json.RawMessage) bool
 	}
 	if roc, ok := tool.(readOnlyChecker); ok && roc.ReadOnlyForInput(input) {
-		return true, nil
+		return true, nil, nil
 	}
 
 	summary := tool.Summary(input)
@@ -58,18 +59,18 @@ func (c *Checker) Check(_ context.Context, tool tools.Tool, input json.RawMessag
 	reader := bufio.NewReader(os.Stdin)
 	line, err := reader.ReadString('\n')
 	if err != nil {
-		return false, fmt.Errorf("reading permission response: %w", err)
+		return false, nil, fmt.Errorf("reading permission response: %w", err)
 	}
 	line = strings.TrimSpace(strings.ToLower(line))
 
 	switch line {
 	case "y", "yes", "":
-		return true, nil
+		return true, nil, nil
 	case "a", "always":
 		c.alwaysAllow[tool.Name()] = true
-		return true, nil
+		return true, nil, nil
 	default:
 		fmt.Println("Denied.")
-		return false, nil
+		return false, nil, nil
 	}
 }

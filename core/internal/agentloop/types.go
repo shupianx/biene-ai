@@ -36,8 +36,12 @@ type Event struct {
 
 // PermissionChecker decides whether a tool call is allowed to proceed.
 // Both permission.Checker (CLI) and webperm.Checker (Web) implement this.
+//
+// The second return value carries optional resolution data the user supplied
+// alongside the decision (for example, a collision-handling strategy). It is
+// forwarded into the tool's Execute via tools.WithPermissionResolution.
 type PermissionChecker interface {
-	Check(ctx context.Context, tool tools.Tool, input json.RawMessage) (bool, error)
+	Check(ctx context.Context, tool tools.Tool, input json.RawMessage) (bool, json.RawMessage, error)
 }
 
 // Config holds everything needed for a single conversational turn.

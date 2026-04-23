@@ -76,6 +76,13 @@ func Build(
 		fmt.Sprintf("Working directory: %s", cwd),
 	})
 
+	writeSection(&sb, "Inbox", []string{
+		"Incoming files arrive under the inbox/ directory in your workspace, grouped by sender.",
+		"Files uploaded by the user are placed in inbox/user/.",
+		"Files delivered by another agent are placed in inbox/<sender-agent-id>/. Use list_agents to resolve a sender ID to its human-readable name.",
+		"When you need to work on an incoming file, read it from its inbox path rather than assuming a top-level location.",
+	})
+
 	toolLines := make([]string, 0, len(registry.All()))
 	for _, t := range registry.All() {
 		toolLines = append(toolLines, fmt.Sprintf("**%s**: %s", t.Name(), firstLine(t.Description())))

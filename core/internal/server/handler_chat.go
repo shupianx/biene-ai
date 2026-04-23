@@ -44,7 +44,7 @@ func (s *Server) handleChatSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attachments, err := session.StoreUploadedFiles(sess.WorkDir, "uploads", input.Files)
+	attachments, err := session.StoreUploadedFiles(sess.WorkDir, input.Files)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

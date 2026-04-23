@@ -259,8 +259,8 @@ function onThinkingEnabledChange(enabled: boolean) {
   store.setThinkingEnabled(props.session.meta.id, enabled)
 }
 
-function onResolve(decision: 'allow' | 'always' | 'deny') {
-  store.resolvePermission(props.session.meta.id, decision)
+function onResolve(decision: 'allow' | 'always' | 'deny', resolution?: Record<string, unknown>) {
+  store.resolvePermission(props.session.meta.id, decision, resolution)
 }
 
 function onInterrupt() {

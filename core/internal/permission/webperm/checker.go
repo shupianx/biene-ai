@@ -19,6 +19,9 @@ type PermissionRequest struct {
 	ToolName    string
 	ToolSummary string
 	ToolInput   json.RawMessage
+	// Context is an optional tool-provided payload (marshalled as JSON) shown
+	// to the user alongside the default dialog — for example, file collisions.
+	Context json.RawMessage
 }
 
 // Checker implements async permission confirmation via web callbacks.
@@ -32,9 +35,16 @@ type Checker struct {
 	OnPermissionsChanged func(tools.PermissionSet)
 }
 
+// decisionEnvelope carries both the user's allow/deny choice and any
+// resolution data the UI submitted alongside it.
+type decisionEnvelope struct {
+	decision   permission.Decision
+	resolution json.RawMessage
+}
+
 type pendingDecision struct {
 	permission tools.PermissionKey
-	ch         chan permission.Decision
+	ch         chan decisionEnvelope
 }
 
 // NewChecker creates a permission checker for the web application.
@@ -46,27 +56,41 @@ func NewChecker(allowed tools.PermissionSet) *Checker {
 }
 
 // Check blocks until the frontend resolves the request or ctx is cancelled.
-func (c *Checker) Check(ctx context.Context, tool tools.Tool, input json.RawMessage) (bool, error) {
+// The second return value is resolution data the UI supplied with the decision.
+func (c *Checker) Check(ctx context.Context, tool tools.Tool, input json.RawMessage) (bool, json.RawMessage, error) {
 	key := tool.PermissionKey()
 	if key == tools.PermissionNone {
-		return true, nil
+		return true, nil, nil
 	}
 	type readOnlyChecker interface {
 		ReadOnlyForInput(json.RawMessage) bool
 	}
 	if roc, ok := tool.(readOnlyChecker); ok && roc.ReadOnlyForInput(input) {
-		return true, nil
+		return true, nil, nil
 	}
 
 	c.mu.Lock()
 	allowed := c.allowed.Allows(key)
 	c.mu.Unlock()
 	if allowed {
-		return true, nil
+		return true, nil, nil
+	}
+
+	var extraCtx json.RawMessage
+	if provider, ok := tool.(tools.PermissionContextProvider); ok {
+		if v, err := provider.PermissionContext(ctx, input); err != nil {
+			return false, nil, fmt.Errorf("permission context for %s: %w", tool.Name(), err)
+		} else if v != nil {
+			if data, err := json.Marshal(v); err != nil {
+				return false, nil, fmt.Errorf("marshal permission context for %s: %w", tool.Name(), err)
+			} else {
+				extraCtx = data
+			}
+		}
 	}
 
 	requestID := newRequestID()
-	ch := make(chan permission.Decision, 1)
+	ch := make(chan decisionEnvelope, 1)
 
 	c.mu.Lock()
 	c.pending[requestID] = pendingDecision{
@@ -82,6 +106,7 @@ func (c *Checker) Check(ctx context.Context, tool tools.Tool, input json.RawMess
 			ToolName:    tool.Name(),
 			ToolSummary: tool.Summary(input),
 			ToolInput:   input,
+			Context:     extraCtx,
 		})
 	}
 
@@ -93,19 +118,21 @@ func (c *Checker) Check(ctx context.Context, tool tools.Tool, input json.RawMess
 		if c.OnPermissionSettled != nil {
 			c.OnPermissionSettled(requestID)
 		}
-		return false, ctx.Err()
-	case decision := <-ch:
-		switch decision {
+		return false, nil, ctx.Err()
+	case env := <-ch:
+		switch env.decision {
 		case permission.DecisionAllow, permission.DecisionAlwaysAllow:
-			return true, nil
+			return true, env.resolution, nil
 		default:
-			return false, nil
+			return false, nil, nil
 		}
 	}
 }
 
 // Resolve is called by the permission handler to unblock a pending Check.
-func (c *Checker) Resolve(requestID string, decision permission.Decision) error {
+// `resolution` is an optional UI-supplied payload that is forwarded into
+// the tool's Execute context (see tools.WithPermissionResolution).
+func (c *Checker) Resolve(requestID string, decision permission.Decision, resolution json.RawMessage) error {
 	c.mu.Lock()
 	pending, ok := c.pending[requestID]
 	delete(c.pending, requestID)
@@ -126,7 +153,7 @@ func (c *Checker) Resolve(requestID string, decision permission.Decision) error 
 	if c.OnPermissionSettled != nil {
 		c.OnPermissionSettled(requestID)
 	}
-	pending.ch <- decision
+	pending.ch <- decisionEnvelope{decision: decision, resolution: resolution}
 	return nil
 }
 

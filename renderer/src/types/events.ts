@@ -54,13 +54,29 @@ export interface ToolDeniedData {
   tool_name: string
 }
 
+export interface FileCollision {
+  requested_path: string
+  target_path: string
+}
+
+export interface PermissionContextData {
+  collisions?: FileCollision[]
+}
+
 export interface PermissionRequestData {
   request_id: string
   permission: string
   tool_name: string
   tool_summary: string
   tool_input: unknown
+  context?: PermissionContextData
   expired?: boolean
+}
+
+export type CollisionStrategy = 'rename' | 'overwrite' | 'skip'
+
+export interface PermissionResolution {
+  collision?: CollisionStrategy
 }
 
 export interface PermissionClearedData {

@@ -9,8 +9,9 @@ import (
 
 // permissionResponse is the body for POST /api/sessions/{id}/permission.
 type permissionResponse struct {
-	RequestID string `json:"request_id"`
-	Decision  string `json:"decision"` // "allow" | "always" | "deny"
+	RequestID  string          `json:"request_id"`
+	Decision   string          `json:"decision"` // "allow" | "always" | "deny"
+	Resolution json.RawMessage `json:"resolution,omitempty"`
 }
 
 // handlePermission resolves a pending permission request for a session.
@@ -37,7 +38,7 @@ func (s *Server) handlePermission(w http.ResponseWriter, r *http.Request) {
 		decision = permission.DecisionDeny
 	}
 
-	meta, err := sess.ResolvePermission(resp.RequestID, decision)
+	meta, err := sess.ResolvePermission(resp.RequestID, decision, resp.Resolution)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

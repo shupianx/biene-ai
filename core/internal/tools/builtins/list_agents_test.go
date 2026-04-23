@@ -34,6 +34,10 @@ func (d *listAgentsTestDirectory) DeliverFromAgent(context.Context, string, tool
 	return tools.DeliveryResult{}, nil
 }
 
+func (d *listAgentsTestDirectory) DetectFileCollisions(string, string, []string) ([]tools.FileCollision, error) {
+	return nil, nil
+}
+
 func TestListAgentsToolIncludesCurrentAgentAndPeers(t *testing.T) {
 	directory := &listAgentsTestDirectory{
 		agents: []tools.AgentPeer{

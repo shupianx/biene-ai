@@ -74,7 +74,7 @@ func TestResolvePermissionClearsExpiredRequest(t *testing.T) {
 		},
 	}
 
-	meta, err := sess.ResolvePermission("perm_test", permission.DecisionDeny)
+	meta, err := sess.ResolvePermission("perm_test", permission.DecisionDeny, nil)
 	if err != nil {
 		t.Fatalf("ResolvePermission returned error: %v", err)
 	}

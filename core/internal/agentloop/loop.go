@@ -95,10 +95,11 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 				ToolInput:   tu.Input,
 			}
 			var allowed bool
+			var resolution json.RawMessage
 			if preparedWrite != nil && tu.ID == preparedWriteToolID {
-				allowed, err = preparedWrite.Wait()
+				allowed, resolution, err = preparedWrite.Wait()
 			} else {
-				allowed, err = cfg.Checker.Check(ctx, tool, tu.Input)
+				allowed, resolution, err = cfg.Checker.Check(ctx, tool, tu.Input)
 			}
 			if err != nil {
 				return fmt.Errorf("permission check: %w", err)
@@ -114,7 +115,8 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 				continue
 			}
 
-			result, execErr := tool.Execute(ctx, tu.Input)
+			execCtx := tools.WithPermissionResolution(ctx, resolution)
+			result, execErr := tool.Execute(execCtx, tu.Input)
 			if execErr != nil {
 				if isInterruptError(ctx, execErr) {
 					return execErr

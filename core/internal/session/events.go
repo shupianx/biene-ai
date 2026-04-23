@@ -51,6 +51,7 @@ type PermissionRequestPayload struct {
 	ToolName    string          `json:"tool_name"`
 	ToolSummary string          `json:"tool_summary"`
 	ToolInput   json.RawMessage `json:"tool_input"`
+	Context     json.RawMessage `json:"context,omitempty"`
 	Expired     bool            `json:"expired,omitempty"`
 }
 

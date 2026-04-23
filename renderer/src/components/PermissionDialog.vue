@@ -9,29 +9,78 @@
     </div>
     <p class="desc">{{ isExpired ? t('permissions.expiredDescription') : t('permissions.approvalDescription') }}</p>
     <p v-if="permissionDescription" class="permission-desc">{{ permissionDescription }}</p>
+
+    <div v-if="!isExpired && collisions.length > 0" class="collisions">
+      <div class="collisions-head">{{ t('permissions.collisions.title') }}</div>
+      <p class="collisions-desc">{{ t('permissions.collisions.description') }}</p>
+      <ul class="collisions-list">
+        <li v-for="c in collisions" :key="c.target_path">{{ c.target_path }}</li>
+      </ul>
+      <div class="strategy" role="radiogroup">
+        <label
+          v-for="opt in strategyOptions"
+          :key="opt.value"
+          class="strategy-option"
+          :class="{ selected: collisionStrategy === opt.value }"
+        >
+          <input
+            type="radio"
+            :value="opt.value"
+            v-model="collisionStrategy"
+          />
+          <span>{{ opt.label }}</span>
+        </label>
+      </div>
+    </div>
+
     <div class="actions">
-      <button v-if="isExpired" class="btn deny" @click="emit('resolve', 'deny')">{{ t('common.close') }}</button>
+      <button v-if="isExpired" class="btn deny" @click="onDeny">{{ t('common.close') }}</button>
       <template v-else>
-        <button class="btn deny"   @click="emit('resolve', 'deny')">{{ t('permissions.deny') }}</button>
-        <button class="btn allow"  @click="emit('resolve', 'allow')">{{ t('permissions.allowOnce') }}</button>
-        <button class="btn always" @click="emit('resolve', 'always')">{{ t('permissions.allowAlways') }}</button>
+        <button class="btn deny"   @click="onDeny">{{ t('permissions.deny') }}</button>
+        <button class="btn allow"  @click="onAllow('allow')">{{ t('permissions.allowOnce') }}</button>
+        <button class="btn always" @click="onAllow('always')">{{ t('permissions.allowAlways') }}</button>
       </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { PermissionRequest } from '../stores/sessions'
+import type { CollisionStrategy, FileCollision } from '../types/events'
 import { t } from '../i18n'
 import { getPermissionDescription, getPermissionLabel } from '../utils/permissions'
 
 const props = defineProps<{ req: PermissionRequest | null }>()
-const emit = defineEmits<{ (e: 'resolve', d: 'allow' | 'always' | 'deny'): void }>()
+const emit = defineEmits<{
+  (e: 'resolve', d: 'allow' | 'always' | 'deny', resolution?: Record<string, unknown>): void
+}>()
 
 const permissionLabel = computed(() => getPermissionLabel(props.req?.permission ?? ''))
 const permissionDescription = computed(() => getPermissionDescription(props.req?.permission ?? ''))
 const isExpired = computed(() => Boolean(props.req?.expired))
+
+const collisions = computed<FileCollision[]>(() => props.req?.context?.collisions ?? [])
+
+const collisionStrategy = ref<CollisionStrategy>('rename')
+
+const strategyOptions = computed(() => [
+  { value: 'rename' as const,    label: t('permissions.collisions.rename') },
+  { value: 'overwrite' as const, label: t('permissions.collisions.overwrite') },
+  { value: 'skip' as const,      label: t('permissions.collisions.skip') },
+])
+
+function onDeny() {
+  emit('resolve', 'deny')
+}
+
+function onAllow(kind: 'allow' | 'always') {
+  if (collisions.value.length > 0) {
+    emit('resolve', kind, { collision: collisionStrategy.value })
+  } else {
+    emit('resolve', kind)
+  }
+}
 </script>
 
 <style scoped>
@@ -108,6 +157,93 @@ const isExpired = computed(() => Boolean(props.req?.expired))
   padding: 8px 10px;
   background: var(--panel);
   border-left: 2px solid var(--warn);
+}
+
+.collisions {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--rule-softer);
+  border-left: 2px solid var(--warn);
+}
+
+.collisions-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+
+.collisions-desc {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.collisions-list {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  max-height: 140px;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+.collisions-list li {
+  padding: 1px 0;
+  word-break: break-all;
+}
+
+.strategy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.strategy-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--rule-softer);
+  background: var(--panel-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color .12s, background .12s, color .12s;
+}
+
+.strategy-option:hover {
+  border-color: var(--rule-soft);
+  color: var(--ink);
+}
+
+.strategy-option.selected {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--panel-2);
+}
+
+.strategy-option input {
+  appearance: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  margin: 0;
+}
+
+.strategy-option.selected input {
+  background: currentColor;
 }
 
 .actions {
