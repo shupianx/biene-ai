@@ -4,6 +4,7 @@ export type SessionEventType =
   | 'reasoning_delta'
   | 'text_delta'
   | 'tool_compose'
+  | 'tool_compose_progress'
   | 'tool_start'
   | 'tool_result'
   | 'tool_denied'
@@ -63,14 +64,28 @@ export interface PermissionContextData {
   collisions?: FileCollision[]
 }
 
+export interface ToolComposeProgressSnapshot {
+  file_path?: string
+  file_text_bytes?: number
+}
+
 export interface PermissionRequestData {
   request_id: string
   permission: string
   tool_name: string
   tool_summary: string
   tool_input: unknown
+  tool_id?: string
   context?: PermissionContextData
+  progress?: ToolComposeProgressSnapshot
   expired?: boolean
+}
+
+export interface ToolComposeProgressData {
+  tool_id: string
+  tool_name?: string
+  file_path?: string
+  file_text_bytes?: number
 }
 
 export type CollisionStrategy = 'rename' | 'overwrite' | 'skip'

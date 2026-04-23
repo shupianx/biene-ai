@@ -116,6 +116,13 @@ func (p *AnthropicProvider) Stream(
 				case anthropic.BetaInputJSONDelta:
 					ij := deltaEv.Delta.AsInputJSONDelta()
 					toolInputBuf = append(toolInputBuf, ij.PartialJSON...)
+					if currentToolID != "" {
+						ch <- StreamEvent{
+							Type:      EventInputJSONDelta,
+							ToolUseID: currentToolID,
+							InputJSON: ij.PartialJSON,
+						}
+					}
 				}
 
 			case anthropic.BetaRawContentBlockStopEvent:

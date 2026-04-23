@@ -13,6 +13,7 @@ func collectStream(
 	stream <-chan api.StreamEvent,
 	ch chan<- Event,
 	onToolUseStart func(api.ToolUseBlock),
+	onInputDelta func(toolID, chunk string),
 ) (api.Message, []api.ToolUseBlock, error) {
 	var content []api.ContentBlock
 	var text strings.Builder
@@ -41,6 +42,10 @@ done:
 			case api.EventToolUseStart:
 				if ev.ToolUse != nil && onToolUseStart != nil {
 					onToolUseStart(*ev.ToolUse)
+				}
+			case api.EventInputJSONDelta:
+				if onInputDelta != nil && ev.ToolUseID != "" {
+					onInputDelta(ev.ToolUseID, ev.InputJSON)
 				}
 			case api.EventToolUse:
 				if text.Len() > 0 {

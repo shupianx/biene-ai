@@ -402,6 +402,18 @@ export const useSessionsStore = defineStore('sessions', () => {
         const msg = _ensureAssistantToolSegment(s)
         msg.tool_calls!.push(tc)
       },
+      onToolComposeProgress({ tool_id, file_path, file_text_bytes }) {
+        const s = sessions.value[id]
+        if (!s) return
+        // Mirror the progress onto the pending permission card (if it
+        // belongs to this tool call) so the blind "preparing…" prompt
+        // fills in path and byte count as the input streams in.
+        if (s.pendingPermission?.tool_id === tool_id) {
+          const updated = { ...s.pendingPermission, progress: { file_path, file_text_bytes } } as PermissionRequest
+          s.pendingPermission = updated
+          s.meta.pending_permission = updated
+        }
+      },
       onToolStart({ tool_id, tool_name, tool_summary, tool_input }) {
         const s = sessions.value[id]
         if (!s) return

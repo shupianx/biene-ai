@@ -270,6 +270,13 @@ func (s *Session) runQuery(ctx context.Context, cfg *agentloop.Config, runDone c
 				ToolSummary: ev.ToolSummary,
 				ToolInput:   ev.ToolInput,
 			}))
+		case agentloop.KindToolComposeProgress:
+			s.send(makeFrame("tool_compose_progress", toolComposeProgressPayload{
+				ToolID:        ev.ToolID,
+				ToolName:      ev.ToolName,
+				FilePath:      ev.FilePath,
+				FileTextBytes: ev.FileTextBytes,
+			}))
 		case agentloop.KindToolStart:
 			s.send(makeFrame("tool_start", toolStartPayload{
 				ToolID:      ev.ToolID,

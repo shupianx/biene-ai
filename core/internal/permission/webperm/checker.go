@@ -19,6 +19,11 @@ type PermissionRequest struct {
 	ToolName    string
 	ToolSummary string
 	ToolInput   json.RawMessage
+	// ToolID identifies the originating tool_use block. Pre-warmed write
+	// permission checks fire before the call's input is fully streamed, so
+	// the UI uses this to correlate incoming tool_compose_progress events
+	// with the pending dialog.
+	ToolID string
 	// Context is an optional tool-provided payload (marshalled as JSON) shown
 	// to the user alongside the default dialog — for example, file collisions.
 	Context json.RawMessage
@@ -106,6 +111,7 @@ func (c *Checker) Check(ctx context.Context, tool tools.Tool, input json.RawMess
 			ToolName:    tool.Name(),
 			ToolSummary: tool.Summary(input),
 			ToolInput:   input,
+			ToolID:      tools.ToolIDFromContext(ctx),
 			Context:     extraCtx,
 		})
 	}

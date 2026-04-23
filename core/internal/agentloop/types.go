@@ -12,15 +12,16 @@ import (
 type EventKind string
 
 const (
-	KindReasoningDelta EventKind = "reasoning_delta"
-	KindTextDelta      EventKind = "text_delta"
-	KindToolCompose    EventKind = "tool_compose"
-	KindToolStart      EventKind = "tool_start"
-	KindToolResult     EventKind = "tool_result"
-	KindToolDenied     EventKind = "tool_denied"
-	KindInterrupted    EventKind = "interrupted"
-	KindDone           EventKind = "done"
-	KindError          EventKind = "error"
+	KindReasoningDelta      EventKind = "reasoning_delta"
+	KindTextDelta           EventKind = "text_delta"
+	KindToolCompose         EventKind = "tool_compose"
+	KindToolComposeProgress EventKind = "tool_compose_progress"
+	KindToolStart           EventKind = "tool_start"
+	KindToolResult          EventKind = "tool_result"
+	KindToolDenied          EventKind = "tool_denied"
+	KindInterrupted         EventKind = "interrupted"
+	KindDone                EventKind = "done"
+	KindError               EventKind = "error"
 )
 
 // Event is a single update emitted to the caller.
@@ -32,6 +33,11 @@ type Event struct {
 	ToolSummary string
 	ToolInput   json.RawMessage
 	IsError     bool
+
+	// KindToolComposeProgress payload — fields are populated as they become
+	// known from the streaming tool_use input JSON.
+	FilePath      string // write/edit: path whose value has fully arrived
+	FileTextBytes int    // write: approximate bytes of file_text seen so far
 }
 
 // PermissionChecker decides whether a tool call is allowed to proceed.

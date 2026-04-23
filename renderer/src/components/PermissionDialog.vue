@@ -10,6 +10,11 @@
     <p class="desc">{{ isExpired ? t('permissions.expiredDescription') : t('permissions.approvalDescription') }}</p>
     <p v-if="permissionDescription" class="permission-desc">{{ permissionDescription }}</p>
 
+    <div v-if="progressLine" class="progress-line" aria-live="polite">
+      <span v-if="progressPath" class="progress-path">{{ progressPath }}</span>
+      <span v-if="progressBytes" class="progress-bytes">{{ progressBytes }}</span>
+    </div>
+
     <div v-if="!isExpired && collisions.length > 0" class="collisions">
       <div class="collisions-head">{{ t('permissions.collisions.title') }}</div>
       <p class="collisions-desc">{{ t('permissions.collisions.description') }}</p>
@@ -61,6 +66,16 @@ const permissionDescription = computed(() => getPermissionDescription(props.req?
 const isExpired = computed(() => Boolean(props.req?.expired))
 
 const collisions = computed<FileCollision[]>(() => props.req?.context?.collisions ?? [])
+
+const progressPath = computed(() => props.req?.progress?.file_path ?? '')
+const progressBytes = computed(() => {
+  const n = props.req?.progress?.file_text_bytes ?? 0
+  if (!n) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(2)} MB`
+})
+const progressLine = computed(() => Boolean(progressPath.value || progressBytes.value))
 
 const collisionStrategy = ref<CollisionStrategy>('rename')
 
@@ -157,6 +172,30 @@ function onAllow(kind: 'allow' | 'always') {
   padding: 8px 10px;
   background: var(--panel);
   border-left: 2px solid var(--warn);
+}
+
+.progress-line {
+  margin: 0 0 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 1px dashed var(--rule-softer);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.progress-path {
+  word-break: break-all;
+}
+
+.progress-bytes {
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
 }
 
 .collisions {

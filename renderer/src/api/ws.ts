@@ -13,6 +13,7 @@ import type {
   PermissionClearedData,
   SkillActivatedData,
   ProcessStateData,
+  ToolComposeProgressData,
   ErrorData,
   SessionEventType,
 } from '../types/events'
@@ -24,6 +25,7 @@ export interface WSHandlers {
   onReasoningDelta: (data: ReasoningDeltaData) => void
   onTextDelta: (data: TextDeltaData) => void
   onToolCompose: (data: ToolStartData) => void
+  onToolComposeProgress: (data: ToolComposeProgressData) => void
   onToolStart: (data: ToolStartData) => void
   onToolResult: (data: ToolResultData) => void
   onToolDenied: (data: ToolDeniedData) => void
@@ -71,6 +73,9 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
         break
       case 'tool_compose':
         handlers.onToolCompose(message.data as ToolStartData)
+        break
+      case 'tool_compose_progress':
+        handlers.onToolComposeProgress(message.data as ToolComposeProgressData)
         break
       case 'tool_start':
         handlers.onToolStart(message.data as ToolStartData)

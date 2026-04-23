@@ -140,6 +140,13 @@ func (p *OpenAIProvider) Stream(
 					}
 				}
 				acc.args = append(acc.args, tc.Function.Arguments...)
+				if acc.started && tc.Function.Arguments != "" {
+					ch <- StreamEvent{
+						Type:      EventInputJSONDelta,
+						ToolUseID: acc.id,
+						InputJSON: tc.Function.Arguments,
+					}
+				}
 			}
 
 			if resp.Choices[0].FinishReason == openAIChatFinishReasonToolCalls {

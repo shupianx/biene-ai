@@ -18,11 +18,13 @@ func startPreparedPermission(
 	ctx context.Context,
 	checker PermissionChecker,
 	tool tools.Tool,
+	toolID string,
 	input json.RawMessage,
 ) *preparedPermission {
 	prep := &preparedPermission{done: make(chan struct{})}
+	tagged := tools.WithToolID(ctx, toolID)
 	go func() {
-		prep.allowed, prep.resolution, prep.err = checker.Check(ctx, tool, input)
+		prep.allowed, prep.resolution, prep.err = checker.Check(tagged, tool, input)
 		close(prep.done)
 	}()
 	return prep

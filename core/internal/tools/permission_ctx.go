@@ -35,3 +35,28 @@ func PermissionResolutionFromContext(ctx context.Context) json.RawMessage {
 	v, _ := ctx.Value(permissionResolutionKey{}).(json.RawMessage)
 	return v
 }
+
+// toolIDKey is the private context key used to correlate a permission
+// check with the originating tool_use block. Pre-warmed permission checks
+// fire while the model is still streaming the call's input, so the tool
+// ID is the only stable handle the UI can use to match progress updates
+// to the pending permission card.
+type toolIDKey struct{}
+
+// WithToolID returns a context tagged with the originating tool_use ID.
+func WithToolID(ctx context.Context, toolID string) context.Context {
+	if toolID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, toolIDKey{}, toolID)
+}
+
+// ToolIDFromContext returns the tool_use ID the context was tagged with,
+// or "" if none was attached.
+func ToolIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	v, _ := ctx.Value(toolIDKey{}).(string)
+	return v
+}

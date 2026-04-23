@@ -87,21 +87,24 @@ type ToolDefinition struct {
 type EventType string
 
 const (
-	EventReasoningDelta EventType = "reasoning_delta"
-	EventSignatureDelta EventType = "signature_delta"
-	EventTextDelta      EventType = "text_delta"
-	EventToolUseStart   EventType = "tool_use_start"
-	EventToolUse        EventType = "tool_use" // complete tool_use block ready
-	EventDone           EventType = "done"
-	EventError          EventType = "error"
+	EventReasoningDelta  EventType = "reasoning_delta"
+	EventSignatureDelta  EventType = "signature_delta"
+	EventTextDelta       EventType = "text_delta"
+	EventToolUseStart    EventType = "tool_use_start"
+	EventInputJSONDelta  EventType = "input_json_delta" // partial JSON chunk for an in-flight tool_use
+	EventToolUse         EventType = "tool_use"         // complete tool_use block ready
+	EventDone            EventType = "done"
+	EventError           EventType = "error"
 )
 
 // StreamEvent is emitted by Provider.Stream for each incremental update.
 type StreamEvent struct {
-	Type    EventType
-	Text    string        // EventReasoningDelta / EventTextDelta
-	ToolUse *ToolUseBlock // EventToolUseStart / EventToolUse
-	Err     error         // EventError
+	Type      EventType
+	Text      string        // EventReasoningDelta / EventTextDelta
+	ToolUseID string        // EventInputJSONDelta — identifies which in-flight tool_use
+	InputJSON string        // EventInputJSONDelta — partial JSON chunk
+	ToolUse   *ToolUseBlock // EventToolUseStart / EventToolUse
+	Err       error         // EventError
 }
 
 // RequestOptions carries provider-specific runtime controls expressed in

@@ -51,8 +51,16 @@ type PermissionRequestPayload struct {
 	ToolName    string          `json:"tool_name"`
 	ToolSummary string          `json:"tool_summary"`
 	ToolInput   json.RawMessage `json:"tool_input"`
+	ToolID      string          `json:"tool_id,omitempty"`
 	Context     json.RawMessage `json:"context,omitempty"`
 	Expired     bool            `json:"expired,omitempty"`
+}
+
+type toolComposeProgressPayload struct {
+	ToolID        string `json:"tool_id"`
+	ToolName      string `json:"tool_name,omitempty"`
+	FilePath      string `json:"file_path,omitempty"`
+	FileTextBytes int    `json:"file_text_bytes,omitempty"`
 }
 
 type permissionClearedPayload struct {

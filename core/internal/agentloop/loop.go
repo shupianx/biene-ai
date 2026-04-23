@@ -45,11 +45,23 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 		var preparedWriteToolID string
 		var preparedWrite *preparedPermission
 
+		// Per-tool progress state for write-class tools. The parser incrementally
+		// extracts file_path and counts file_text bytes as the tool input streams
+		// in, so the UI permission card can show real information instead of the
+		// blind "preparing…" placeholder during pre-warmed approval.
+		progressParsers := map[string]*writeProgressParser{}
+		progressTools := map[string]struct{}{}
+		lastSnapshots := map[string]writeProgressSnapshot{}
+		toolNames := map[string]string{}
+
 		assistantMsg, toolUses, err := collectStream(ctx, stream, ch, func(tu api.ToolUseBlock) {
 			tool := cfg.Registry.Find(tu.Name)
 			if tool == nil || tool.PermissionKey() != tools.PermissionWrite {
 				return
 			}
+			toolNames[tu.ID] = tu.Name
+			progressTools[tu.ID] = struct{}{}
+			progressParsers[tu.ID] = &writeProgressParser{}
 
 			ch <- Event{
 				Kind:        KindToolCompose,
@@ -62,7 +74,28 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 				return
 			}
 			preparedWriteToolID = tu.ID
-			preparedWrite = startPreparedPermission(ctx, cfg.Checker, tool, json.RawMessage(`{}`))
+			preparedWrite = startPreparedPermission(ctx, cfg.Checker, tool, tu.ID, json.RawMessage(`{}`))
+		}, func(toolID, chunk string) {
+			if _, ok := progressTools[toolID]; !ok {
+				return
+			}
+			parser := progressParsers[toolID]
+			if parser == nil {
+				return
+			}
+			parser.Append(chunk)
+			snap := parser.Snapshot()
+			if snap == lastSnapshots[toolID] {
+				return
+			}
+			lastSnapshots[toolID] = snap
+			ch <- Event{
+				Kind:          KindToolComposeProgress,
+				ToolID:        toolID,
+				ToolName:      toolNames[toolID],
+				FilePath:      snap.FilePath,
+				FileTextBytes: snap.FileTextBytes,
+			}
 		})
 		if err != nil {
 			return err
@@ -99,7 +132,7 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 			if preparedWrite != nil && tu.ID == preparedWriteToolID {
 				allowed, resolution, err = preparedWrite.Wait()
 			} else {
-				allowed, resolution, err = cfg.Checker.Check(ctx, tool, tu.Input)
+				allowed, resolution, err = cfg.Checker.Check(tools.WithToolID(ctx, tu.ID), tool, tu.Input)
 			}
 			if err != nil {
 				return fmt.Errorf("permission check: %w", err)
