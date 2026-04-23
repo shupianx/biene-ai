@@ -31,9 +31,20 @@ func (t *RunCommandTool) Name() string { return "run_command" }
 func (t *RunCommandTool) PermissionKey() tools.PermissionKey { return tools.PermissionExecute }
 
 func (t *RunCommandTool) Description() string {
-	return `Run a workspace command and return its stdout and stderr.
-Use this for builds, tests, linters, code generators, and project-specific CLIs when command output is needed to complete the task.
-This tool runs a single executable plus argument list in the agent workspace. It does not support shell syntax such as pipes, redirects, glob expansion, command chaining, or environment variable assignments.
+	return `Run a short, non-interactive workspace command and return its stdout and stderr in-line.
+Appropriate for builds, tests, linters, formatters, and CLIs that complete on their own without reading from stdin or redrawing their UI.
+
+DO NOT use this for interactive commands. Without a TTY they hang waiting for input or bail out with "stdin is not a TTY". This includes scaffolders and wizards (npm create, pnpm create, yarn create, create-next-app without --yes, most npm init <generator>), commit editors (git commit without -m, git rebase -i), and full-screen terminal programs (vim, nano, less, top, htop). Use start_process for any of those — even when they are short.
+
+DO NOT use this for long-running processes (dev servers, watchers, build daemons) — they never return, the call just hangs. Use start_process.
+
+This tool runs a single executable plus argument list in the agent workspace. It does not support shell syntax: no pipes, redirects, glob expansion, command chaining, or environment variable assignments.
+
+Quick decision:
+  interactive / prompts the user   → start_process
+  long-running (dev server, watch) → start_process
+  short + quiet + need stdout      → run_command
+
 Prefer list_files/read_file for inspection and write_file/edit_file for direct file changes.`
 }
 
