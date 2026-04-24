@@ -22,6 +22,16 @@ export const providerTemplateList = [
     thinking_on: { model: 'deepseek-reasoner' },
   },
   {
+    id: 'deepseek-v4-chat',
+    name: 'Deepseek-V4-chat',
+    provider: 'openai_compatible',
+    model: 'deepseek-v4-flash',
+    base_url: 'https://api.deepseek.com',
+    thinking_available: true,
+    thinking_on: { thinking: {type: "enabled"} },
+    thinking_off: { thinking: {type: "disabled"} },
+  },
+  {
     id: 'qwen3-6-plus',
     name: 'Qwen3.6-plus',
     provider: 'openai_compatible',
