@@ -4,7 +4,7 @@ import (
 	"log"
 	"strings"
 
-	"biene/internal/config"
+	"tinte/internal/config"
 )
 
 func resolveModelEntry(cfg *config.Config, requestedID string) (config.ModelEntry, string, error) {

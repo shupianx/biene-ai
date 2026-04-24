@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"biene/internal/bienehome"
+	"tinte/internal/tintehome"
 )
 
 const skillFileName = "SKILL.md"
@@ -28,20 +28,20 @@ type Definition struct {
 	Instructions string
 }
 
-// ScanForWorkDir discovers skill metadata under <workDir>/.biene/skills.
+// ScanForWorkDir discovers skill metadata under <workDir>/.tinte/skills.
 func ScanForWorkDir(workDir string) ([]Metadata, error) {
-	root := filepath.Join(workDir, bienehome.DirName, "skills")
+	root := filepath.Join(workDir, tintehome.DirName, "skills")
 	return ScanFromDir(root)
 }
 
 // WorkDirSkillsRoot returns the absolute path of the installed-skills directory
-// for a given agent work directory: <workDir>/.biene/skills.
+// for a given agent work directory: <workDir>/.tinte/skills.
 func WorkDirSkillsRoot(workDir string) string {
-	return filepath.Join(workDir, bienehome.DirName, "skills")
+	return filepath.Join(workDir, tintehome.DirName, "skills")
 }
 
 // InstalledSkillIDsForWorkDir returns stable IDs for skills installed under
-// <workDir>/.biene/skills. IDs share the same scheme as repository IDs (the
+// <workDir>/.tinte/skills. IDs share the same scheme as repository IDs (the
 // skill directory's relative path with forward slashes), so frontend callers
 // can directly compare a dragged skill's repository ID against this list to
 // detect name collisions without hitting the server.
@@ -62,17 +62,17 @@ func InstalledSkillIDsForWorkDir(workDir string) ([]string, error) {
 	return ids, nil
 }
 
-// RepositoryRoot returns the skill repository directory under ~/.biene/skills.
+// RepositoryRoot returns the skill repository directory under ~/.tinte/skills.
 func RepositoryRoot() (string, error) {
-	return bienehome.SkillRepositoryRoot()
+	return tintehome.SkillRepositoryRoot()
 }
 
 // EnsureRepositoryRoot creates the skill repository directory when it does not exist.
 func EnsureRepositoryRoot() (string, error) {
-	return bienehome.EnsureSkillRepositoryRoot()
+	return tintehome.EnsureSkillRepositoryRoot()
 }
 
-// ScanRepository discovers valid skill metadata under ~/.biene/skills.
+// ScanRepository discovers valid skill metadata under ~/.tinte/skills.
 func ScanRepository() ([]Metadata, string, error) {
 	root, err := EnsureRepositoryRoot()
 	if err != nil {

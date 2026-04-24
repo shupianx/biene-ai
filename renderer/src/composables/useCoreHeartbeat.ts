@@ -45,8 +45,8 @@ export function useCoreHeartbeat(intervalMs = 2500) {
         isCoreHealthy.value = Boolean(detail?.healthy)
       }
 
-      window.addEventListener('biene:core-status', onCoreStatus as EventListener)
-      detach = () => window.removeEventListener('biene:core-status', onCoreStatus as EventListener)
+      window.addEventListener('tinte:core-status', onCoreStatus as EventListener)
+      detach = () => window.removeEventListener('tinte:core-status', onCoreStatus as EventListener)
     })
 
     onBeforeUnmount(() => {

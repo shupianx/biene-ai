@@ -1,8 +1,8 @@
 package session
 
 import (
-	"biene/internal/agentloop"
-	"biene/internal/tools"
+	"tinte/internal/agentloop"
+	"tinte/internal/tools"
 	"time"
 )
 

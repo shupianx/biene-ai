@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"biene/internal/processes"
+	"tinte/internal/processes"
 
 	"github.com/gorilla/websocket"
 )

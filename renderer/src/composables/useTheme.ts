@@ -3,7 +3,7 @@ import { getDesktopBridge } from '../runtime'
 
 type ThemeMode = 'light' | 'dark'
 
-const storageKey = 'biene.theme'
+const storageKey = 'tinte.theme'
 const theme = ref<ThemeMode>('light')
 let initialized = false
 

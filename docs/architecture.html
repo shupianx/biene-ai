@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Biene — Architecture Blueprint</title>
+  <title>Tinte — Architecture Blueprint</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -446,7 +446,7 @@
     <div class="diagram-canvas">
       <div class="diagram-header">
         <div>
-          <div class="diagram-title">Biene — System Architecture</div>
+          <div class="diagram-title">Tinte — System Architecture</div>
           <div class="diagram-subtitle">Local-first AI coding assistant / Three-tier blueprint</div>
         </div>
         <div class="meta-block">
@@ -464,7 +464,7 @@
           <div class="layer-name">electron/</div>
           <div class="layer-stack">main.cjs · preload.cjs · desktopState.cjs</div>
           <div class="layer-desc">
-            Finds free port, spawns biene-core (<code style="font-family:var(--font-mono);font-size:11px">go run .</code> in dev),
+            Finds free port, spawns tinte-core (<code style="font-family:var(--font-mono);font-size:11px">go run .</code> in dev),
             polls <code style="font-family:var(--font-mono);font-size:11px">/api/health</code>, creates BrowserWindow,
             opens agent sub-windows via IPC.
           </div>
@@ -511,7 +511,7 @@
       <div class="storage-strip">
         <div class="storage-cell">
           <div class="storage-label">Config</div>
-          <div class="storage-path">~/.biene/config.json</div>
+          <div class="storage-path">~/.tinte/config.json</div>
           <div class="storage-note">Named model configs · provider · api_key · base_url</div>
         </div>
         <div class="storage-cell">
@@ -713,8 +713,8 @@
             <div class="module-id">P11</div>
           </div>
           <div class="module-desc">
-            Reads/writes ~/.biene/config.json. Auto-generates template on first run;
-            pairs with bienehome/ for directory resolution.
+            Reads/writes ~/.tinte/config.json. Auto-generates template on first run;
+            pairs with tintehome/ for directory resolution.
           </div>
           <div class="module-tags">
             <span class="badge">rw</span>
@@ -724,12 +724,12 @@
 
         <div class="module">
           <div class="module-header">
-            <div class="module-name">bienehome/</div>
+            <div class="module-name">tintehome/</div>
             <div class="module-id">P12</div>
           </div>
           <div class="module-desc">
-            Biene home directory resolver. Single source of truth for
-            ~/.biene path + platform-specific overrides.
+            Tinte home directory resolver. Single source of truth for
+            ~/.tinte path + platform-specific overrides.
           </div>
           <div class="module-tags">
             <span class="badge">path</span>
@@ -878,7 +878,7 @@
       <div class="footer-meta">
         <span>DOC · end of sheet set</span>
         <span>CONTACT · vuecat</span>
-        <span>© biene project</span>
+        <span>© tinte project</span>
       </div>
     </div>
 

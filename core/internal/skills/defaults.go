@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"biene/internal/bienehome"
+	"tinte/internal/tintehome"
 )
 
 type skillRepositoryConfig struct {
@@ -17,7 +17,7 @@ type skillRepositoryConfig struct {
 }
 
 func loadSkillRepositoryConfig() (skillRepositoryConfig, error) {
-	path, err := bienehome.SkillConfigPath()
+	path, err := tintehome.SkillConfigPath()
 	if err != nil {
 		return skillRepositoryConfig{}, err
 	}
@@ -58,7 +58,7 @@ func normalizeDefaultEnabledSkillDirs(items []string) []string {
 }
 
 // InstallSkillByID copies one repository skill identified by its stable ID
-// into the agent workspace at <workDir>/.biene/skills/<rel>. If a directory
+// into the agent workspace at <workDir>/.tinte/skills/<rel>. If a directory
 // already exists at the destination, it is removed first so files deleted
 // from the repository version do not linger. Returns the skill's canonical
 // Name (from its frontmatter) on success. Callers that want to warn the user
@@ -99,7 +99,7 @@ func InstallSkillByID(workDir, id string) (string, error) {
 		return "", err
 	}
 
-	destRoot := filepath.Join(workDir, bienehome.DirName, "skills")
+	destRoot := filepath.Join(workDir, tintehome.DirName, "skills")
 	if err := os.MkdirAll(destRoot, 0o755); err != nil {
 		return "", err
 	}
@@ -149,7 +149,7 @@ func UninstallSkillByID(workDir, id string) (string, error) {
 }
 
 // InstallDefaultEnabled copies repository-configured default-enabled skills
-// into a new agent workspace under <workDir>/.biene/skills.
+// into a new agent workspace under <workDir>/.tinte/skills.
 func InstallDefaultEnabled(workDir string) error {
 	cfg, err := loadSkillRepositoryConfig()
 	if err != nil {
@@ -171,7 +171,7 @@ func InstallDefaultEnabled(workDir string) error {
 		return err
 	}
 
-	destRoot := filepath.Join(workDir, bienehome.DirName, "skills")
+	destRoot := filepath.Join(workDir, tintehome.DirName, "skills")
 	if err := os.MkdirAll(destRoot, 0o755); err != nil {
 		return err
 	}

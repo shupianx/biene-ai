@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"biene/internal/tools"
+	"tinte/internal/tools"
 )
 
 // ListAgentsTool shows the current agent plus any other agents that can receive messages or files.

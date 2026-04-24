@@ -142,7 +142,7 @@ function onAllow(kind: 'allow' | 'always') {
   height: 6px;
   border-radius: 50%;
   background: var(--warn);
-  animation: bienePulse 1.6s ease-in-out infinite;
+  animation: tintePulse 1.6s ease-in-out infinite;
 }
 
 .state.expired .state-dot {

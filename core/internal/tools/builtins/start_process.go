@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"biene/internal/processes"
-	"biene/internal/tools"
+	"tinte/internal/processes"
+	"tinte/internal/tools"
 )
 
 // StartProcessTool launches a long-running background process for the

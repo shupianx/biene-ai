@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"biene/internal/processes"
-	"biene/internal/tools"
+	"tinte/internal/processes"
+	"tinte/internal/tools"
 )
 
 // ReadProcessOutputTool returns the recent log output of the session's

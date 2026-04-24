@@ -86,7 +86,7 @@ waitForRenderer()
       stdio: 'inherit',
       env: {
         ...process.env,
-        BIENE_RENDERER_URL: rendererUrl,
+        TINTE_RENDERER_URL: rendererUrl,
       },
     })
 

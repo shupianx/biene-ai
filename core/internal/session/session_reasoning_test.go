@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	"biene/internal/agentloop"
+	"tinte/internal/agentloop"
 )
 
 func TestReasoningPersistsOnAssistantMessage(t *testing.T) {

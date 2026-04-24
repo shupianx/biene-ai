@@ -519,7 +519,7 @@ function toggleReasoning() {
   background-size: 240% 100%;
   background-repeat: no-repeat;
   background-position: 140% 0;
-  animation: bieneImgShimmer 1.1s linear infinite;
+  animation: tinteImgShimmer 1.1s linear infinite;
   overflow: hidden;
   transition: border-color .12s;
 }
@@ -550,7 +550,7 @@ function toggleReasoning() {
   opacity: 1;
 }
 
-@keyframes bieneImgShimmer {
+@keyframes tinteImgShimmer {
   0%   { background-position: 140% 0; }
   100% { background-position: -40% 0; }
 }

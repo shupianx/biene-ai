@@ -3,9 +3,9 @@ package session
 import (
 	"testing"
 
-	"biene/internal/permission"
-	"biene/internal/permission/webperm"
-	"biene/internal/store"
+	"tinte/internal/permission"
+	"tinte/internal/permission/webperm"
+	"tinte/internal/store"
 )
 
 func TestPersistentMetaLockedKeepsPendingPermission(t *testing.T) {

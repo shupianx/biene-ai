@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"biene/internal/tools"
+	"tinte/internal/tools"
 )
 
 // FileReadTool reads file contents, optionally limited to a line range.

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"biene/internal/tools"
+	"tinte/internal/tools"
 )
 
 // UseSkillTool loads the full instructions for one installed skill and marks

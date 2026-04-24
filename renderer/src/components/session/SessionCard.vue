@@ -84,7 +84,7 @@ import { createNoticeId, type Notice } from '../ui/notice'
 
 const TRANSIENT_TTL_MS = 2400
 
-const SKILL_MIME = 'application/biene-skill'
+const SKILL_MIME = 'application/tinte-skill'
 
 const props = defineProps<{ session: AgentSession }>()
 const emit = defineEmits<{
@@ -285,7 +285,7 @@ async function onConflictConfirm() {
     calc(100% - 4px) calc(100% - 4px),
     calc(100% - 4px) 0
   );
-  animation: bieneSkillDropShimmer 1s linear infinite;
+  animation: tinteSkillDropShimmer 1s linear infinite;
 }
 
 .card.drop-target::after {
@@ -301,10 +301,10 @@ async function onConflictConfirm() {
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
           mask-composite: exclude;
-  animation: bieneSkillDropShimmer 1s linear infinite;
+  animation: tinteSkillDropShimmer 1s linear infinite;
 }
 
-@keyframes bieneSkillDropShimmer {
+@keyframes tinteSkillDropShimmer {
   from { filter: hue-rotate(0deg); }
   to   { filter: hue-rotate(360deg); }
 }
@@ -416,7 +416,7 @@ async function onConflictConfirm() {
 
 .status-tag.running .status-dot,
 .status-tag.approval .status-dot {
-  animation: bienePulse 1.6s ease-in-out infinite;
+  animation: tintePulse 1.6s ease-in-out infinite;
 }
 
 .model-tag {

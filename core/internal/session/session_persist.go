@@ -5,9 +5,9 @@ import (
 	"log"
 	"strings"
 
-	"biene/internal/api"
-	"biene/internal/prompt"
-	"biene/internal/tools"
+	"tinte/internal/api"
+	"tinte/internal/prompt"
+	"tinte/internal/tools"
 )
 
 // ── api.Message serialization ─────────────────────────────────────────────

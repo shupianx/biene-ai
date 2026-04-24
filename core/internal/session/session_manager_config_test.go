@@ -3,9 +3,9 @@ package session
 import (
 	"testing"
 
-	"biene/internal/config"
-	"biene/internal/prompt"
-	"biene/internal/tools"
+	"tinte/internal/config"
+	"tinte/internal/prompt"
+	"tinte/internal/tools"
 )
 
 func TestCreatePinsSelectedModel(t *testing.T) {

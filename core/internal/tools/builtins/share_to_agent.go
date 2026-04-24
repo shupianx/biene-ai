@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"biene/internal/tools"
+	"tinte/internal/tools"
 )
 
 // ShareToAgentTool creates a persistent symlink in another agent's

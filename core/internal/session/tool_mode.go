@@ -1,8 +1,8 @@
 package session
 
 import (
-	"biene/internal/prompt"
-	"biene/internal/tools"
+	"tinte/internal/prompt"
+	"tinte/internal/tools"
 )
 
 func registryForToolMode(registry *tools.Registry, mode ToolMode) (*tools.Registry, bool) {

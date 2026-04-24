@@ -40,7 +40,7 @@ function normalizeArch(value) {
 
 const targetPlatform = normalizePlatform(readOption('platform'))
 const targetArch = normalizeArch(readOption('arch'))
-const binaryName = targetPlatform === 'windows' ? 'biene-core.exe' : 'biene-core'
+const binaryName = targetPlatform === 'windows' ? 'tinte-core.exe' : 'tinte-core'
 const outputArg = readOption('output')
 const outputPath = outputArg
   ? path.resolve(rootDir, outputArg)

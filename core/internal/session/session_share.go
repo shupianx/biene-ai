@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"biene/internal/tools"
+	"tinte/internal/tools"
 )
 
 // SharedRootSubdir is the top-level directory inside a receiver's workspace

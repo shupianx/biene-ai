@@ -122,7 +122,7 @@ const error = ref('')
 const busySkillID = ref('')
 const deleteConfirmSkillID = ref('')
 const defaultEnabledSkillIDs = ref<string[]>([])
-const rootFallback = '~/.biene/skills'
+const rootFallback = '~/.tinte/skills'
 
 function isDefaultEnabledSkill(skill: SkillCatalogEntry) {
   return defaultEnabledSkillIDs.value.includes(skill.id)
@@ -202,13 +202,13 @@ function onToggleDeletePopover(skill: SkillCatalogEntry) {
 function onDragStart(event: DragEvent, skill: SkillCatalogEntry) {
   if (!event.dataTransfer) return
   event.dataTransfer.effectAllowed = 'copy'
-  event.dataTransfer.setData('application/biene-skill', skill.id)
+  event.dataTransfer.setData('application/tinte-skill', skill.id)
   event.dataTransfer.setData('text/plain', skill.name)
-  document.body.classList.add('biene-skill-dragging')
+  document.body.classList.add('tinte-skill-dragging')
 }
 
 function onDragEnd() {
-  document.body.classList.remove('biene-skill-dragging')
+  document.body.classList.remove('tinte-skill-dragging')
 }
 
 function onDocumentPointerDown(event: PointerEvent) {

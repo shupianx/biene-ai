@@ -680,7 +680,7 @@ watch(inputOverlayHeight, () => {
 
 .status-tag.running .status-dot,
 .status-tag.approval .status-dot {
-  animation: bienePulse 1.6s ease-in-out infinite;
+  animation: tintePulse 1.6s ease-in-out infinite;
 }
 
 .close-icon {
@@ -712,7 +712,7 @@ watch(inputOverlayHeight, () => {
   height: 12px;
   border: 2px solid color-mix(in srgb, var(--ink) 14%, transparent);
   border-top-color: var(--ink-3);
-  animation: bieneSpin 0.8s linear infinite;
+  animation: tinteSpin 0.8s linear infinite;
 }
 
 .message-list::-webkit-scrollbar {
@@ -794,7 +794,7 @@ watch(inputOverlayHeight, () => {
   width: 6px;
   height: 6px;
   background: var(--ink-3);
-  animation: bieneBlink 1.1s ease-in-out infinite;
+  animation: tinteBlink 1.1s ease-in-out infinite;
 }
 
 .typing-dot:nth-child(2) { animation-delay: .15s; }

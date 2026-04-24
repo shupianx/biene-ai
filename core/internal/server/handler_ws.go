@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"biene/internal/session"
+	"tinte/internal/session"
 	"github.com/gorilla/websocket"
 )
 

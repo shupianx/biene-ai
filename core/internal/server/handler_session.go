@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"biene/internal/prompt"
-	"biene/internal/tools"
+	"tinte/internal/prompt"
+	"tinte/internal/tools"
 )
 
 // handleListSessions returns metadata for all sessions.

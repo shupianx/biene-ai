@@ -1,7 +1,7 @@
 export const messages = {
   en: {
     app: {
-      coreUnavailable: 'Restart the core to keep using Biene.',
+      coreUnavailable: 'Restart the core to keep using Tinte.',
     },
     common: {
       back: 'Back',
@@ -23,7 +23,7 @@ export const messages = {
       german: 'Deutsch',
     },
     titleBar: {
-      about: 'About Biene',
+      about: 'About Tinte',
       coreOffline: 'Core offline',
       coreOnline: 'Core online',
       coreRunning: 'Core running',
@@ -83,7 +83,7 @@ export const messages = {
       thoughtFor: 'Thought for {duration}',
       workingDirectory: 'Working directory',
       workDirLabel: 'WORK DIR',
-      brand: 'BIENE · AGENT',
+      brand: 'TINTE · AGENT',
     },
     input: {
       interrupted: 'Interrupted.',
@@ -120,7 +120,7 @@ export const messages = {
       defaultEnabledLabel: 'Default enabled',
       defaultDisableLabel: 'Disable default skill install',
       defaultEnableLabel: 'Enable this skill for new agents by default',
-      deleteConfirm: 'Delete this skill folder from ~/.biene/skills?',
+      deleteConfirm: 'Delete this skill folder from ~/.tinte/skills?',
       deleteLabel: 'Delete skill',
       emptyHint: 'Add skill folders with a SKILL.md file under this path to make them appear here.',
       emptyTitle: 'No skills found',
@@ -133,7 +133,7 @@ export const messages = {
       instructions: 'Instructions',
       libraryPath: 'Repository Path',
       loading: 'Loading skills…',
-      subtitle: 'Skill repository loaded from ~/.biene/skills.',
+      subtitle: 'Skill repository loaded from ~/.tinte/skills.',
       title: 'Skill Repository',
     },
     agentName: {
@@ -155,7 +155,7 @@ export const messages = {
       language: 'Language',
       languageHint: 'Choose the interface language for the desktop UI.',
       modelProviders: 'Model Providers',
-      modelProvidersHint: 'Manage the providers saved in ~/.biene/config.json and choose which one is the default.',
+      modelProvidersHint: 'Manage the providers saved in ~/.tinte/config.json and choose which one is the default.',
       modelLoading: 'Loading models…',
       addProvider: 'Add Provider',
       providerLoading: 'Loading model providers…',
@@ -197,10 +197,10 @@ export const messages = {
       },
     },
     welcome: {
-      title: 'Welcome to Biene',
+      title: 'Welcome to Tinte',
       lead: 'Configure your first model provider to start creating agents. You can add more providers later in Advanced Settings.',
       customTemplate: 'Custom',
-      apiKeyHint: 'Stored locally in ~/.biene/config.json.',
+      apiKeyHint: 'Stored locally in ~/.tinte/config.json.',
       saveButton: 'Get Started',
       saving: 'Saving…',
     },
@@ -328,7 +328,7 @@ export const messages = {
       german: 'Deutsch',
     },
     titleBar: {
-      about: '关于 Biene',
+      about: '关于 Tinte',
       coreOffline: '核心离线',
       coreOnline: '核心在线',
       coreRunning: '内核运行中',
@@ -388,7 +388,7 @@ export const messages = {
       thoughtFor: '已思考{duration}',
       workingDirectory: '工作目录',
       workDirLabel: '工作目录',
-      brand: 'BIENE · AGENT',
+      brand: 'TINTE · AGENT',
     },
     input: {
       interrupted: '已中断。',
@@ -425,7 +425,7 @@ export const messages = {
       defaultEnabledLabel: '默认启用',
       defaultDisableLabel: '取消默认启用这个 skill',
       defaultEnableLabel: '让新建智能体默认启用这个 skill',
-      deleteConfirm: '要从 ~/.biene/skills 中删除这个 skill 目录吗？',
+      deleteConfirm: '要从 ~/.tinte/skills 中删除这个 skill 目录吗？',
       deleteLabel: '删除 skill',
       emptyHint: '把带有 SKILL.md 的 skill 目录放到这个路径下，它们就会显示在这里。',
       emptyTitle: '还没有 skill',
@@ -438,7 +438,7 @@ export const messages = {
       instructions: '说明内容',
       libraryPath: '仓库路径',
       loading: '正在加载 skill…',
-      subtitle: '这里展示来自 ~/.biene/skills 的 skill 仓库。',
+      subtitle: '这里展示来自 ~/.tinte/skills 的 skill 仓库。',
       title: '技能仓库',
     },
     agentName: {
@@ -460,7 +460,7 @@ export const messages = {
       language: '语言',
       languageHint: '选择桌面界面的显示语言。',
       modelProviders: '模型服务商',
-      modelProvidersHint: '管理保存在 ~/.biene/config.json 中的模型服务商，并选择默认使用哪一个。',
+      modelProvidersHint: '管理保存在 ~/.tinte/config.json 中的模型服务商，并选择默认使用哪一个。',
       modelLoading: '正在加载模型…',
       addProvider: '新增服务商',
       providerLoading: '正在加载模型服务商…',
@@ -502,10 +502,10 @@ export const messages = {
       },
     },
     welcome: {
-      title: '欢迎使用 Biene',
+      title: '欢迎使用 Tinte',
       lead: '先配置一个模型服务商，之后才能创建智能体。后续可以在"高级设置"中继续添加更多。',
       customTemplate: '自定义',
-      apiKeyHint: '仅保存在本机的 ~/.biene/config.json。',
+      apiKeyHint: '仅保存在本机的 ~/.tinte/config.json。',
       saveButton: '开始使用',
       saving: '正在保存…',
     },
@@ -611,7 +611,7 @@ export const messages = {
   },
   de: {
     app: {
-      coreUnavailable: 'Starte den Kernprozess neu, um Biene weiter zu nutzen.',
+      coreUnavailable: 'Starte den Kernprozess neu, um Tinte weiter zu nutzen.',
     },
     common: {
       back: 'Zurück',
@@ -633,7 +633,7 @@ export const messages = {
       german: 'Deutsch',
     },
     titleBar: {
-      about: 'Über Biene',
+      about: 'Über Tinte',
       coreOffline: 'Kern offline',
       coreOnline: 'Kern online',
       coreRunning: 'Kern läuft',
@@ -693,7 +693,7 @@ export const messages = {
       thoughtFor: '{duration} nachgedacht',
       workingDirectory: 'Arbeitsverzeichnis',
       workDirLabel: 'ARBEITSVERZ.',
-      brand: 'BIENE · AGENT',
+      brand: 'TINTE · AGENT',
     },
     input: {
       interrupted: 'Unterbrochen.',
@@ -730,7 +730,7 @@ export const messages = {
       defaultEnabledLabel: 'Standardmäßig aktiv',
       defaultDisableLabel: 'Standardmäßige Installation dieses Skills deaktivieren',
       defaultEnableLabel: 'Diesen Skill bei neuen Agenten standardmäßig aktivieren',
-      deleteConfirm: 'Diesen Skill-Ordner aus ~/.biene/skills löschen?',
+      deleteConfirm: 'Diesen Skill-Ordner aus ~/.tinte/skills löschen?',
       deleteLabel: 'Skill löschen',
       emptyHint: 'Lege Skill-Ordner mit einer SKILL.md-Datei in diesem Pfad ab, damit sie hier erscheinen.',
       emptyTitle: 'Keine Skills gefunden',
@@ -743,7 +743,7 @@ export const messages = {
       instructions: 'Anweisungen',
       libraryPath: 'Bibliothekspfad',
       loading: 'Skills werden geladen…',
-      subtitle: 'Skill-Bibliothek aus ~/.biene/skills.',
+      subtitle: 'Skill-Bibliothek aus ~/.tinte/skills.',
       title: 'Skill-Bibliothek',
     },
     agentName: {
@@ -765,7 +765,7 @@ export const messages = {
       language: 'Sprache',
       languageHint: 'Wähle die Anzeigesprache der Oberfläche.',
       modelProviders: 'Modell-Anbieter',
-      modelProvidersHint: 'Verwalte die in ~/.biene/config.json gespeicherten Anbieter und wähle den Standard aus.',
+      modelProvidersHint: 'Verwalte die in ~/.tinte/config.json gespeicherten Anbieter und wähle den Standard aus.',
       modelLoading: 'Modelle werden geladen…',
       addProvider: 'Anbieter hinzufügen',
       providerLoading: 'Modell-Anbieter werden geladen…',
@@ -807,10 +807,10 @@ export const messages = {
       },
     },
     welcome: {
-      title: 'Willkommen bei Biene',
+      title: 'Willkommen bei Tinte',
       lead: 'Konfiguriere deinen ersten Modell-Anbieter, um Agenten zu erstellen. Weitere Anbieter kannst du später in den erweiterten Einstellungen hinzufügen.',
       customTemplate: 'Eigene',
-      apiKeyHint: 'Lokal in ~/.biene/config.json gespeichert.',
+      apiKeyHint: 'Lokal in ~/.tinte/config.json gespeichert.',
       saveButton: 'Los geht\'s',
       saving: 'Speichert…',
     },

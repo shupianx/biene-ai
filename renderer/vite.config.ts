@@ -10,7 +10,7 @@ export default defineConfig({
     outDir: 'dist',
   },
   server: {
-    // 'localhost' resolves to ::1 on Node 17+, placing Biene's dev
+    // 'localhost' resolves to ::1 on Node 17+, placing Tinte's dev
     // server in the same IPv6 address family as Vite's default for
     // user-scaffolded projects. That way a project running inside an
     // agent workspace that tries to bind 5173 detects the conflict

@@ -108,7 +108,7 @@
       :initial-height="560"
       :min-width="360"
       :min-height="320"
-      storage-key="biene.skillsPanel"
+      storage-key="tinte.skillsPanel"
       @close="skillsPanelOpen = false"
     >
       <template #chrome>
@@ -151,7 +151,7 @@ import WelcomeModal from '../components/app/WelcomeModal.vue'
 const store = useSessionsStore()
 const { openAgent } = useAgentNavigation()
 const skillsPanelOpen = ref(false)
-const skillsRootPath = ref('~/.biene/skills')
+const skillsRootPath = ref('~/.tinte/skills')
 
 const addIconBody = '<path fill="currentColor" d="M11 13H6q-.425 0-.712-.288T5 12t.288-.712T6 11h5V6q0-.425.288-.712T12 5t.713.288T13 6v5h5q.425 0 .713.288T19 12t-.288.713T18 13h-5v5q0 .425-.288.713T12 19t-.712-.288T11 18z"/>'
 const refreshIconBody = '<path fill="currentColor" d="M12 20q-3.35 0-5.675-2.325T4 12q0-3.35 2.325-5.675T12 4q1.725 0 3.275.7t2.7 1.95V4h2v7h-7v-2h4.2q-.85-1.175-2.175-1.837T12 6Q9.5 6 7.75 7.75T6 12t1.75 4.25T12 18q1.925 0 3.475-1.1T17.6 14h2.1q-.7 2.7-2.85 4.35T12 20"/>'
@@ -432,7 +432,7 @@ async function onConfirmDelete() {
 }
 
 .icon-btn-icon.spinning {
-  animation: bieneSpin 700ms linear;
+  animation: tinteSpin 700ms linear;
 }
 
 /* New button (primary) */

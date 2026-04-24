@@ -817,7 +817,7 @@ onBeforeUnmount(() => {
   height: 12px;
   border: 2px solid color-mix(in srgb, var(--err) 20%, transparent);
   border-top-color: var(--err);
-  animation: bieneSpin .8s linear infinite;
+  animation: tinteSpin .8s linear infinite;
 }
 
 .action-label {

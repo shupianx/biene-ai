@@ -9,7 +9,7 @@ import (
 
 func TestScanForWorkDirFindsAgentSkills(t *testing.T) {
 	workDir := t.TempDir()
-	skillDir := filepath.Join(workDir, ".biene", "skills", "release-notes")
+	skillDir := filepath.Join(workDir, ".tinte", "skills", "release-notes")
 	if err := os.MkdirAll(skillDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

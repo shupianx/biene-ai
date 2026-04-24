@@ -28,12 +28,12 @@
     <script>
       (() => {
         const root = document.documentElement
-        const bridgeTheme = window.bieneDesktop?.initialTheme
+        const bridgeTheme = window.tinteDesktop?.initialTheme
         let theme = bridgeTheme === 'dark' || bridgeTheme === 'light' ? bridgeTheme : 'light'
 
         if (!bridgeTheme) {
           try {
-            theme = window.localStorage.getItem('biene.theme') === 'dark' ? 'dark' : 'light'
+            theme = window.localStorage.getItem('tinte.theme') === 'dark' ? 'dark' : 'light'
           } catch {
             theme = 'light'
           }
@@ -44,7 +44,7 @@
         root.style.backgroundColor = theme === 'dark' ? '#1A1814' : '#EDE8DF'
       })()
     </script>
-    <title>biene</title>
+    <title>tinte</title>
   </head>
   <body>
     <div id="app"></div>

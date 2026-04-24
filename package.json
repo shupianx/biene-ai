@@ -1,8 +1,8 @@
 {
-  "name": "biene-desktop",
+  "name": "tinte-desktop",
   "private": true,
   "version": "0.2.0",
-  "description": "Desktop shell for the Biene local AI coding assistant",
+  "description": "Desktop shell for the Tinte local AI coding assistant",
   "author": "yu",
   "main": "electron/main.cjs",
   "scripts": {

@@ -1,4 +1,4 @@
-package bienehome
+package tintehome
 
 import (
 	"encoding/json"
@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	DirName             = ".biene"
+	DirName             = ".tinte"
 	configFileName      = "config.json"
 	skillConfigFileName = "skill-config.json"
 	skillsDirName       = "skills"
 )
 
-// HomeDir returns the global ~/.biene directory.
+// HomeDir returns the global ~/.tinte directory.
 func HomeDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -23,22 +23,22 @@ func HomeDir() (string, error) {
 	return filepath.Join(home, DirName), nil
 }
 
-// ConfigPath returns the path to ~/.biene/config.json.
+// ConfigPath returns the path to ~/.tinte/config.json.
 func ConfigPath() (string, error) {
 	return pathFor(configFileName)
 }
 
-// SkillConfigPath returns the path to ~/.biene/skill-config.json.
+// SkillConfigPath returns the path to ~/.tinte/skill-config.json.
 func SkillConfigPath() (string, error) {
 	return pathFor(skillConfigFileName)
 }
 
-// SkillRepositoryRoot returns the path to ~/.biene/skills.
+// SkillRepositoryRoot returns the path to ~/.tinte/skills.
 func SkillRepositoryRoot() (string, error) {
 	return pathFor(skillsDirName)
 }
 
-// EnsureSkillRepositoryRoot creates ~/.biene/skills when it does not exist.
+// EnsureSkillRepositoryRoot creates ~/.tinte/skills when it does not exist.
 func EnsureSkillRepositoryRoot() (string, error) {
 	root, err := SkillRepositoryRoot()
 	if err != nil {

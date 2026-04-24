@@ -9,10 +9,10 @@ import (
 	"slices"
 	"strings"
 
-	"biene/internal/bienehome"
+	"tinte/internal/tintehome"
 )
 
-// RepositoryConfig stores skill repository preferences under ~/.biene/skill-config.json.
+// RepositoryConfig stores skill repository preferences under ~/.tinte/skill-config.json.
 type RepositoryConfig struct {
 	DefaultEnabledSkillDirs []string `json:"defaultEnabledSkillDirs"`
 }
@@ -25,7 +25,7 @@ type UploadedFile struct {
 
 // LoadRepositoryConfig returns the normalized skill repository config.
 func LoadRepositoryConfig() (RepositoryConfig, error) {
-	path, err := bienehome.SkillConfigPath()
+	path, err := tintehome.SkillConfigPath()
 	if err != nil {
 		return RepositoryConfig{}, err
 	}
@@ -50,11 +50,11 @@ func SaveRepositoryConfig(cfg RepositoryConfig) (RepositoryConfig, error) {
 		DefaultEnabledSkillDirs: normalizeDefaultEnabledSkillDirs(cfg.DefaultEnabledSkillDirs),
 	}
 
-	path, err := bienehome.SkillConfigPath()
+	path, err := tintehome.SkillConfigPath()
 	if err != nil {
 		return RepositoryConfig{}, err
 	}
-	if err := bienehome.WriteJSON(path, normalized, 0o700, 0o600); err != nil {
+	if err := tintehome.WriteJSON(path, normalized, 0o700, 0o600); err != nil {
 		return RepositoryConfig{}, err
 	}
 	return normalized, nil
@@ -137,7 +137,7 @@ func DeleteRepositorySkillByID(id string) (RepositoryConfig, error) {
 	return SaveRepositoryConfig(cfg)
 }
 
-// ImportRepositoryFiles imports one uploaded skill directory into ~/.biene/skills.
+// ImportRepositoryFiles imports one uploaded skill directory into ~/.tinte/skills.
 func ImportRepositoryFiles(files []UploadedFile) (string, error) {
 	if len(files) == 0 {
 		return "", fmt.Errorf("no files uploaded")

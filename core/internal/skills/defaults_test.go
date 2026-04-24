@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"biene/internal/bienehome"
+	"tinte/internal/tintehome"
 )
 
 func TestInstallDefaultEnabledCopiesConfiguredGlobalSkills(t *testing.T) {
@@ -35,7 +35,7 @@ Use this skill.
 		}
 	}
 
-	configPath, err := bienehome.SkillConfigPath()
+	configPath, err := tintehome.SkillConfigPath()
 	if err != nil {
 		t.Fatalf("SkillConfigPath returned error: %v", err)
 	}
@@ -52,7 +52,7 @@ Use this skill.
 	}
 
 	for _, dir := range []string{firstDir, secondDir} {
-		target := filepath.Join(workDir, ".biene", "skills", filepath.Base(dir), "SKILL.md")
+		target := filepath.Join(workDir, ".tinte", "skills", filepath.Base(dir), "SKILL.md")
 		if _, err := os.Stat(target); err != nil {
 			t.Fatalf("expected copied skill file at %s: %v", target, err)
 		}

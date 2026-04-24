@@ -1,6 +1,6 @@
 package builtins
 
-import "biene/internal/tools"
+import "tinte/internal/tools"
 
 // RegistryForWorkDir builds a registry with workspace-scoped built-in tools.
 func RegistryForWorkDir(workDir string) *tools.Registry {

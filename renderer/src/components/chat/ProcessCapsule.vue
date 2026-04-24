@@ -224,7 +224,7 @@ function onClose() {
 
 .capsule.status-running .dot {
   background: var(--ok);
-  animation: bienePulse 1.6s ease-in-out infinite;
+  animation: tintePulse 1.6s ease-in-out infinite;
 }
 
 .capsule.status-exited .dot  { background: var(--ink-4); }

@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"biene/internal/api"
-	"biene/internal/session"
+	"tinte/internal/api"
+	"tinte/internal/session"
 )
 
 const maxMultipartMemory = 32 << 20

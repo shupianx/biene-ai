@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"biene/internal/skills"
+	"tinte/internal/skills"
 )
 
 type skillResponse struct {
@@ -102,7 +102,7 @@ func (s *Server) handleSessionUninstallSkill(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, sessionUninstallSkillResponse{SkillName: name})
 }
 
-// handleListSkills returns the skill repository catalog under ~/.biene/skills.
+// handleListSkills returns the skill repository catalog under ~/.tinte/skills.
 // GET /api/skills
 func (s *Server) handleListSkills(w http.ResponseWriter, _ *http.Request) {
 	resp, err := loadSkillsCatalogResponse()

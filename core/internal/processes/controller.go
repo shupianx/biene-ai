@@ -84,7 +84,7 @@ type Event struct {
 }
 
 const (
-	logsSubdir     = ".biene/logs"
+	logsSubdir     = ".tinte/logs"
 	logFileName    = "current.log"
 	defaultMaxRead = 32 * 1024
 	subscriberBuf  = 128

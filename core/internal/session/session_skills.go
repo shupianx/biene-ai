@@ -5,10 +5,10 @@ import (
 	"log"
 	"strings"
 
-	"biene/internal/skills"
+	"tinte/internal/skills"
 )
 
-// InstallSkillFromRepository copies a skill from ~/.biene/skills into this
+// InstallSkillFromRepository copies a skill from ~/.tinte/skills into this
 // agent's workspace so the agent can discover and activate it. Any existing
 // installation at the destination is overwritten; frontend callers should
 // confirm with the user before calling when the skill is already in the
@@ -102,7 +102,7 @@ func (s *Session) ActivateSkill(name string) (string, error) {
 	return def.Instructions, nil
 }
 
-// refreshInstalledSkillsAndNotify rescans <WorkDir>/.biene/skills, updates
+// refreshInstalledSkillsAndNotify rescans <WorkDir>/.tinte/skills, updates
 // the cache, and broadcasts a meta_changed so the UI reflects the new state.
 func (s *Session) refreshInstalledSkillsAndNotify() {
 	ids, err := skills.InstalledSkillIDsForWorkDir(s.WorkDir)

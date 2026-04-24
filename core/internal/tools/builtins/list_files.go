@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"biene/internal/tools"
+	"tinte/internal/tools"
 )
 
 const (

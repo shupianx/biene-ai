@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"biene/internal/bienehome"
+	"tinte/internal/tintehome"
 )
 
 // ModelEntry holds one selectable model configuration.
@@ -52,15 +52,15 @@ func TemplateConfig() *Config {
 	}
 }
 
-// Path returns the path to ~/.biene/config.json.
+// Path returns the path to ~/.tinte/config.json.
 func Path() (string, error) {
-	return bienehome.ConfigPath()
+	return tintehome.ConfigPath()
 }
 
-// Load reads the config file from ~/.biene/config.json.
+// Load reads the config file from ~/.tinte/config.json.
 // If the file does not exist, an empty template config is written and returned.
 func Load() (*LoadResult, error) {
-	path, err := bienehome.ConfigPath()
+	path, err := tintehome.ConfigPath()
 	if err != nil {
 		return nil, err
 	}
@@ -97,14 +97,14 @@ func Load() (*LoadResult, error) {
 	}, nil
 }
 
-// Save writes the config to ~/.biene/config.json, creating directories as needed.
+// Save writes the config to ~/.tinte/config.json, creating directories as needed.
 func Save(cfg *Config) error {
 	Normalize(cfg)
-	path, err := bienehome.ConfigPath()
+	path, err := tintehome.ConfigPath()
 	if err != nil {
 		return err
 	}
-	if err := bienehome.WriteJSON(path, cfg, 0o700, 0o600); err != nil {
+	if err := tintehome.WriteJSON(path, cfg, 0o700, 0o600); err != nil {
 		return fmt.Errorf("saving config file: %w", err)
 	}
 	return nil

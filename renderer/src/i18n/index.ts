@@ -3,7 +3,7 @@ import { messages, type AppLocale } from './messages'
 import { getDesktopBridge } from '../runtime'
 
 const DEFAULT_LOCALE: AppLocale = 'en'
-const STORAGE_KEY = 'biene.locale'
+const STORAGE_KEY = 'tinte.locale'
 
 export const i18n = createI18n({
   legacy: false,

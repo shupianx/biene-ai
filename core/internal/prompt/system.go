@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"strings"
 
-	"biene/internal/skills"
-	"biene/internal/tools"
+	"tinte/internal/skills"
+	"tinte/internal/tools"
 )
 
 type AgentIdentity struct {

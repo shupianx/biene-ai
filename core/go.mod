@@ -1,4 +1,4 @@
-module biene
+module tinte
 
 go 1.26.1
 
