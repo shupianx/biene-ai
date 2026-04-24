@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biene — Architecture Blueprint</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --c-bg: #f8fafc;
+      --c-canvas: #ffffff;
+      --c-border: #cbd5e1;
+      --c-border-strong: #94a3b8;
+      --c-text-main: #0f172a;
+      --c-text-sub: #64748b;
+      --c-accent: #dc2626;
+      --font-ui: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--c-bg);
+      padding: 40px 24px;
+      min-height: 100vh;
+      color: var(--c-text-main);
+    }
+
+    .diagram-container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .diagram-canvas {
+      background: var(--c-canvas);
+      border: 1px solid var(--c-border);
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .diagram-header {
+      border-bottom: 1px solid var(--c-border);
+      padding-bottom: 16px;
+      margin-bottom: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .diagram-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--c-text-main);
+      margin-bottom: 4px;
+    }
+
+    .diagram-subtitle {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--c-text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .meta-block {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--c-text-sub);
+      line-height: 1.6;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--c-text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 12px;
+      font-family: var(--font-mono);
+    }
+
+    .section-title::before {
+      content: "// ";
+      opacity: 0.5;
+    }
+
+    /* Layer Row ------------------------------------ */
+    .layer-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0;
+      border: 1px solid var(--c-border-strong);
+    }
+
+    .layer {
+      padding: 18px;
+      border-right: 1px solid var(--c-border-strong);
+      position: relative;
+    }
+
+    .layer:last-child { border-right: none; }
+
+    .layer-index {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--c-text-sub);
+      letter-spacing: 0.05em;
+    }
+
+    .layer-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--c-text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+
+    .layer-name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .layer-stack {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--c-text-sub);
+      margin-bottom: 10px;
+    }
+
+    .layer-desc {
+      font-size: 12px;
+      color: var(--c-text-main);
+      line-height: 1.55;
+    }
+
+    .bus-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border: 1px solid var(--c-border);
+      border-top: none;
+    }
+
+    .bus {
+      padding: 10px 16px;
+      border-right: 1px solid var(--c-border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--c-text-sub);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .bus:last-child { border-right: none; }
+
+    .bus-label {
+      color: var(--c-text-main);
+      font-weight: 500;
+    }
+
+    .arrow {
+      display: inline-block;
+      color: var(--c-text-sub);
+    }
+
+    /* Core Internals Grid --------------------------- */
+    .core-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: -1px;
+      border: 1px solid var(--c-border);
+    }
+
+    .module {
+      padding: 14px;
+      border-right: 1px solid var(--c-border);
+      border-bottom: 1px solid var(--c-border);
+      background: var(--c-canvas);
+    }
+
+    .module:nth-child(4n) { border-right: none; }
+    .module:nth-last-child(-n+4) { border-bottom: none; }
+
+    .module-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+
+    .module-name {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--c-text-main);
+    }
+
+    .module-id {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--c-text-sub);
+    }
+
+    .module-desc {
+      font-size: 11px;
+      color: var(--c-text-sub);
+      line-height: 1.5;
+    }
+
+    .module-tags {
+      margin-top: 8px;
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 1px 5px;
+      border: 1px solid var(--c-border);
+      color: var(--c-text-sub);
+      letter-spacing: 0.02em;
+    }
+
+    .badge-solid {
+      background: var(--c-text-main);
+      color: var(--c-canvas);
+      border-color: var(--c-text-main);
+    }
+
+    /* Two-column layouts ---------------------------- */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    /* Flow diagram ---------------------------------- */
+    .flow {
+      border: 1px solid var(--c-border);
+      padding: 16px;
+    }
+
+    .flow-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--c-text-main);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 12px;
+      color: var(--c-text-main);
+      line-height: 1.5;
+    }
+
+    .flow-step-num {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--c-text-sub);
+      border: 1px solid var(--c-border);
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .flow-step code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--c-text-main);
+      background: var(--c-bg);
+      padding: 1px 4px;
+      border: 1px solid var(--c-border);
+    }
+
+    .flow-divider {
+      height: 1px;
+      background: var(--c-border);
+      margin: 4px 0;
+    }
+
+    /* Tools table ----------------------------------- */
+    .tools-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0;
+      border: 1px solid var(--c-border);
+    }
+
+    .tool-group {
+      padding: 14px;
+      border-right: 1px solid var(--c-border);
+    }
+
+    .tool-group:last-child { border-right: none; }
+
+    .tool-group-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--c-text-main);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    .tool-item {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--c-text-main);
+      padding: 3px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .tool-item .perm {
+      font-size: 9px;
+      color: var(--c-text-sub);
+      border: 1px solid var(--c-border);
+      padding: 0 4px;
+    }
+
+    .tool-item .perm.write {
+      border-color: var(--c-text-main);
+      color: var(--c-text-main);
+    }
+
+    /* Storage strip --------------------------------- */
+    .storage-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid var(--c-border);
+    }
+
+    .storage-cell {
+      padding: 12px 14px;
+      border-right: 1px solid var(--c-border);
+    }
+
+    .storage-cell:last-child { border-right: none; }
+
+    .storage-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--c-text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .storage-path {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--c-text-main);
+      font-weight: 500;
+    }
+
+    .storage-note {
+      font-size: 10px;
+      color: var(--c-text-sub);
+      margin-top: 4px;
+    }
+
+    /* Legend ---------------------------------------- */
+    .legend {
+      display: flex;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--c-text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-swatch {
+      width: 24px;
+      height: 2px;
+      background: var(--c-text-main);
+    }
+
+    .legend-swatch.dashed {
+      background: repeating-linear-gradient(to right,
+        var(--c-text-main) 0, var(--c-text-main) 3px,
+        transparent 3px, transparent 6px);
+    }
+
+    .legend-swatch.thin {
+      background: var(--c-border-strong);
+      height: 1px;
+    }
+
+    /* Footer metadata ------------------------------- */
+    .footer-meta {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--c-text-sub);
+      padding-top: 12px;
+      border-top: 1px solid var(--c-border);
+      margin-top: 24px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <div class="diagram-container">
+
+    <!-- ============================================================= -->
+    <!-- CANVAS 1: SYSTEM OVERVIEW                                     -->
+    <!-- ============================================================= -->
+    <div class="diagram-canvas">
+      <div class="diagram-header">
+        <div>
+          <div class="diagram-title">Biene — System Architecture</div>
+          <div class="diagram-subtitle">Local-first AI coding assistant / Three-tier blueprint</div>
+        </div>
+        <div class="meta-block">
+          Rev. 2026.04.24<br>
+          Sheet 01 / 03<br>
+          Scope: Desktop runtime
+        </div>
+      </div>
+
+      <div class="section-title">Tier overview</div>
+      <div class="layer-row">
+        <div class="layer">
+          <div class="layer-index">01</div>
+          <div class="layer-tag">Shell — Node.js</div>
+          <div class="layer-name">electron/</div>
+          <div class="layer-stack">main.cjs · preload.cjs · desktopState.cjs</div>
+          <div class="layer-desc">
+            Finds free port, spawns biene-core (<code style="font-family:var(--font-mono);font-size:11px">go run .</code> in dev),
+            polls <code style="font-family:var(--font-mono);font-size:11px">/api/health</code>, creates BrowserWindow,
+            opens agent sub-windows via IPC.
+          </div>
+        </div>
+        <div class="layer">
+          <div class="layer-index">02</div>
+          <div class="layer-tag">Renderer — Vue 3</div>
+          <div class="layer-name">renderer/</div>
+          <div class="layer-stack">Vite · Pinia · vue-router</div>
+          <div class="layer-desc">
+            Chat UI. Pinia store <span class="badge">stores/sessions.ts</span> holds sessions &amp; streaming state;
+            api/http.ts for REST, api/ws.ts for live events.
+          </div>
+        </div>
+        <div class="layer">
+          <div class="layer-index">03</div>
+          <div class="layer-tag">Core — Go 1.26</div>
+          <div class="layer-name">core/</div>
+          <div class="layer-stack">net/http · SQLite · no framework</div>
+          <div class="layer-desc">
+            HTTP server hosts agent loop, tool registry, permission mgr, session persistence.
+            Routes REST + two WebSockets; talks to LLM providers.
+          </div>
+        </div>
+      </div>
+      <div class="bus-row">
+        <div class="bus">
+          <span class="badge badge-solid">01 ↔ 02</span>
+          <span class="bus-label">contextBridge / IPC</span>
+          <span class="arrow">→</span>
+          <span>window.desktop · desktop:openAgentWindow</span>
+        </div>
+        <div class="bus">
+          <span class="badge badge-solid">02 ↔ 03</span>
+          <span class="bus-label">HTTP + WS</span>
+          <span class="arrow">→</span>
+          <span>REST /api/* · WS /api/sessions/ws · WS /api/sessions/{id}/ws</span>
+        </div>
+      </div>
+
+      <div style="height: 32px;"></div>
+
+      <div class="section-title">Persistent stores</div>
+      <div class="storage-strip">
+        <div class="storage-cell">
+          <div class="storage-label">Config</div>
+          <div class="storage-path">~/.biene/config.json</div>
+          <div class="storage-note">Named model configs · provider · api_key · base_url</div>
+        </div>
+        <div class="storage-cell">
+          <div class="storage-label">Workspace (dev)</div>
+          <div class="storage-path">./workspace/</div>
+          <div class="storage-note">One dir per session; packaged build → userData/</div>
+        </div>
+        <div class="storage-cell">
+          <div class="storage-label">Session meta</div>
+          <div class="storage-path">meta.json</div>
+          <div class="storage-note">Replayed on startup by SessionManager.Init()</div>
+        </div>
+        <div class="storage-cell">
+          <div class="storage-label">Message history</div>
+          <div class="storage-path">history.db — SQLite</div>
+          <div class="storage-note">Tables: display_messages · api_messages</div>
+        </div>
+      </div>
+
+      <div class="footer-meta">
+        <span>FILE · docs/architecture.html</span>
+        <span>SOURCE · CLAUDE.md @ main</span>
+        <span>DRAWN BY · blueprinter</span>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- CANVAS 2: CORE INTERNALS                                      -->
+    <!-- ============================================================= -->
+    <div class="diagram-canvas">
+      <div class="diagram-header">
+        <div>
+          <div class="diagram-title">Core Internals — core/internal/</div>
+          <div class="diagram-subtitle">Package decomposition · capability map</div>
+        </div>
+        <div class="meta-block">
+          Sheet 02 / 03<br>
+          Packages · 10<br>
+          Stack · net/http
+        </div>
+      </div>
+
+      <div class="section-title">Package matrix</div>
+      <div class="core-grid">
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">api/</div>
+            <div class="module-id">P01</div>
+          </div>
+          <div class="module-desc">
+            Provider-neutral abstraction. TextBlock / ToolUseBlock / ToolResultBlock +
+            Provider interface. anthropic.go &amp; openai.go implement protocol conversion.
+          </div>
+          <div class="module-tags">
+            <span class="badge">streaming</span>
+            <span class="badge">Provider</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">agentloop/</div>
+            <div class="module-id">P02</div>
+          </div>
+          <div class="module-desc">
+            Run(): model → collect tool calls → permission check + execute → append results → re-invoke.
+            permission_prep.go pre-requests writes mid-stream.
+          </div>
+          <div class="module-tags">
+            <span class="badge">loop</span>
+            <span class="badge">ctx-injection</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">server/</div>
+            <div class="module-id">P03</div>
+          </div>
+          <div class="module-desc">
+            HTTP transport. server.go mounts routes; handler_ws.go serves two WebSockets;
+            other handler_*.go are thin REST wrappers.
+          </div>
+          <div class="module-tags">
+            <span class="badge">REST</span>
+            <span class="badge">WS</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">session/</div>
+            <div class="module-id">P04</div>
+          </div>
+          <div class="module-desc">
+            Lifecycle + state machine. Session holds history, tool registry, permission mgr.
+            Sub-files: display · persist · files · skills · process · realtime.
+          </div>
+          <div class="module-tags">
+            <span class="badge">state</span>
+            <span class="badge">manager</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">tools/</div>
+            <div class="module-id">P05</div>
+          </div>
+          <div class="module-desc">
+            Tool interface + registry. PermissionKey() declares required perm;
+            optional PermissionContextProvider emits UI context pre-approval.
+          </div>
+          <div class="module-tags">
+            <span class="badge">Registry</span>
+            <span class="badge">builtins/</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">permission/</div>
+            <div class="module-id">P06</div>
+          </div>
+          <div class="module-desc">
+            Per-session permission manager. Blocks loop until POST /permission resolves.
+            webperm/checker.go serializes context + returns resolution envelope.
+          </div>
+          <div class="module-tags">
+            <span class="badge">blocking</span>
+            <span class="badge">webperm</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">processes/</div>
+            <div class="module-id">P07</div>
+          </div>
+          <div class="module-desc">
+            Generic background-process controller. Creates pgroups
+            (unix/windows), captures stdout/stderr, streams log subscriptions.
+          </div>
+          <div class="module-tags">
+            <span class="badge">pgroup</span>
+            <span class="badge">stream</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">skills/</div>
+            <div class="module-id">P08</div>
+          </div>
+          <div class="module-desc">
+            Skill loader + default set + user repo. repository.go manages installs;
+            loader.go reads a single skill body.
+          </div>
+          <div class="module-tags">
+            <span class="badge">repo</span>
+            <span class="badge">loader</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">prompt/</div>
+            <div class="module-id">P09</div>
+          </div>
+          <div class="module-desc">
+            System-prompt builder. profile.go defines AgentProfile (Domain × Style);
+            system.go Build() composes profile + tools + workdir + inbox rules.
+          </div>
+          <div class="module-tags">
+            <span class="badge">profile</span>
+            <span class="badge">system</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">store/</div>
+            <div class="module-id">P10</div>
+          </div>
+          <div class="module-desc">
+            Session persistence. Per-session dir under workspace/:
+            meta.json + history.db (display_messages, api_messages).
+          </div>
+          <div class="module-tags">
+            <span class="badge">SQLite</span>
+            <span class="badge">replay</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">config/</div>
+            <div class="module-id">P11</div>
+          </div>
+          <div class="module-desc">
+            Reads/writes ~/.biene/config.json. Auto-generates template on first run;
+            pairs with bienehome/ for directory resolution.
+          </div>
+          <div class="module-tags">
+            <span class="badge">rw</span>
+            <span class="badge">template</span>
+          </div>
+        </div>
+
+        <div class="module">
+          <div class="module-header">
+            <div class="module-name">bienehome/</div>
+            <div class="module-id">P12</div>
+          </div>
+          <div class="module-desc">
+            Biene home directory resolver. Single source of truth for
+            ~/.biene path + platform-specific overrides.
+          </div>
+          <div class="module-tags">
+            <span class="badge">path</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="height: 32px;"></div>
+
+      <div class="section-title">Built-in tool registry · tools/builtins/</div>
+      <div class="tools-grid">
+
+        <div class="tool-group">
+          <div class="tool-group-title">File &amp; Command</div>
+          <div class="tool-item"><span>read_file</span><span class="perm">read</span></div>
+          <div class="tool-item"><span>write_file</span><span class="perm write">write</span></div>
+          <div class="tool-item"><span>edit_file</span><span class="perm write">write</span></div>
+          <div class="tool-item"><span>list_files</span><span class="perm">read</span></div>
+          <div class="tool-item"><span>run_command</span><span class="perm write">write*</span></div>
+          <div style="font-size: 10px; color: var(--c-text-sub); margin-top: 8px; font-family: var(--font-mono);">
+            * read-only cmds skip permission
+          </div>
+        </div>
+
+        <div class="tool-group">
+          <div class="tool-group-title">Background Process</div>
+          <div class="tool-item"><span>start_process</span><span class="perm write">write</span></div>
+          <div class="tool-item"><span>stop_process</span><span class="perm write">write</span></div>
+          <div class="tool-item"><span>read_process_output</span><span class="perm">read</span></div>
+          <div style="font-size: 10px; color: var(--c-text-sub); margin-top: 8px; font-family: var(--font-mono);">
+            bridged via processes.Controller
+          </div>
+        </div>
+
+        <div class="tool-group">
+          <div class="tool-group-title">Agent IPC &amp; Skills</div>
+          <div class="tool-item"><span>send_to_agent</span><span class="perm write">copy</span></div>
+          <div class="tool-item"><span>share_to_agent</span><span class="perm write">symlink</span></div>
+          <div class="tool-item"><span>unshare_to_agent</span><span class="perm write">write</span></div>
+          <div class="tool-item"><span>list_shares</span><span class="perm">read</span></div>
+          <div class="tool-item"><span>list_skills</span><span class="perm">read</span></div>
+          <div class="tool-item"><span>use_skill</span><span class="perm">activate</span></div>
+        </div>
+
+      </div>
+
+      <div class="footer-meta">
+        <span>PKG ROOT · core/internal/</span>
+        <span>TOOL IFACE · tools/tool.go</span>
+        <span>CTX KEY · WithPermissionResolution</span>
+      </div>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- CANVAS 3: DATA FLOWS                                          -->
+    <!-- ============================================================= -->
+    <div class="diagram-canvas">
+      <div class="diagram-header">
+        <div>
+          <div class="diagram-title">Key Data Flows</div>
+          <div class="diagram-subtitle">Runtime sequences · inbox convention</div>
+        </div>
+        <div class="meta-block">
+          Sheet 03 / 03<br>
+          Flows · 3<br>
+          Model · capability isolation
+        </div>
+      </div>
+
+      <div class="section-title">Sequences</div>
+      <div class="two-col">
+
+        <div class="flow">
+          <div class="flow-title">F1 · Send message</div>
+          <div class="flow-step"><span class="flow-step-num">1</span><div>User types in <code>InputBar</code></div></div>
+          <div class="flow-step"><span class="flow-step-num">2</span><div><code>POST /api/sessions/{id}/send</code></div></div>
+          <div class="flow-step"><span class="flow-step-num">3</span><div>Server enqueues · <code>agentloop.Run()</code> starts</div></div>
+          <div class="flow-step"><span class="flow-step-num">4</span><div>WS broadcasts stream deltas · reasoning · tool_use</div></div>
+          <div class="flow-step"><span class="flow-step-num">5</span><div>Pinia store merges → <code>DisplayMessage</code> segments render</div></div>
+          <div class="flow-divider"></div>
+          <div style="font-size: 10px; color: var(--c-text-sub); font-family: var(--font-mono);">
+            BIDI · frontend state machine is symmetric with session_display.go
+          </div>
+        </div>
+
+        <div class="flow">
+          <div class="flow-title">F2 · Permissioned tool call</div>
+          <div class="flow-step"><span class="flow-step-num">1</span><div>Loop triggers a write tool</div></div>
+          <div class="flow-step"><span class="flow-step-num">2</span><div>webperm Checker calls <code>PermissionContext()</code> if impl</div></div>
+          <div class="flow-step"><span class="flow-step-num">3</span><div>WS emits <code>permission_request</code> (with context)</div></div>
+          <div class="flow-step"><span class="flow-step-num">4</span><div>Store sets <code>pendingPermission</code> · <code>PermissionDialog</code> opens</div></div>
+          <div class="flow-step"><span class="flow-step-num">5</span><div>User picks decision + <code>resolution</code></div></div>
+          <div class="flow-step"><span class="flow-step-num">6</span><div><code>POST /api/sessions/{id}/permission</code></div></div>
+          <div class="flow-step"><span class="flow-step-num">7</span><div>Loop unblocks · resolution injected into Execute ctx</div></div>
+        </div>
+
+      </div>
+
+      <div style="height: 24px;"></div>
+
+      <div class="flow" style="margin-bottom: 0;">
+        <div class="flow-title">F3 · Inbox convention · agent-to-agent file transfer</div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 8px 0 4px;">
+          <div>
+            <div style="font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--c-text-main); margin-bottom: 6px;">
+              send_to_agent — COPY (snapshot)
+            </div>
+            <div class="flow-step"><span class="flow-step-num">1</span><div>Tool declares source file paths only</div></div>
+            <div class="flow-step"><span class="flow-step-num">2</span><div><code>DetectFileCollisions</code> → PermissionContext</div></div>
+            <div class="flow-step"><span class="flow-step-num">3</span><div>User picks <code>rename</code> / <code>overwrite</code> / <code>skip</code></div></div>
+            <div class="flow-step"><span class="flow-step-num">4</span><div>Server writes into <code>inbox/&lt;srcAgentID&gt;/</code></div></div>
+          </div>
+          <div>
+            <div style="font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--c-text-main); margin-bottom: 6px;">
+              share_to_agent — SYMLINK (live)
+            </div>
+            <div class="flow-step"><span class="flow-step-num">1</span><div>Place symlink in target workspace</div></div>
+            <div class="flow-step"><span class="flow-step-num">2</span><div>Receiver reads/writes against link</div></div>
+            <div class="flow-step"><span class="flow-step-num">3</span><div>Changes land on sender's disk</div></div>
+            <div class="flow-step"><span class="flow-step-num">4</span><div>Bypasses inbox; revoke via <code>unshare_to_agent</code></div></div>
+          </div>
+        </div>
+
+        <div class="flow-divider"></div>
+        <div style="font-size: 11px; color: var(--c-text-main); padding-top: 6px; line-height: 1.6;">
+          <strong>Inbox layout enforced server-side:</strong>
+          <span style="font-family: var(--font-mono);">inbox/user/</span> = uploads,
+          <span style="font-family: var(--font-mono);">inbox/&lt;agentID&gt;/</span> = deliveries from agent.
+          Tools request, server executes — this is the capability isolation contract.
+        </div>
+      </div>
+
+      <div style="height: 32px;"></div>
+
+      <div class="section-title">Drawing legend</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch"></span> solid · transport / call</div>
+        <div class="legend-item"><span class="legend-swatch dashed"></span> dashed · async event</div>
+        <div class="legend-item"><span class="legend-swatch thin"></span> thin · boundary</div>
+        <div class="legend-item"><span class="badge">read</span> read-only tool</div>
+        <div class="legend-item"><span class="badge" style="border-color: var(--c-text-main); color: var(--c-text-main);">write</span> requires permission</div>
+      </div>
+
+      <div class="footer-meta">
+        <span>DOC · end of sheet set</span>
+        <span>CONTACT · vuecat</span>
+        <span>© biene project</span>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
