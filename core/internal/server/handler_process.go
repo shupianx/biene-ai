@@ -3,7 +3,7 @@ package server
 import (
 	"encoding/base64"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -72,7 +72,7 @@ func (s *Server) handleProcessLogsWebSocket(w http.ResponseWriter, r *http.Reque
 
 	conn, err := chatUpgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("upgrade process logs websocket: %v", err)
+		slog.Error("upgrade process logs websocket", "err", err)
 		return
 	}
 	defer conn.Close()

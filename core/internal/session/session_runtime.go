@@ -220,6 +220,7 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 		RequestOpts: api.RequestOptions{
 			ThinkingExtra: thinkingExtra(s.thinkingAvailable, s.thinkingEnabled, s.thinkingOn, s.thinkingOff),
 		},
+		SessionID: s.ID,
 	}
 	return ctx, cfg, &meta, runDone
 }

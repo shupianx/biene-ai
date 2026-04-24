@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -81,27 +81,27 @@ func (m *SessionManager) Init() {
 
 		st, err := store.Open(storeDir)
 		if err != nil {
-			log.Printf("init: open store %s: %v", id, err)
+			slog.Error("init: open store", "session_id", id, "err", err)
 			continue
 		}
 
 		var meta SessionMeta
 		if err := st.LoadMeta(&meta); err != nil {
-			log.Printf("init: load meta %s: %v", id, err)
+			slog.Error("init: load meta", "session_id", id, "err", err)
 			st.Close()
 			continue
 		}
 		if meta.PendingPermission != nil {
 			meta.PendingPermission.Expired = true
 			if err := st.SaveMeta(meta); err != nil {
-				log.Printf("init: save expired permission state %s: %v", id, err)
+				slog.Error("init: save expired permission state", "session_id", id, "err", err)
 			}
 		}
 
 		// Load display history; clear any streaming-in-progress flags.
 		rawDisplay, err := st.LoadDisplayMessages()
 		if err != nil {
-			log.Printf("init: load display %s: %v", id, err)
+			slog.Error("init: load display", "session_id", id, "err", err)
 			st.Close()
 			continue
 		}
@@ -118,7 +118,7 @@ func (m *SessionManager) Init() {
 		// Load API messages.
 		rawAPI, err := st.LoadAPIMessages()
 		if err != nil {
-			log.Printf("init: load api msgs %s: %v", id, err)
+			slog.Error("init: load api msgs", "session_id", id, "err", err)
 			st.Close()
 			continue
 		}
@@ -138,7 +138,7 @@ func (m *SessionManager) Init() {
 		// Rebuild provider / registry / checker from the pinned model selection.
 		modelEntry, resolvedModelID, err := resolveModelEntry(m.cfg, meta.ModelID)
 		if err != nil {
-			log.Printf("init: get model for %s: %v", id, err)
+			slog.Error("init: get model for", "session_id", id, "err", err)
 			st.Close()
 			continue
 		}
@@ -146,7 +146,7 @@ func (m *SessionManager) Init() {
 			meta.ModelID = resolvedModelID
 			meta.ModelName = modelEntry.Name
 			if err := st.SaveMeta(meta); err != nil {
-				log.Printf("init: save normalized model state %s: %v", id, err)
+				slog.Error("init: save normalized model state", "session_id", id, "err", err)
 			}
 		}
 		thinkingAvailable := modelEntry.ThinkingAvailable
@@ -158,7 +158,7 @@ func (m *SessionManager) Init() {
 			meta.ThinkingAvailable = thinkingAvailable
 			meta.ThinkingEnabled = thinkingEnabled
 			if err := st.SaveMeta(meta); err != nil {
-				log.Printf("init: save thinking state %s: %v", id, err)
+				slog.Error("init: save thinking state", "session_id", id, "err", err)
 			}
 		}
 		provider := newProvider(modelEntry)
@@ -176,7 +176,7 @@ func (m *SessionManager) Init() {
 
 		installedIDs, scanErr := skills.InstalledSkillIDsForWorkDir(workDir)
 		if scanErr != nil {
-			log.Printf("scan installed skills for %s: %v", id, scanErr)
+			slog.Error("scan installed skills for", "session_id", id, "err", scanErr)
 		}
 		sess := &Session{
 			ID:                id,
@@ -260,7 +260,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 
 	installedIDs, scanErr := skills.InstalledSkillIDsForWorkDir(workDir)
 	if scanErr != nil {
-		log.Printf("scan installed skills for %s: %v", id, scanErr)
+		slog.Error("scan installed skills for", "session_id", id, "err", scanErr)
 	}
 
 	now := time.Now()
@@ -307,14 +307,14 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 
 	storeDir := filepath.Join(workDir, ".biene")
 	if st, err := store.Open(storeDir); err != nil {
-		log.Printf("open store for %s: %v", id, err)
+		slog.Error("open store for", "session_id", id, "err", err)
 	} else {
 		sess.store = st
 		sess.mu.Lock()
 		initialMeta := sess.persistentMetaLocked()
 		sess.mu.Unlock()
 		if err := st.SaveMeta(initialMeta); err != nil {
-			log.Printf("save initial meta for %s: %v", id, err)
+			slog.Error("save initial meta for", "session_id", id, "err", err)
 		}
 	}
 

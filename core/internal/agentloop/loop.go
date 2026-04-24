@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"biene/internal/api"
 	"biene/internal/tools"
@@ -28,7 +29,9 @@ func Run(ctx context.Context, cfg *Config) <-chan Event {
 }
 
 func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
+	log := slog.Default().With("session_id", cfg.SessionID)
 	toolDefs := toolDefinitions(cfg.Registry)
+	log.Info("turn start", "tool_count", len(toolDefs), "message_count", len(cfg.Messages))
 
 	for {
 		stream, err := cfg.Provider.Stream(
@@ -39,6 +42,7 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 			cfg.RequestOpts,
 		)
 		if err != nil {
+			log.Error("provider stream failed", "err", err)
 			return fmt.Errorf("API error: %w", err)
 		}
 
@@ -135,9 +139,11 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 				allowed, resolution, err = cfg.Checker.Check(tools.WithToolID(ctx, tu.ID), tool, tu.Input)
 			}
 			if err != nil {
+				log.Error("permission check failed", "tool", tu.Name, "tool_id", tu.ID, "err", err)
 				return fmt.Errorf("permission check: %w", err)
 			}
 			if !allowed {
+				log.Info("tool denied", "tool", tu.Name, "tool_id", tu.ID)
 				denyMsg := "User denied this tool call."
 				ch <- Event{Kind: KindToolDenied, ToolID: tu.ID, ToolName: tu.Name, Text: denyMsg}
 				resultBlocks = append(resultBlocks, api.ToolResultBlock{
@@ -149,11 +155,13 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 			}
 
 			execCtx := tools.WithPermissionResolution(ctx, resolution)
+			log.Debug("tool execute", "tool", tu.Name, "tool_id", tu.ID)
 			result, execErr := tool.Execute(execCtx, tu.Input)
 			if execErr != nil {
 				if isInterruptError(ctx, execErr) {
 					return execErr
 				}
+				log.Warn("tool execute failed", "tool", tu.Name, "tool_id", tu.ID, "err", execErr)
 				result = fmt.Sprintf("Error: %s", execErr)
 				ch <- Event{Kind: KindToolResult, ToolID: tu.ID, ToolName: tu.Name, Text: result, IsError: true}
 				resultBlocks = append(resultBlocks, api.ToolResultBlock{

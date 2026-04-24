@@ -3,10 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	"biene/internal/config"
+	"biene/internal/logging"
 	"biene/internal/server"
 )
 
@@ -21,6 +23,10 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
+
+	logPath := logging.Init()
+	defer logging.Close()
+	slog.Info("core starting", "host", *host, "port", *port, "workspace", *workspace, "log_file", logPath)
 
 	loadResult, err := config.Load()
 	if err != nil {

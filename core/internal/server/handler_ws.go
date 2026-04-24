@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -29,7 +29,7 @@ type websocketEvent struct {
 func (s *Server) handleSessionListWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := chatUpgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("upgrade session list websocket: %v", err)
+		slog.Error("upgrade session list websocket", "err", err)
 		return
 	}
 	defer conn.Close()
@@ -93,7 +93,7 @@ func (s *Server) handleChatWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := chatUpgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("upgrade websocket for %s: %v", r.PathValue("id"), err)
+		slog.Error("upgrade chat websocket", "session_id", r.PathValue("id"), "err", err)
 		return
 	}
 	defer conn.Close()

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -108,10 +108,10 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("DELETE /api/skills/{id}", s.handleDeleteSkill)
 
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
-	fmt.Printf("biene-core listening on http://%s\n", addr)
+	slog.Info("core listening", "addr", addr)
 	s.httpServer = &http.Server{
 		Addr:    addr,
-		Handler: corsMiddleware(authMiddleware(s.authToken, mux)),
+		Handler: corsMiddleware(authMiddleware(s.authToken, requestLogMiddleware(mux))),
 	}
 	err := s.httpServer.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
@@ -194,7 +194,7 @@ func (s *Server) handleShutdown(w http.ResponseWriter, _ *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := s.Shutdown(ctx); err != nil {
-			log.Printf("graceful shutdown failed: %v", err)
+			slog.Error("graceful shutdown failed", "err", err)
 		}
 	}()
 }

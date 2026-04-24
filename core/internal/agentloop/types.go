@@ -58,4 +58,7 @@ type Config struct {
 	SystemPrompt string
 	Messages     []api.Message
 	RequestOpts  api.RequestOptions
+
+	// SessionID is optional and only used for log enrichment.
+	SessionID string
 }
