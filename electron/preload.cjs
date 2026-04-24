@@ -15,7 +15,12 @@ ipcRenderer.on('desktop:settingsMenuAction', (_event, detail) => {
 
 const desktopBridge = Object.freeze({
   isElectron: true,
-  initialLocale: readCliArg('--biene-locale=').toLowerCase().startsWith('zh') ? 'zh-CN' : 'en',
+  initialLocale: (() => {
+    const raw = readCliArg('--biene-locale=').toLowerCase()
+    if (raw.startsWith('zh')) return 'zh-CN'
+    if (raw.startsWith('de')) return 'de'
+    return 'en'
+  })(),
   initialTheme: readCliArg('--biene-theme=') === 'dark' ? 'dark' : 'light',
   platform: process.platform,
   windowKind: readCliArg('--biene-window-kind=') || 'main',

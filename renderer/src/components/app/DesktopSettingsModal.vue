@@ -257,6 +257,7 @@ const editorRef = ref<HTMLElement | null>(null)
 const localeOptions = computed<{ value: AppLocale; label: string }[]>(() => [
   { value: 'en', label: t('language.english') },
   { value: 'zh-CN', label: t('language.simplifiedChinese') },
+  { value: 'de', label: t('language.german') },
 ])
 
 const providerTypeOptions = computed(() => [

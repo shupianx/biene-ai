@@ -53,7 +53,10 @@ function saveDesktopSettings(app, nextSettings) {
 }
 
 function normalizeLocale(value) {
-  return String(value ?? '').toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
+  const raw = String(value ?? '').toLowerCase()
+  if (raw.startsWith('zh')) return 'zh-CN'
+  if (raw.startsWith('de')) return 'de'
+  return 'en'
 }
 
 function normalizeTheme(value) {

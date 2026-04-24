@@ -51,5 +51,6 @@ function resolveInitialLocale(): AppLocale {
 function normalizeLocale(locale: unknown): AppLocale {
   const value = String(locale ?? '').toLowerCase()
   if (value.startsWith('zh')) return 'zh-CN'
+  if (value.startsWith('de')) return 'de'
   return DEFAULT_LOCALE
 }

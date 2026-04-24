@@ -45,7 +45,9 @@ function currentTheme() {
 }
 
 function currentLocale() {
-  return desktopSettings.locale === 'zh-CN' ? 'zh-CN' : 'en'
+  if (desktopSettings.locale === 'zh-CN') return 'zh-CN'
+  if (desktopSettings.locale === 'de') return 'de'
+  return 'en'
 }
 
 function getWindowAppearance(theme) {
