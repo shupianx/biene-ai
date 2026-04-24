@@ -98,7 +98,13 @@ npm run build            # vue-tsc 类型检查 + vite build
 - **`tools/`** — 每个工具实现 `Tool` 接口（`tool.go`）。`RegistryForWorkDir()` 预注册文件类工具。`SessionManager` 在创建会话时还会单独注册需要外部依赖的工具（`ListAgents` / `SendToAgent` 需 `AgentDirectory`，skills 工具需 `SkillActivator`，process 工具需 controller）。
   - **权限模型**：工具通过 `PermissionKey()` 声明所需权限；`""` 表示只读，`"write"` 表示需用户确认，`"send_to_agent"` 等也进入同一流程。
   - **权限上下文**（`permission_ctx.go`）：工具可选实现 `PermissionContextProvider.PermissionContext(ctx, rawInput)`，在权限请求发出前计算要展示给用户的上下文（例如文件冲突列表）；用户在 UI 中作出的选择（`resolution`）会通过 `WithPermissionResolution` 注入 `context.Context`，工具 `Execute` 用 `PermissionResolutionFromContext(ctx)` 取回。`send_to_agent.go` 是这套机制的典型用法。
-  - **内置工具**（`builtins/`）：`read_file` / `write_file` / `edit_file` / `list_files` / `run_command`（Bash，只读命令会跳过权限）；`start_process` / `stop_process` / `read_process_output`（长期运行的后台进程）；`list_agents` / `send_to_agent`（agent 间通信）；`list_skills` / `use_skill`（技能）。
+  - **内置工具**（`builtins/`）：
+    - 文件 / 命令：`read_file` / `write_file` / `edit_file` / `list_files` / `run_command`（Bash，只读命令会跳过权限）。
+    - 后台进程：`start_process` / `stop_process` / `read_process_output`。
+    - Agent 间通信——两种不同语义，别混为一谈：
+      - **`send_to_agent`**：把文件**复制**到目标 agent 的 `inbox/<selfID>/`（一次性快照，走收件箱冲突检测 + resolution）。
+      - **`share_to_agent`** / `unshare_to_agent` / `list_shares`：在目标 agent 工作区里放**符号链接**，接收方可读写，改动直接落在发送方磁盘上（持续共享，不经过 inbox）。
+    - 技能：`list_skills` / `use_skill`。
 
 - **`permission/`** — 每个会话一个权限管理器。待审权限会阻塞智能体循环，直到用户通过 `POST /api/sessions/{id}/permission` 批准或拒绝。`webperm/checker.go` 是实际挂在会话上的实现，负责把 PermissionContext 序列化进 `PermissionRequest`，并通过 decisionEnvelope 把 `resolution` 回传给循环。
 
