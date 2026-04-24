@@ -79,7 +79,7 @@
                 >
                   {{ t('modal.makeDefaultProvider') }}
                 </button>
-                <AppButton variant="neutral" :disabled="configSaving" @click="openEditProvider(entry)">
+                <AppButton variant="neutral" size="compact" :disabled="configSaving" @click="openEditProvider(entry)">
                   {{ t('common.edit') }}
                 </AppButton>
                 <span
@@ -661,16 +661,16 @@ onMounted(() => {
 
 .card-btn {
   /* Variant styles below extend the shared AppButton visual language. */
-  height: 30px;
-  padding: 0 14px;
+  height: 28px;
+  padding: 0 8px;
   border: 1px solid var(--rule);
   background: var(--panel-2);
   color: var(--ink-2);
   cursor: pointer;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   transition: transform .12s, box-shadow .12s, background .12s, color .12s, border-color .12s;
 }
@@ -793,6 +793,10 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.provider-actions :deep(.app-btn--compact) {
+  padding: 0 8px;
 }
 
 .card-btn.danger {

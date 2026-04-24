@@ -18,7 +18,11 @@
         :title="t('titleBar.openSettingsMenu')"
         @click="onSettingsMenu"
       >
-        <RiSettings3Line class="titlebar-icon" aria-hidden="true" />
+        <RiSettings3Line
+          class="titlebar-icon"
+          :style="{ transform: `rotate(${settingsIconRotation}deg)` }"
+          aria-hidden="true"
+        />
       </IconButton>
     </div>
     <DesktopSettingsModal v-if="settingsModalOpen" @close="settingsModalOpen = false" />
@@ -38,9 +42,14 @@ const platform = bridge?.platform ?? 'web'
 const isElectron = bridge?.isElectron ?? false
 const windowKind = bridge?.windowKind ?? 'main'
 const settingsModalOpen = ref(false)
+const settingsIconRotation = ref(0)
 const contextLabel = computed(() => t('titleBar.context'))
 
 function onSettingsMenu() {
+  // Cumulative rotation: each click adds a half turn so the gear snaps to
+  // a new orientation. Value grows forever in principle but only matters
+  // after millions of clicks.
+  settingsIconRotation.value += 180
   if (!bridge?.showSettingsMenu) {
     settingsModalOpen.value = true
     return
@@ -136,5 +145,6 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
 .titlebar-icon {
   width: 15px;
   height: 15px;
+  transition: transform .5s cubic-bezier(.4, .0, .2, 1);
 }
 </style>
