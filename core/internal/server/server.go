@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"biene/internal/config"
+	"biene/internal/logging"
 	"biene/internal/prompt"
 	"biene/internal/session"
 )
@@ -108,7 +109,7 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("DELETE /api/skills/{id}", s.handleDeleteSkill)
 
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
-	slog.Info("core listening", "addr", addr)
+	logging.Lifecycle().Info("core listening", "addr", addr)
 	s.httpServer = &http.Server{
 		Addr:    addr,
 		Handler: corsMiddleware(authMiddleware(s.authToken, requestLogMiddleware(mux))),
@@ -202,6 +203,7 @@ func (s *Server) handleShutdown(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) Shutdown(ctx context.Context) error {
 	var shutdownErr error
 	s.shutdownOnce.Do(func() {
+		logging.Lifecycle().Info("core shutting down")
 		if s.httpServer != nil {
 			shutdownErr = s.httpServer.Shutdown(ctx)
 		}

@@ -3,7 +3,7 @@
 // Logs are emitted as JSON lines to ~/.biene/logs/core-YYYYMMDD.log and, in
 // parallel, as a human-readable text stream to stderr (which Electron's main
 // process captures). Level is controlled by BIENE_LOG_LEVEL
-// (debug|info|warn|error, default info). The file is opened in append mode so
+// (debug|info|warn|error, default warn). The file is opened in append mode so
 // multiple runs on the same day share one file.
 package logging
 
@@ -23,8 +23,9 @@ import (
 const logsDirName = "logs"
 
 var (
-	initOnce sync.Once
-	logFile  *os.File
+	initOnce         sync.Once
+	logFile          *os.File
+	lifecycleLogger  *slog.Logger
 )
 
 // Init configures slog.Default() and returns the path of the log file (or
@@ -44,15 +45,22 @@ func initOnce0() string {
 	handlers := []slog.Handler{
 		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}),
 	}
+	// Lifecycle handlers share the outputs but always emit (floor = Debug)
+	// so startup/shutdown banners survive BIENE_LOG_LEVEL=error.
+	lifecycleHandlers := []slog.Handler{
+		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}),
+	}
 
 	logPath, err := openLogFile(time.Now())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "logging: file handler disabled: %v\n", err)
 	} else {
 		handlers = append(handlers, slog.NewJSONHandler(logFile, &slog.HandlerOptions{Level: level}))
+		lifecycleHandlers = append(lifecycleHandlers, slog.NewJSONHandler(logFile, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	}
 
 	slog.SetDefault(slog.New(newFanout(handlers...)))
+	lifecycleLogger = slog.New(newFanout(lifecycleHandlers...))
 	return logPath
 }
 
@@ -68,6 +76,15 @@ func Close() {
 // Session returns a logger pre-bound to a session id.
 func Session(id string) *slog.Logger {
 	return slog.Default().With("session_id", id)
+}
+
+// Lifecycle returns a logger that always emits regardless of
+// BIENE_LOG_LEVEL. Reserved for startup / shutdown banners.
+func Lifecycle() *slog.Logger {
+	if lifecycleLogger == nil {
+		return slog.Default()
+	}
+	return lifecycleLogger
 }
 
 func openLogFile(now time.Time) (string, error) {
@@ -97,8 +114,10 @@ func parseLevel(s string) slog.Level {
 		return slog.LevelWarn
 	case "error":
 		return slog.LevelError
-	default:
+	case "info":
 		return slog.LevelInfo
+	default:
+		return slog.LevelWarn
 	}
 }
 

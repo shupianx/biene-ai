@@ -1,7 +1,7 @@
 package session
 
 import (
-	"log"
+	"log/slog"
 	"strings"
 
 	"biene/internal/config"
@@ -85,7 +85,7 @@ func (m *SessionManager) UpdateConfig(cfg *config.Config) error {
 
 		if sess.store != nil {
 			if err := sess.store.SaveMeta(persistedMeta); err != nil {
-				log.Printf("persist session meta after config update for %s: %v", sess.ID, err)
+				slog.Error("persist session meta after config update", "session_id", sess.ID, "err", err)
 			}
 		}
 		sess.notifyMetaChanged(meta)

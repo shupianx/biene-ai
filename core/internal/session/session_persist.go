@@ -2,7 +2,7 @@ package session
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"strings"
 
 	"biene/internal/api"
@@ -86,11 +86,11 @@ func (s *Session) persistDisplayMessage(msg DisplayMessage) {
 	}
 	data, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("persist display msg %s: %v", msg.ID, err)
+		slog.Error("marshal display msg", "session_id", s.ID, "msg_id", msg.ID, "err", err)
 		return
 	}
 	if err := s.store.AppendDisplayMessage(msg.ID, data); err != nil {
-		log.Printf("persist display msg %s: %v", msg.ID, err)
+		slog.Error("persist display msg", "session_id", s.ID, "msg_id", msg.ID, "err", err)
 	}
 }
 
@@ -100,11 +100,11 @@ func (s *Session) updatePersistedDisplayMessage(msg DisplayMessage) {
 	}
 	data, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("marshal display msg update %s: %v", msg.ID, err)
+		slog.Error("marshal display msg update", "session_id", s.ID, "msg_id", msg.ID, "err", err)
 		return
 	}
 	if err := s.store.UpdateDisplayMessage(msg.ID, data); err != nil {
-		log.Printf("persist display msg update %s: %v", msg.ID, err)
+		slog.Error("persist display msg update", "session_id", s.ID, "msg_id", msg.ID, "err", err)
 	}
 }
 
@@ -113,7 +113,7 @@ func (s *Session) persistMetaSnapshot(meta SessionMeta) {
 		return
 	}
 	if err := s.store.SaveMeta(meta); err != nil {
-		log.Printf("persist meta for %s: %v", s.ID, err)
+		slog.Error("persist meta", "session_id", s.ID, "err", err)
 	}
 }
 
@@ -128,16 +128,16 @@ func (s *Session) persistAfterRun(newDisplay []DisplayMessage, apiMsgs []api.Mes
 	for _, m := range apiMsgs {
 		raw, err := marshalAPIMessage(m)
 		if err != nil {
-			log.Printf("persist api msg: %v", err)
+			slog.Error("marshal api msg", "session_id", s.ID, "err", err)
 			continue
 		}
 		rawMsgs = append(rawMsgs, raw)
 	}
 	if err := s.store.ReplaceAPIMessages(rawMsgs); err != nil {
-		log.Printf("persist api messages: %v", err)
+		slog.Error("persist api messages", "session_id", s.ID, "err", err)
 	}
 	if err := s.store.SaveMeta(meta); err != nil {
-		log.Printf("persist meta: %v", err)
+		slog.Error("persist meta", "session_id", s.ID, "err", err)
 	}
 }
 
@@ -150,7 +150,7 @@ func (s *Session) persistPermissions(perms tools.PermissionSet) {
 
 	if s.store != nil {
 		if err := s.store.SaveMeta(persistedMeta); err != nil {
-			log.Printf("persist permissions for %s: %v", s.ID, err)
+			slog.Error("persist permissions", "session_id", s.ID, "err", err)
 		}
 	}
 

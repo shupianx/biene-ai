@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 
@@ -26,7 +25,7 @@ func main() {
 
 	logPath := logging.Init()
 	defer logging.Close()
-	slog.Info("core starting", "host", *host, "port", *port, "workspace", *workspace, "log_file", logPath)
+	logging.Lifecycle().Info("core starting", "host", *host, "port", *port, "workspace", *workspace, "log_file", logPath)
 
 	loadResult, err := config.Load()
 	if err != nil {
@@ -54,4 +53,5 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	logging.Lifecycle().Info("core stopped")
 }

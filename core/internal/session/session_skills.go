@@ -2,7 +2,7 @@ package session
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"biene/internal/skills"
@@ -34,7 +34,7 @@ func (s *Session) UninstallSkill(id string) (string, error) {
 	changed := removeFromListLocked(&s.activeSkills, name)
 	ids, scanErr := skills.InstalledSkillIDsForWorkDir(s.WorkDir)
 	if scanErr != nil {
-		log.Printf("scan installed skills for %s: %v", s.ID, scanErr)
+		slog.Error("scan installed skills", "session_id", s.ID, "err", scanErr)
 	} else {
 		s.installedSkillIDs = ids
 	}
@@ -44,7 +44,7 @@ func (s *Session) UninstallSkill(id string) (string, error) {
 
 	if changed && s.store != nil {
 		if err := s.store.SaveMeta(persistedMeta); err != nil {
-			log.Printf("persist active skills for %s: %v", s.ID, err)
+			slog.Error("persist active skills", "session_id", s.ID, "err", err)
 		}
 	}
 	s.notifyMetaChanged(meta)
@@ -92,7 +92,7 @@ func (s *Session) ActivateSkill(name string) (string, error) {
 	if added {
 		if s.store != nil {
 			if err := s.store.SaveMeta(persistedMeta); err != nil {
-				log.Printf("persist active skills for %s: %v", s.ID, err)
+				slog.Error("persist active skills", "session_id", s.ID, "err", err)
 			}
 		}
 		s.send(makeFrame("skill_activated", skillActivatedPayload{SkillName: def.Name}))
@@ -107,7 +107,7 @@ func (s *Session) ActivateSkill(name string) (string, error) {
 func (s *Session) refreshInstalledSkillsAndNotify() {
 	ids, err := skills.InstalledSkillIDsForWorkDir(s.WorkDir)
 	if err != nil {
-		log.Printf("scan installed skills for %s: %v", s.ID, err)
+		slog.Error("scan installed skills", "session_id", s.ID, "err", err)
 		return
 	}
 	s.mu.Lock()
