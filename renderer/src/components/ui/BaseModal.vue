@@ -66,7 +66,7 @@ function onBackdropClick() {
   max-height: calc(100dvh - 48px);
   background: var(--panel-2);
   border: 1px solid var(--rule);
-  box-shadow: 4px 4px 0 0 var(--rule);
+  box-shadow: 2px 2px 0 0 var(--rule-soft);
   display: flex;
   flex-direction: column;
   overflow: hidden;

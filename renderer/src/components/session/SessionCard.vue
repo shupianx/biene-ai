@@ -394,6 +394,7 @@ async function onConflictConfirm() {
   gap: 6px;
   padding: 2px 7px;
   border: 1px solid currentColor;
+  background: currentColor;
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 600;
@@ -401,6 +402,10 @@ async function onConflictConfirm() {
   text-transform: uppercase;
   white-space: nowrap;
   color: var(--ink-4);
+}
+
+.status-tag > span {
+  color: var(--bg);
 }
 
 .status-tag.running  { color: var(--ok); }
@@ -411,7 +416,7 @@ async function onConflictConfirm() {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: currentColor;
+  background: var(--bg);
 }
 
 .status-tag.running .status-dot,
@@ -449,7 +454,7 @@ async function onConflictConfirm() {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-softer);
   background: var(--panel);
   flex-wrap: wrap;
 }
