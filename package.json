@@ -10,10 +10,14 @@
     "start": "electron .",
     "build:renderer": "npm --prefix renderer run build",
     "build:core": "node scripts/build-core.cjs",
+    "build:icon": "node scripts/build-icon.cjs",
     "package:desktop": "electron-builder --config electron-builder.json",
     "build": "node scripts/release.cjs all",
     "build:mac": "node scripts/release.cjs mac",
-    "build:win": "node scripts/release.cjs win"
+    "build:win": "node scripts/release.cjs win",
+    "release:mac": "node scripts/publish-github.cjs mac",
+    "release:win": "node scripts/publish-github.cjs win",
+    "release:all": "node scripts/publish-github.cjs mac win"
   },
   "devDependencies": {
     "electron": "^35.3.0",

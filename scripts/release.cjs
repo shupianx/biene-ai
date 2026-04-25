@@ -88,7 +88,29 @@ function buildCore(platform, arch, output) {
   ])
 }
 
+function ensureMacSigningEnv() {
+  if (process.env.BIENE_SKIP_MAC_SIGNING === '1') {
+    console.warn('[release] BIENE_SKIP_MAC_SIGNING=1 — building unsigned macOS artifacts (will not run on other machines).')
+    return { skipSigning: true }
+  }
+
+  const missing = []
+  if (!process.env.APPLE_ID) missing.push('APPLE_ID')
+  if (!process.env.APPLE_APP_SPECIFIC_PASSWORD) missing.push('APPLE_APP_SPECIFIC_PASSWORD')
+  if (!process.env.APPLE_TEAM_ID) missing.push('APPLE_TEAM_ID')
+
+  if (missing.length > 0) {
+    console.error(`[release] Missing required env vars for macOS signing + notarization: ${missing.join(', ')}`)
+    console.error('[release] Set them, or pass BIENE_SKIP_MAC_SIGNING=1 to build an unsigned artifact for local testing.')
+    process.exit(1)
+  }
+
+  return { skipSigning: false }
+}
+
 function packageMac() {
+  const { skipSigning } = ensureMacSigningEnv()
+
   const platformDir = path.join(releaseDir, 'mac-arm64')
   const updateDir = path.join(platformDir, 'update')
   const dmgOutputDir = path.join(tempDir, 'mac-arm64-dmg')
@@ -99,6 +121,10 @@ function packageMac() {
   cleanPath(updateOutputDir)
   ensureDir(updateDir)
 
+  const signingOverrides = skipSigning
+    ? ['--config.mac.identity=null', '--config.mac.notarize=false']
+    : []
+
   buildCore('darwin', 'arm64', 'core/dist/biene-core')
 
   run('npm', [
@@ -108,7 +134,9 @@ function packageMac() {
     '--mac',
     '--arm64',
     '--config.mac.target=dmg',
+    '--config.mac.artifactName=Biene-${arch}.${ext}',
     `--config.directories.output=${dmgOutputDir}`,
+    ...signingOverrides,
   ])
 
   moveFiles(dmgOutputDir, platformDir, (name) => name.endsWith('.dmg'))
@@ -121,6 +149,7 @@ function packageMac() {
     '--arm64',
     '--config.mac.target=zip',
     `--config.directories.output=${updateOutputDir}`,
+    ...signingOverrides,
   ])
 
   moveFiles(updateOutputDir, updateDir, (name) => (
