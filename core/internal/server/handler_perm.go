@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"tinte/internal/permission"
+	"biene/internal/permission"
 )
 
 // permissionResponse is the body for POST /api/sessions/{id}/permission.

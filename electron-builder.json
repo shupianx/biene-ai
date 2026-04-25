@@ -1,6 +1,6 @@
 {
-  "appId": "com.tinte.desktop",
-  "productName": "Tinte",
+  "appId": "com.biene.desktop",
+  "productName": "Biene",
   "directories": {
     "output": "release/.tmp/default"
   },

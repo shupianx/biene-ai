@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 // FileEditTool replaces an exact string in a file with a new string.

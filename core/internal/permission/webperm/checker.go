@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"sync"
 
-	"tinte/internal/permission"
-	"tinte/internal/tools"
+	"biene/internal/permission"
+	"biene/internal/tools"
 )
 
 // PermissionRequest carries the data pushed to the frontend via the realtime channel.

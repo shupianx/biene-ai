@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"tinte/internal/config"
+	"biene/internal/config"
 )
 
 type editableModelEntry struct {

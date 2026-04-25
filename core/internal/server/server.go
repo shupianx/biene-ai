@@ -12,14 +12,14 @@ import (
 	"sync"
 	"time"
 
-	"tinte/internal/config"
-	"tinte/internal/prompt"
-	"tinte/internal/session"
+	"biene/internal/config"
+	"biene/internal/prompt"
+	"biene/internal/session"
 )
 
-const authHeaderName = "X-Tinte-Token"
+const authHeaderName = "X-Biene-Token"
 
-// Server is the tinte HTTP server.
+// Server is the biene HTTP server.
 type Server struct {
 	cfg          *config.Config
 	mgr          *session.SessionManager
@@ -125,7 +125,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Tinte-Token")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Biene-Token")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

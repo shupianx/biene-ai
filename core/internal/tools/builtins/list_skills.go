@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"tinte/internal/skills"
-	"tinte/internal/tools"
+	"biene/internal/skills"
+	"biene/internal/tools"
 )
 
 // ListSkillsTool lists installed skill metadata for the current agent workspace.

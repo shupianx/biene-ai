@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 type listAgentsTestDirectory struct {

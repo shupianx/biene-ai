@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"tinte/internal/config"
-	"tinte/internal/logging"
-	"tinte/internal/server"
+	"biene/internal/config"
+	"biene/internal/logging"
+	"biene/internal/server"
 )
 
 func main() {
@@ -43,7 +43,7 @@ func main() {
 		Port:          *port,
 		Config:        loadResult.Config,
 		WorkspaceRoot: *workspace,
-		AuthToken:     os.Getenv("TINTE_CORE_TOKEN"),
+		AuthToken:     os.Getenv("BIENE_CORE_TOKEN"),
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

@@ -48,7 +48,7 @@ function removeLegacyReleaseArtifacts() {
 
     if (
       entry.name === '.DS_Store' ||
-      entry.name.startsWith('Tinte-') ||
+      entry.name.startsWith('Biene-') ||
       entry.name.startsWith('latest') ||
       entry.name.endsWith('.blockmap') ||
       entry.name.endsWith('.7z')
@@ -99,7 +99,7 @@ function packageMac() {
   cleanPath(updateOutputDir)
   ensureDir(updateDir)
 
-  buildCore('darwin', 'arm64', 'core/dist/tinte-core')
+  buildCore('darwin', 'arm64', 'core/dist/biene-core')
 
   run('npm', [
     'run',
@@ -138,7 +138,7 @@ function packageWin() {
   cleanPath(outputDir)
   ensureDir(platformDir)
 
-  buildCore('windows', 'amd64', 'core/dist/tinte-core.exe')
+  buildCore('windows', 'amd64', 'core/dist/biene-core.exe')
 
   run('npm', [
     'run',

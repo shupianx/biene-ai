@@ -11,8 +11,8 @@ import (
 func TestListSkillsToolListsInstalledSkills(t *testing.T) {
 	workDir := t.TempDir()
 
-	skillA := filepath.Join(workDir, ".tinte", "skills", "reviewer")
-	skillB := filepath.Join(workDir, ".tinte", "skills", "release-notes")
+	skillA := filepath.Join(workDir, ".biene", "skills", "reviewer")
+	skillB := filepath.Join(workDir, ".biene", "skills", "release-notes")
 	if err := os.MkdirAll(skillA, 0o755); err != nil {
 		t.Fatal(err)
 	}

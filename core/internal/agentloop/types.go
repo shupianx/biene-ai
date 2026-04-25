@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"tinte/internal/api"
-	"tinte/internal/tools"
+	"biene/internal/api"
+	"biene/internal/tools"
 )
 
 // EventKind classifies an Event.

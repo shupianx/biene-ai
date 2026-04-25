@@ -188,7 +188,7 @@ export function sendMessage(
 }
 
 // Build a URL that serves a chat-level asset (e.g. a user-uploaded image)
-// from the session's .tinte/assets/user/ directory. Asset routes are
+// from the session's .biene/assets/user/ directory. Asset routes are
 // exempted from the auth middleware on the server side (see isPublicAssetPath
 // in server.go) so the URL stays clean for "open in external browser" —
 // path entropy plus CORS are the actual safeguard.

@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 // Decision is the user's response to a permission prompt.

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 // resolvePath confines file access to rootDir when provided.

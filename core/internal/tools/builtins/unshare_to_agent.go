@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 // UnshareToAgentTool revokes a share previously granted via share_to_agent.

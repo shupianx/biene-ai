@@ -1,6 +1,6 @@
 package session
 
-import "tinte/internal/tools"
+import "biene/internal/tools"
 
 // ── Agent delivery helpers ────────────────────────────────────────────────
 

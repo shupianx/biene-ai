@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 // FileWriteTool creates or overwrites a file with the given content.

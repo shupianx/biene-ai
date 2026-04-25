@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"tinte/internal/prompt"
-	"tinte/internal/tools"
+	"biene/internal/prompt"
+	"biene/internal/tools"
 )
 
 type stubTool struct {

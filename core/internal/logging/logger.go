@@ -1,8 +1,8 @@
 // Package logging wires up the core's structured logger.
 //
-// Logs are emitted as JSON lines to ~/.tinte/logs/core-YYYYMMDD.log and, in
+// Logs are emitted as JSON lines to ~/.biene/logs/core-YYYYMMDD.log and, in
 // parallel, as a human-readable text stream to stderr (which Electron's main
-// process captures). Level is controlled by TINTE_LOG_LEVEL
+// process captures). Level is controlled by BIENE_LOG_LEVEL
 // (debug|info|warn|error, default info). The file is opened in append mode so
 // multiple runs on the same day share one file.
 package logging
@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"tinte/internal/tintehome"
+	"biene/internal/bienehome"
 )
 
 const logsDirName = "logs"
@@ -39,7 +39,7 @@ func Init() string {
 }
 
 func initOnce0() string {
-	level := parseLevel(os.Getenv("TINTE_LOG_LEVEL"))
+	level := parseLevel(os.Getenv("BIENE_LOG_LEVEL"))
 
 	handlers := []slog.Handler{
 		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}),
@@ -71,7 +71,7 @@ func Session(id string) *slog.Logger {
 }
 
 func openLogFile(now time.Time) (string, error) {
-	home, err := tintehome.HomeDir()
+	home, err := bienehome.HomeDir()
 	if err != nil {
 		return "", err
 	}

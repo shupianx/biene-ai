@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 type preparedPermission struct {

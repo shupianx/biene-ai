@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"tinte/internal/api"
-	"tinte/internal/tools"
+	"biene/internal/api"
+	"biene/internal/tools"
 )
 
 // ── Message text building ─────────────────────────────────────────────────
@@ -204,7 +204,7 @@ func stripImageBlockData(msgs []api.Message) {
 
 // resolveWorkspaceChild joins workDir with a known-internal relative path
 // (stored by us, not supplied by a tool) and validates the result stays
-// inside workDir. Separate from ResolveWorkspacePath because the .tinte
+// inside workDir. Separate from ResolveWorkspacePath because the .biene
 // guard does not apply to internal state reads.
 func resolveWorkspaceChild(workDir, relPath string) (string, error) {
 	if relPath == "" {
@@ -229,7 +229,7 @@ func resolveWorkspaceChild(workDir, relPath string) (string, error) {
 	return targetAbs, nil
 }
 
-// StoreUploadedImage persists a single image under .tinte/assets/user/ using
+// StoreUploadedImage persists a single image under .biene/assets/user/ using
 // an opaque timestamp-based filename (originals are discarded since nothing
 // references them by name). Returns a DisplayAttachment with Kind="image".
 func StoreUploadedImage(workDir string, img UploadedFile) (DisplayAttachment, error) {
@@ -287,9 +287,9 @@ const UserUploadSubdir = "inbox/user"
 // UserAssetsSubdir holds chat-level artifacts (pasted/uploaded images) that
 // belong to the conversation rather than the agent's working material.
 // The agent's file tools are blocked from this prefix via
-// tools.IsReservedWorkspacePath; other subdirectories of .tinte/ (notably
+// tools.IsReservedWorkspacePath; other subdirectories of .biene/ (notably
 // skills/) remain writable so the agent can author them.
-const UserAssetsSubdir = ".tinte/assets/user"
+const UserAssetsSubdir = ".biene/assets/user"
 
 // AgentInboxSubdir builds the subdirectory where files from the given source
 // agent should be stored in the receiver's workspace.
@@ -512,7 +512,7 @@ func ResolveWorkspacePath(rootDir, requestedPath string) (string, string, error)
 
 // ResolveSessionAssetPath resolves a path that must live under the session's
 // asset directory. Unlike ResolveWorkspacePath it deliberately allows paths
-// inside .tinte/ — it is used by the HTTP layer to serve user-uploaded
+// inside .biene/ — it is used by the HTTP layer to serve user-uploaded
 // images to the renderer, never by agent tools.
 func ResolveSessionAssetPath(rootDir, requestedPath string) (string, error) {
 	if requestedPath == "" {

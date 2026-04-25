@@ -6,26 +6,26 @@ function readCliArg(prefix) {
 }
 
 ipcRenderer.on('desktop:coreStatus', (_event, status) => {
-  window.dispatchEvent(new CustomEvent('tinte:core-status', { detail: status }))
+  window.dispatchEvent(new CustomEvent('biene:core-status', { detail: status }))
 })
 
 ipcRenderer.on('desktop:settingsMenuAction', (_event, detail) => {
-  window.dispatchEvent(new CustomEvent('tinte:settings-menu-action', { detail }))
+  window.dispatchEvent(new CustomEvent('biene:settings-menu-action', { detail }))
 })
 
 const desktopBridge = Object.freeze({
   isElectron: true,
   initialLocale: (() => {
-    const raw = readCliArg('--tinte-locale=').toLowerCase()
+    const raw = readCliArg('--biene-locale=').toLowerCase()
     if (raw.startsWith('zh')) return 'zh-CN'
     if (raw.startsWith('de')) return 'de'
     return 'en'
   })(),
-  initialTheme: readCliArg('--tinte-theme=') === 'dark' ? 'dark' : 'light',
+  initialTheme: readCliArg('--biene-theme=') === 'dark' ? 'dark' : 'light',
   platform: process.platform,
-  windowKind: readCliArg('--tinte-window-kind=') || 'main',
-  coreBaseUrl: readCliArg('--tinte-core-url='),
-  coreAuthToken: readCliArg('--tinte-core-token='),
+  windowKind: readCliArg('--biene-window-kind=') || 'main',
+  coreBaseUrl: readCliArg('--biene-core-url='),
+  coreAuthToken: readCliArg('--biene-core-token='),
   getCoreStatus() {
     return ipcRenderer.invoke('desktop:getCoreStatus')
   },
@@ -52,4 +52,4 @@ const desktopBridge = Object.freeze({
   },
 })
 
-contextBridge.exposeInMainWorld('tinteDesktop', desktopBridge)
+contextBridge.exposeInMainWorld('bieneDesktop', desktopBridge)

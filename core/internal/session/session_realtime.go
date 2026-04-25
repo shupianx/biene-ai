@@ -1,7 +1,7 @@
 package session
 
 import (
-	"tinte/internal/permission/webperm"
+	"biene/internal/permission/webperm"
 )
 
 // ── Permission pending/clear ──────────────────────────────────────────────

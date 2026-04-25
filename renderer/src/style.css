@@ -237,21 +237,21 @@ select:focus {
 }
 
 /* Keyframes shared across components */
-@keyframes tinteBlink {
+@keyframes bieneBlink {
   0%, 100% { opacity: 0.25; }
   50%      { opacity: 1; }
 }
 
-@keyframes tintePulse {
+@keyframes bienePulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.4; }
 }
 
-@keyframes tinteSpin {
+@keyframes bieneSpin {
   to { transform: rotate(360deg); }
 }
 
-@keyframes tinteFadeIn {
+@keyframes bieneFadeIn {
   from { opacity: 0; transform: translateY(2px); }
   to   { opacity: 1; transform: none; }
 }

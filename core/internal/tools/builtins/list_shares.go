@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 // ListSharesTool reports the shares this agent has granted to other agents.

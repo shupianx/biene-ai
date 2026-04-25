@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"tinte/internal/api"
+	"biene/internal/api"
 )
 
 func collectStream(

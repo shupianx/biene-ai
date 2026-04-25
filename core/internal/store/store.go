@@ -16,7 +16,7 @@ const metaFile = "meta.json"
 const dbFile = "history.db"
 
 // SessionStore manages persistence for one agent session.
-// It writes into a dedicated directory (typically <workDir>/.tinte/).
+// It writes into a dedicated directory (typically <workDir>/.biene/).
 type SessionStore struct {
 	dir string
 	db  *sql.DB

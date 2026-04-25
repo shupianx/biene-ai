@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 // SendToAgentTool delivers a message and optional files to another agent.

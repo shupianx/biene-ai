@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"tinte/internal/skills"
-	"tinte/internal/tools"
+	"biene/internal/skills"
+	"biene/internal/tools"
 )
 
 func TestBuildIncludesInstalledSkills(t *testing.T) {
@@ -14,8 +14,8 @@ func TestBuildIncludesInstalledSkills(t *testing.T) {
 	installed := []skills.Metadata{{
 		Name:        "reviewer",
 		Description: "Review changes carefully",
-		Dir:         filepath.Join(workDir, ".tinte", "skills", "reviewer"),
-		FilePath:    filepath.Join(workDir, ".tinte", "skills", "reviewer", "SKILL.md"),
+		Dir:         filepath.Join(workDir, ".biene", "skills", "reviewer"),
+		FilePath:    filepath.Join(workDir, ".biene", "skills", "reviewer", "SKILL.md"),
 	}}
 
 	promptText := Build(tools.NewRegistry(), workDir, DefaultProfile(), AgentIdentity{

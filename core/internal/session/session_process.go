@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"tinte/internal/processes"
+	"biene/internal/processes"
 )
 
 // ProcessState returns a snapshot of the session's background process.

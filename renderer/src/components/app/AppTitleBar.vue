@@ -8,7 +8,7 @@
     ]"
   >
     <div class="titlebar-brand">
-      <span class="brand-name">TINTE</span>
+      <span class="brand-name">BIENE</span>
       <span class="brand-divider" aria-hidden="true" />
       <span class="brand-context">{{ contextLabel }}</span>
     </div>
@@ -68,8 +68,8 @@ function onSettingsMenuAction(event: Event) {
   }
 }
 
-onMounted(() => window.addEventListener('tinte:settings-menu-action', onSettingsMenuAction as EventListener))
-onBeforeUnmount(() => window.removeEventListener('tinte:settings-menu-action', onSettingsMenuAction as EventListener))
+onMounted(() => window.addEventListener('biene:settings-menu-action', onSettingsMenuAction as EventListener))
+onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', onSettingsMenuAction as EventListener))
 </script>
 
 <style scoped>

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"tinte/internal/api"
-	"tinte/internal/tools"
+	"biene/internal/api"
+	"biene/internal/tools"
 )
 
 // Run executes one user turn and emits events on the returned channel.

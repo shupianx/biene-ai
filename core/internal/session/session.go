@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"tinte/internal/api"
-	"tinte/internal/permission/webperm"
-	"tinte/internal/processes"
-	"tinte/internal/prompt"
-	"tinte/internal/store"
-	"tinte/internal/tools"
+	"biene/internal/api"
+	"biene/internal/permission/webperm"
+	"biene/internal/processes"
+	"biene/internal/prompt"
+	"biene/internal/store"
+	"biene/internal/tools"
 )
 
 // ── Core types ────────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ const (
 
 // DisplayAttachment is a file rendered alongside a chat message. Kind
 // distinguishes regular file uploads (routed to inbox/) from inline images
-// stored under .tinte/assets/ and rendered as thumbnails.
+// stored under .biene/assets/ and rendered as thumbnails.
 type DisplayAttachment struct {
 	Name      string `json:"name"`
 	Path      string `json:"path"`
@@ -126,7 +126,7 @@ type Session struct {
 	activeSkills []string
 
 	// installedSkillIDs is a cache of skill directory IDs present under
-	// <WorkDir>/.tinte/skills. It is refreshed from disk on install/uninstall
+	// <WorkDir>/.biene/skills. It is refreshed from disk on install/uninstall
 	// so the frontend can detect drag-and-drop name collisions locally.
 	installedSkillIDs []string
 

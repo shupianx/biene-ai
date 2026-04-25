@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"tinte/internal/tools"
+	"biene/internal/tools"
 )
 
 const defaultCommandTimeout = 120 * time.Second

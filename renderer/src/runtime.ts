@@ -40,7 +40,7 @@ export interface DesktopBridge {
 
 declare global {
   interface Window {
-    tinteDesktop?: DesktopBridge
+    bieneDesktop?: DesktopBridge
   }
 }
 
@@ -50,7 +50,7 @@ function normalizeBaseUrl(url: string) {
 
 export function getDesktopBridge() {
   if (typeof window === 'undefined') return undefined
-  return window.tinteDesktop
+  return window.bieneDesktop
 }
 
 export function getCoreBaseUrl() {
@@ -71,7 +71,7 @@ export function buildCoreHeaders(headers?: HeadersInit) {
   const next = new Headers(headers)
   const token = getCoreAuthToken()
   if (token) {
-    next.set('X-Tinte-Token', token)
+    next.set('X-Biene-Token', token)
   }
   return next
 }

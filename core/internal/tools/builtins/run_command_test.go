@@ -86,11 +86,11 @@ func TestRunCommandToolCwdMissing(t *testing.T) {
 
 func TestRunCommandToolMissingExecutable(t *testing.T) {
 	tool := NewRunCommandTool()
-	out, err := tool.Execute(context.Background(), json.RawMessage(`{"command":"definitely-not-a-real-tinte-command"}`))
+	out, err := tool.Execute(context.Background(), json.RawMessage(`{"command":"definitely-not-a-real-biene-command"}`))
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(out, "definitely-not-a-real-tinte-command") {
+	if !strings.Contains(out, "definitely-not-a-real-biene-command") {
 		t.Fatalf("expected missing executable output, got %q", out)
 	}
 }

@@ -3,7 +3,7 @@ package server
 import (
 	"net/http"
 
-	"tinte/internal/session"
+	"biene/internal/session"
 )
 
 // handleSessionFile serves a file from the session workspace.
@@ -30,7 +30,7 @@ func (s *Server) handleSessionFile(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSessionAsset serves a chat-level asset (e.g. user-uploaded image)
-// from the reserved .tinte/assets/user/ directory. Path traversal outside
+// from the reserved .biene/assets/user/ directory. Path traversal outside
 // that directory is rejected.
 // GET /api/sessions/{id}/assets/{path...}
 func (s *Server) handleSessionAsset(w http.ResponseWriter, r *http.Request) {

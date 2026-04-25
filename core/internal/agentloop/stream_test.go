@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"tinte/internal/api"
+	"biene/internal/api"
 )
 
 func TestCollectStreamPutsReasoningAtHead(t *testing.T) {

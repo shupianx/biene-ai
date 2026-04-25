@@ -58,7 +58,7 @@ function onBackdropClick() {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  animation: tinteFadeIn .15s ease-out;
+  animation: bieneFadeIn .15s ease-out;
 }
 
 .modal {

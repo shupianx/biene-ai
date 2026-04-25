@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"tinte/internal/processes"
-	"tinte/internal/tools"
+	"biene/internal/processes"
+	"biene/internal/tools"
 )
 
 // StopProcessTool terminates the session's background process.

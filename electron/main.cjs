@@ -16,13 +16,13 @@ const {
 const ROOT_DIR = path.resolve(__dirname, '..')
 const CORE_DIR = path.join(ROOT_DIR, 'core')
 const RENDERER_ENTRY = path.join(ROOT_DIR, 'renderer', 'dist', 'index.html')
-const IS_DEV = Boolean(process.env.TINTE_RENDERER_URL)
+const IS_DEV = Boolean(process.env.BIENE_RENDERER_URL)
 const DEV_CORE_BINARY = path.join(
   CORE_DIR,
   'dist',
-  process.platform === 'win32' ? 'tinte-core.exe' : 'tinte-core',
+  process.platform === 'win32' ? 'biene-core.exe' : 'biene-core',
 )
-const CORE_AUTH_HEADER = 'X-Tinte-Token'
+const CORE_AUTH_HEADER = 'X-Biene-Token'
 
 let coreProcess = null
 let coreBaseUrl = ''
@@ -153,7 +153,7 @@ function resolveLoginShellPath() {
     const shellPath = (typeof process.env.SHELL === 'string' && process.env.SHELL.trim())
       ? process.env.SHELL.trim()
       : defaultLoginShell()
-    const marker = '__TINTE_PATH__'
+    const marker = '__BIENE_PATH__'
 
     if (!shellPath) {
       resolve(process.env.PATH || '')
@@ -218,7 +218,7 @@ function resolveCoreCommand(port) {
   const authToken = ensureCoreAuthToken()
 
   if (app.isPackaged) {
-    const binaryName = process.platform === 'win32' ? 'tinte-core.exe' : 'tinte-core'
+    const binaryName = process.platform === 'win32' ? 'biene-core.exe' : 'biene-core'
     return {
       command: path.join(process.resourcesPath, 'bin', binaryName),
       args: [
@@ -232,7 +232,7 @@ function resolveCoreCommand(port) {
       options: {
         cwd: process.resourcesPath,
         env: {
-          TINTE_CORE_TOKEN: authToken,
+          BIENE_CORE_TOKEN: authToken,
         },
       },
     }
@@ -251,7 +251,7 @@ function resolveCoreCommand(port) {
     options: {
       cwd: ROOT_DIR,
       env: {
-        TINTE_CORE_TOKEN: authToken,
+        BIENE_CORE_TOKEN: authToken,
       },
     },
   }
@@ -347,7 +347,7 @@ function normalizeSettingsMenuLabels(labels) {
       : 'Settings',
     about: typeof labels?.about === 'string' && labels.about.trim()
       ? labels.about
-      : 'About Tinte',
+      : 'About Biene',
   }
 }
 
@@ -381,8 +381,8 @@ function startCoreMonitor() {
 }
 
 function pipeCoreLogs(child) {
-  child.stdout?.on('data', (chunk) => process.stdout.write(`[tinte-core] ${chunk}`))
-  child.stderr?.on('data', (chunk) => process.stderr.write(`[tinte-core] ${chunk}`))
+  child.stdout?.on('data', (chunk) => process.stdout.write(`[biene-core] ${chunk}`))
+  child.stderr?.on('data', (chunk) => process.stderr.write(`[biene-core] ${chunk}`))
 }
 
 function requestCoreShutdown(timeoutMs = 5000) {
@@ -494,7 +494,7 @@ async function startCoreOnce() {
     }
     if (!isQuitting) {
       const detail = signal ? `signal ${signal}` : `code ${code}`
-      console.error(`Tinte core stopped unexpectedly (${detail}).`)
+      console.error(`Biene core stopped unexpectedly (${detail}).`)
     }
   })
 
@@ -552,14 +552,14 @@ function quitConfirmLabels() {
   if (currentLocale() === 'zh-CN') {
     return {
       title: '仍有后台进程在运行',
-      message: '以下智能体还有后台进程正在运行。退出 Tinte 会终止它们。',
+      message: '以下智能体还有后台进程正在运行。退出 Biene 会终止它们。',
       quit: '仍然退出',
       cancel: '取消',
     }
   }
   return {
     title: 'Background processes are running',
-    message: 'These agents still have background processes running. Quitting Tinte will stop them.',
+    message: 'These agents still have background processes running. Quitting Biene will stop them.',
     quit: 'Quit anyway',
     cancel: 'Cancel',
   }
@@ -619,7 +619,7 @@ function showCoreMenu(event, labels) {
       enabled: coreHealthy || corePID > 0 || Boolean(coreProcess),
       click: () => {
         void stopCore().catch((err) => {
-          dialog.showErrorBox('Failed to stop Tinte core', err instanceof Error ? err.message : String(err))
+          dialog.showErrorBox('Failed to stop Biene core', err instanceof Error ? err.message : String(err))
         })
       },
     },
@@ -628,7 +628,7 @@ function showCoreMenu(event, labels) {
       enabled: !coreHealthy && !coreStartPromise,
       click: () => {
         void startCore().catch((err) => {
-          dialog.showErrorBox('Failed to start Tinte', err instanceof Error ? err.message : String(err))
+          dialog.showErrorBox('Failed to start Biene', err instanceof Error ? err.message : String(err))
         })
       },
     },
@@ -656,8 +656,8 @@ function showSettingsMenu(event, labels) {
       click: () => {
         dialog.showMessageBox(win, {
           type: 'info',
-          title: 'Tinte',
-          message: 'Tinte',
+          title: 'Biene',
+          message: 'Biene',
           detail: `Version ${app.getVersion()}`,
           buttons: ['OK'],
         })
@@ -685,7 +685,7 @@ function configureAppWindow(win) {
 
 function loadRendererRoute(win, route) {
   if (IS_DEV) {
-    const baseUrl = process.env.TINTE_RENDERER_URL.replace(/\/+$/, '')
+    const baseUrl = process.env.BIENE_RENDERER_URL.replace(/\/+$/, '')
     return win.loadURL(`${baseUrl}#${route}`)
   }
   return win.loadFile(RENDERER_ENTRY, { hash: route })
@@ -728,11 +728,11 @@ function createAppWindow(options) {
       contextIsolation: true,
       nodeIntegration: false,
       additionalArguments: [
-        `--tinte-core-url=${coreBaseUrl}`,
-        `--tinte-core-token=${ensureCoreAuthToken()}`,
-        `--tinte-locale=${currentLocale()}`,
-        `--tinte-theme=${currentTheme()}`,
-        `--tinte-window-kind=${options.windowKind ?? 'main'}`,
+        `--biene-core-url=${coreBaseUrl}`,
+        `--biene-core-token=${ensureCoreAuthToken()}`,
+        `--biene-locale=${currentLocale()}`,
+        `--biene-theme=${currentTheme()}`,
+        `--biene-window-kind=${options.windowKind ?? 'main'}`,
       ],
     },
   })
@@ -762,7 +762,7 @@ function openAgentWindow(sessionId) {
 
   const win = createAppWindow({
     route: `/agent/${encodeURIComponent(sessionId)}`,
-    title: 'Tinte',
+    title: 'Biene',
     width: 540,
     height: 700,
     minWidth: 400,
@@ -818,7 +818,7 @@ function registerDesktopHandlers() {
 function createMainWindow() {
   const win = createAppWindow({
     route: '/',
-    title: 'Tinte',
+    title: 'Biene',
     width: 1140,
     height: 720,
     minWidth: 960,
@@ -865,7 +865,7 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   quitAfterCoreStop = true
   void stopCore().catch((err) => {
-    console.error('Failed to stop Tinte core during app quit:', err)
+    console.error('Failed to stop Biene core during app quit:', err)
   }).finally(() => {
     app.quit()
   })
@@ -879,7 +879,7 @@ app.whenReady().then(async () => {
     await startCore()
     createMainWindow()
   } catch (err) {
-    dialog.showErrorBox('Failed to start Tinte', err instanceof Error ? err.message : String(err))
+    dialog.showErrorBox('Failed to start Biene', err instanceof Error ? err.message : String(err))
     app.quit()
   }
 

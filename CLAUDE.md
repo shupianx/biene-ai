@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目简介
 
-Tinte 是一个本地优先的 AI 编程助手桌面应用，分为三层：
+Biene 是一个本地优先的 AI 编程助手桌面应用，分为三层：
 
 - **`core/`** — Go HTTP 服务，负责运行 AI 智能体循环和工具执行
 - **`electron/`** — Electron 外壳，负责启动 core 进程并托管渲染层
@@ -27,7 +27,7 @@ npm install --prefix renderer  # 渲染层
 npm run dev    # 启动 Vite 开发服务器 + Electron；主进程用 `go run .` 直接跑 core
 ```
 
-`scripts/dev.cjs` 会等待 Vite 在 `http://127.0.0.1:5173` 就绪后启动 Electron，并通过 `TINTE_RENDERER_URL` 让主进程用 `go run .` 代替编译好的二进制文件运行 core。
+`scripts/dev.cjs` 会等待 Vite 在 `http://127.0.0.1:5173` 就绪后启动 Electron，并通过 `BIENE_RENDERER_URL` 让主进程用 `go run .` 代替编译好的二进制文件运行 core。
 
 #### 单独运行 Core 和 Renderer
 
@@ -70,7 +70,7 @@ npm run build            # vue-tsc 类型检查 + vite build
 
 ### 配置
 
-配置文件位于 `~/.tinte/config.json`。首次启动 core 时若不存在会自动生成模板；支持多个命名模型配置，每个配置包含 `provider`（`anthropic` 或 `openai_compatible`）、`api_key`、`model` 以及可选的 `base_url`。
+配置文件位于 `~/.biene/config.json`。首次启动 core 时若不存在会自动生成模板；支持多个命名模型配置，每个配置包含 `provider`（`anthropic` 或 `openai_compatible`）、`api_key`、`model` 以及可选的 `base_url`。
 
 ## 架构总览
 
@@ -116,7 +116,7 @@ npm run build            # vue-tsc 类型检查 + vite build
 
 - **`store/`** — 会话持久化。每个会话在 `workspace/` 下有独立目录，内含 `meta.json`（元数据）和 `history.db`（SQLite，两张表：`display_messages` 和 `api_messages`）。
 
-- **`config/`** / **`tintehome/`** — 读写 `~/.tinte/config.json` 与 tinte 主目录。
+- **`config/`** / **`bienehome/`** — 读写 `~/.biene/config.json` 与 biene 主目录。
 
 ### Renderer（Vue 3 — `renderer/src/`）
 
@@ -130,7 +130,7 @@ npm run build            # vue-tsc 类型检查 + vite build
 
 ### Electron（`electron/`）
 
-`main.cjs` 先找一个空闲端口，再启动 `tinte-core`（开发环境用 `go run .`），轮询 `/api/health` 确认就绪后创建主 `BrowserWindow`。智能体窗口是通过 IPC（`desktop:openAgentWindow`）打开的无边框次级窗口，core 的 URL 通过 `additionalArguments` 传给渲染层。`preload.cjs` 以上下文隔离暴露 `window.desktop` 桥接。
+`main.cjs` 先找一个空闲端口，再启动 `biene-core`（开发环境用 `go run .`），轮询 `/api/health` 确认就绪后创建主 `BrowserWindow`。智能体窗口是通过 IPC（`desktop:openAgentWindow`）打开的无边框次级窗口，core 的 URL 通过 `additionalArguments` 传给渲染层。`preload.cjs` 以上下文隔离暴露 `window.desktop` 桥接。
 
 开发环境的 workspace 在项目根目录 `workspace/`，打包后落在 Electron `userData` 下。
 

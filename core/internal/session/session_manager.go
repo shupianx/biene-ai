@@ -12,15 +12,15 @@ import (
 	"sync"
 	"time"
 
-	"tinte/internal/api"
-	"tinte/internal/config"
-	"tinte/internal/permission/webperm"
-	"tinte/internal/processes"
-	"tinte/internal/prompt"
-	"tinte/internal/skills"
-	"tinte/internal/store"
-	"tinte/internal/tools"
-	"tinte/internal/tools/builtins"
+	"biene/internal/api"
+	"biene/internal/config"
+	"biene/internal/permission/webperm"
+	"biene/internal/processes"
+	"biene/internal/prompt"
+	"biene/internal/skills"
+	"biene/internal/store"
+	"biene/internal/tools"
+	"biene/internal/tools/builtins"
 )
 
 // SessionManager holds all active agent sessions.
@@ -60,7 +60,7 @@ func newProvider(entry config.ModelEntry) api.Provider {
 }
 
 // Init scans the workspace root and rehydrates any sessions that have a
-// persisted .tinte/meta.json. It is called once at server startup.
+// persisted .biene/meta.json. It is called once at server startup.
 func (m *SessionManager) Init() {
 	entries, err := os.ReadDir(m.workspaceRoot)
 	if err != nil {
@@ -73,7 +73,7 @@ func (m *SessionManager) Init() {
 		}
 		id := entry.Name()
 		workDir := filepath.Join(m.workspaceRoot, id)
-		storeDir := filepath.Join(workDir, ".tinte")
+		storeDir := filepath.Join(workDir, ".biene")
 
 		if !store.MetaExists(storeDir) {
 			continue
@@ -305,7 +305,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	checker.OnPermissionsChanged = sess.persistPermissions
 	sess.startProcessWatcher()
 
-	storeDir := filepath.Join(workDir, ".tinte")
+	storeDir := filepath.Join(workDir, ".biene")
 	if st, err := store.Open(storeDir); err != nil {
 		slog.Error("open store for", "session_id", id, "err", err)
 	} else {

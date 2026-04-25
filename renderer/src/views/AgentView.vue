@@ -114,18 +114,18 @@ watch(
   [loading, () => session.value?.meta.name, isMissing],
   ([isLoading, name, missing]) => {
     if (typeof name === 'string' && name) {
-      document.title = `${name} · Tinte`
+      document.title = `${name} · Biene`
       return
     }
     if (isLoading) {
-      document.title = `${t('agent.loadingShort')} · Tinte`
+      document.title = `${t('agent.loadingShort')} · Biene`
       return
     }
     if (missing) {
-      document.title = `${t('agent.notFoundShort')} · Tinte`
+      document.title = `${t('agent.notFoundShort')} · Biene`
       return
     }
-    document.title = 'Tinte'
+    document.title = 'Biene'
   },
   { immediate: true },
 )
@@ -227,7 +227,7 @@ onBeforeUnmount(() => {
 }
 
 .status-tag.loading .status-dot {
-  animation: tintePulse 1.6s ease-in-out infinite;
+  animation: bienePulse 1.6s ease-in-out infinite;
 }
 
 .close-icon {
@@ -272,7 +272,7 @@ onBeforeUnmount(() => {
   width: 7px;
   height: 7px;
   background: var(--accent);
-  animation: tinteBlink 1.1s ease-in-out infinite;
+  animation: bieneBlink 1.1s ease-in-out infinite;
 }
 
 .state-loader span:nth-child(2) {

@@ -10,17 +10,17 @@ import (
 // reservedWorkspacePrefixes are forward-slash path prefixes inside a
 // session workspace that agent file tools may not read or write.
 //
-// The whole .tinte/ namespace is session/product-internal state by
+// The whole .biene/ namespace is session/product-internal state by
 // default (meta.json, history.db[-wal|-shm], assets/, and whatever we
 // add later). Subpaths the agent IS allowed to touch are listed in
 // allowedReservedPrefixes — today that's only skills/, where agents
 // author and edit SKILL.md files.
 var reservedWorkspacePrefixes = []string{
-	".tinte",
+	".biene",
 }
 
 var allowedReservedPrefixes = []string{
-	".tinte/skills",
+	".biene/skills",
 }
 
 // IsReservedWorkspacePath reports whether relPath (a path relative to

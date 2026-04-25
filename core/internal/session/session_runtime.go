@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"tinte/internal/agentloop"
-	"tinte/internal/api"
-	"tinte/internal/permission"
-	"tinte/internal/prompt"
-	"tinte/internal/skills"
-	"tinte/internal/tools"
+	"biene/internal/agentloop"
+	"biene/internal/api"
+	"biene/internal/permission"
+	"biene/internal/prompt"
+	"biene/internal/skills"
+	"biene/internal/tools"
 )
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
