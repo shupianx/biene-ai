@@ -1,7 +1,6 @@
 <template>
   <div
     v-if="visible"
-    ref="menuRef"
     class="mention-menu"
     :class="`kind-${kind ?? 'agent'}`"
     :style="{ left: position.left + 'px', top: position.top + 'px' }"
@@ -30,7 +29,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
 import MaterialSymbolsRobot2Outline from '~icons/material-symbols/robot-2-outline'
 import MaterialSymbolsBookOutline from '~icons/material-symbols/book-outline'
 import type { TokenKind } from '../../utils/mentions'
@@ -53,8 +51,6 @@ defineEmits<{
   (e: 'pick', candidate: MentionCandidate): void
   (e: 'hover', index: number): void
 }>()
-
-const menuRef = ref<HTMLElement | null>(null)
 
 function shortId(id: string): string {
   if (id.length <= 10) return id

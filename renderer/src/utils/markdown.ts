@@ -93,8 +93,8 @@ markdown.use({
           label: m[2],
         }
       },
-      renderer(token: { kind: TokenKind; value: string; label: string }) {
-        return chipHtml(token.kind, token.value, token.label)
+      renderer(token: any) {
+        return chipHtml(token.kind as TokenKind, token.value as string, token.label as string)
       },
     },
   ],
