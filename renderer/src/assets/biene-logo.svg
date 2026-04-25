@@ -1,0 +1,21 @@
+<svg viewBox="0 0 187 165" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="187.000000" height="165.000000" fill="none" customFrame="#000000">
+	<defs>
+		<linearGradient id="paint_linear_5" x1="93.5" x2="93.5" y1="70.0806885" y2="165.000061" gradientUnits="userSpaceOnUse">
+			<stop stop-color="rgb(255,152,112)" offset="0" stop-opacity="1" />
+			<stop stop-color="rgb(255,113,113)" offset="1" stop-opacity="0.25" />
+		</linearGradient>
+		<linearGradient id="paint_linear_6" x1="93.5" x2="93.5" y1="37.2580566" y2="133.064514" gradientUnits="userSpaceOnUse">
+			<stop stop-color="rgb(112,167,255)" offset="0" stop-opacity="1" />
+			<stop stop-color="rgb(169,113,255)" offset="1" stop-opacity="0.25" />
+		</linearGradient>
+		<linearGradient id="paint_linear_7" x1="93.5" x2="93.5" y1="0" y2="94.9193649" gradientUnits="userSpaceOnUse">
+			<stop stop-color="rgb(112,162,255)" offset="0" stop-opacity="1" />
+			<stop stop-color="rgb(113,215,255)" offset="1" stop-opacity="0.25" />
+		</linearGradient>
+	</defs>
+	<g id="组合 3">
+		<path id="多边形 4" d="M176.46 112.19C180.839 114.413 180.839 120.668 176.46 122.891L96.2157 163.622C94.5089 164.488 92.4911 164.488 90.7843 163.622L10.5404 122.891C6.16139 120.668 6.16139 114.413 10.5404 112.19L90.7843 71.4592C92.4911 70.5928 94.5089 70.5928 96.2157 71.4592L176.46 112.19Z" fill="url(#paint_linear_5)" fill-rule="evenodd" />
+		<path id="多边形 5" d="M176.577 79.8213C180.929 82.0511 180.929 88.2715 176.577 90.5013L96.2358 131.663C94.5181 132.543 92.4819 132.543 90.7642 131.663L10.4228 90.5013C6.0706 88.2715 6.0706 82.0511 10.4228 79.8213L90.7642 38.6597C92.4819 37.7797 94.5181 37.7797 96.2358 38.6597L176.577 79.8213Z" fill="url(#paint_linear_6)" fill-rule="evenodd" />
+		<path id="多边形 6" d="M176.46 42.1095C180.839 44.3322 180.839 50.5871 176.46 52.8099L96.2157 93.5409C94.5089 94.4073 92.4911 94.4073 90.7843 93.5409L10.5404 52.8099C6.16139 50.5871 6.16139 44.3322 10.5404 42.1095L90.7843 1.37847C92.4911 0.512101 94.5089 0.512101 96.2157 1.37847L176.46 42.1095Z" fill="url(#paint_linear_7)" fill-rule="evenodd" />
+	</g>
+</svg>

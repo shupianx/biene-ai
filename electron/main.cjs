@@ -872,6 +872,13 @@ app.on('before-quit', (event) => {
 })
 
 app.whenReady().then(async () => {
+  // In dev, point the macOS dock at our packaged icon source so the running
+  // app shows the brand instead of the default Electron logo. Packaged
+  // builds get the icon from the .app bundle automatically.
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    app.dock?.setIcon(path.join(ROOT_DIR, 'build', 'icon.png'))
+  }
+
   desktopSettings = loadDesktopSettings(app)
   registerDesktopHandlers()
 

@@ -8,6 +8,7 @@
     ]"
   >
     <div class="titlebar-brand">
+      <img :src="bieneLogo" class="brand-logo" alt="" aria-hidden="true" />
       <span class="brand-name">BIENE</span>
       <span class="brand-divider" aria-hidden="true" />
       <span class="brand-context">{{ contextLabel }}</span>
@@ -32,6 +33,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import RiSettings3Line from '~icons/ri/settings-3-line'
+import bieneLogo from '../../assets/biene-logo.svg'
 import { getDesktopBridge } from '../../runtime'
 import DesktopSettingsModal from './DesktopSettingsModal.vue'
 import IconButton from '../ui/IconButton.vue'
@@ -108,6 +110,12 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
   display: inline-flex;
   align-items: center;
   gap: 10px;
+}
+
+.brand-logo {
+  width: 20px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .brand-name {
