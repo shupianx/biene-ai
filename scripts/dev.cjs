@@ -1,12 +1,9 @@
 const http = require('http')
+const net = require('net')
 const path = require('path')
 const { spawn, spawnSync } = require('child_process')
 
 const rootDir = path.resolve(__dirname, '..')
-// Must use 'localhost' (not 127.0.0.1) to match renderer/vite.config.ts:
-// Vite binds to ::1 when host is 'localhost' on Node 17+, and a raw IPv4
-// probe would miss it.
-const rendererUrl = 'http://localhost:5173'
 const electronCli = path.join(rootDir, 'node_modules', 'electron', 'cli.js')
 
 let rendererProcess = null
@@ -14,6 +11,24 @@ let electronProcess = null
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer()
+    server.unref()
+    server.once('error', reject)
+    // Probe on 'localhost' (::1 under Node 17+) so the chosen port is
+    // confirmed free in the same address family Vite will bind to.
+    server.listen(0, 'localhost', () => {
+      const address = server.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      server.close((err) => {
+        if (err) reject(err)
+        else resolve(port)
+      })
+    })
+  })
 }
 
 function buildCore() {
@@ -28,7 +43,7 @@ function buildCore() {
   }
 }
 
-async function waitForRenderer(timeoutMs = 20000) {
+async function waitForRenderer(rendererUrl, timeoutMs = 20000) {
   const startedAt = Date.now()
 
   while (Date.now() - startedAt < timeoutMs) {
@@ -67,36 +82,54 @@ process.on('SIGTERM', () => {
   process.exit(143)
 })
 
-buildCore()
+async function main() {
+  buildCore()
 
-rendererProcess = spawn('npm', ['--prefix', 'renderer', 'run', 'dev'], {
-  cwd: rootDir,
-  stdio: 'inherit',
-  env: process.env,
-})
+  // Pick a free port at runtime so dev never collides with stale Vite/other
+  // services on a fixed 5173. Use 'localhost' in the URL so the probe lands
+  // on the same address family Vite binds to (::1 on Node 17+).
+  const rendererPort = await getFreePort()
+  const rendererUrl = `http://localhost:${rendererPort}`
 
-rendererProcess.once('exit', (code) => {
-  if (code !== 0) process.exit(code ?? 1)
-})
-
-waitForRenderer()
-  .then(() => {
-    electronProcess = spawn(process.execPath, [electronCli, '.'], {
+  rendererProcess = spawn(
+    'npm',
+    ['--prefix', 'renderer', 'run', 'dev', '--', '--port', String(rendererPort), '--strictPort'],
+    {
       cwd: rootDir,
       stdio: 'inherit',
-      env: {
-        ...process.env,
-        BIENE_RENDERER_URL: rendererUrl,
-      },
-    })
+      env: process.env,
+    },
+  )
 
-    electronProcess.once('exit', (code) => {
-      cleanup()
-      process.exit(code ?? 0)
-    })
+  rendererProcess.once('exit', (code) => {
+    if (code !== 0) process.exit(code ?? 1)
   })
-  .catch((err) => {
-    console.error(err instanceof Error ? err.message : String(err))
+
+  await waitForRenderer(rendererUrl)
+
+  const electronEnv = {
+    ...process.env,
+    BIENE_RENDERER_URL: rendererUrl,
+  }
+  // VSCode's integrated terminal inherits ELECTRON_RUN_AS_NODE=1 from the
+  // extension host, which makes Electron behave as plain Node and breaks
+  // require('electron') in the main process.
+  delete electronEnv.ELECTRON_RUN_AS_NODE
+
+  electronProcess = spawn(process.execPath, [electronCli, '.'], {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: electronEnv,
+  })
+
+  electronProcess.once('exit', (code) => {
     cleanup()
-    process.exit(1)
+    process.exit(code ?? 0)
   })
+}
+
+main().catch((err) => {
+  console.error(err instanceof Error ? err.message : String(err))
+  cleanup()
+  process.exit(1)
+})
