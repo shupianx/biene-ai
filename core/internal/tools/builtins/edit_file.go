@@ -24,10 +24,14 @@ func (t *FileEditTool) Name() string { return "edit_file" }
 func (t *FileEditTool) PermissionKey() tools.PermissionKey { return tools.PermissionWrite }
 
 func (t *FileEditTool) Description() string {
-	return `Make a precise edit to a file by replacing old_string with new_string.
-old_string MUST appear exactly once in the file — include enough surrounding context to make it unique.
-The file must have been read with the read_file tool before using edit_file.
+	return `Make one or more precise edits to a single file by replacing old_string with new_string.
+Two input shapes are supported:
+  • Single edit:   {file_path, old_string, new_string}
+  • Batch edits:   {file_path, edits: [{old_string, new_string}, ...]}
+Each old_string MUST appear exactly once in the file at the moment its patch is applied — include enough surrounding context to make it unique. Patches are applied in array order; each one sees the file as left by the previous one.
+The file must have been read with read_file before using edit_file.
 Use write_file to create new files or completely rewrite existing ones.
+All-or-nothing: if any patch fails to match uniquely, no changes are written to disk.
 Only use this tool when the user explicitly asks to modify a file. Do not use it to deliver answers or explanations.`
 }
 
@@ -41,21 +45,39 @@ func (t *FileEditTool) InputSchema() json.RawMessage {
 			},
 			"old_string": {
 				"type": "string",
-				"description": "The exact string to find and replace (must be unique in the file)"
+				"description": "Single-edit form: the exact string to find and replace (must be unique in the file)"
 			},
 			"new_string": {
 				"type": "string",
-				"description": "The replacement string"
+				"description": "Single-edit form: the replacement string"
+			},
+			"edits": {
+				"type": "array",
+				"description": "Batch-edit form: list of {old_string, new_string} pairs, applied in order",
+				"items": {
+					"type": "object",
+					"properties": {
+						"old_string": {"type": "string"},
+						"new_string": {"type": "string"}
+					},
+					"required": ["old_string", "new_string"]
+				}
 			}
 		},
-		"required": ["file_path", "old_string", "new_string"]
+		"required": ["file_path"]
 	}`)
 }
 
-type editInput struct {
-	FilePath  string `json:"file_path"`
+type editPatch struct {
 	OldString string `json:"old_string"`
 	NewString string `json:"new_string"`
+}
+
+type editInput struct {
+	FilePath  string      `json:"file_path"`
+	OldString string      `json:"old_string"`
+	NewString string      `json:"new_string"`
+	Edits     []editPatch `json:"edits"`
 }
 
 func (t *FileEditTool) Summary(raw json.RawMessage) string {
@@ -65,6 +87,9 @@ func (t *FileEditTool) Summary(raw json.RawMessage) string {
 	}
 	if in.FilePath == "" {
 		return "prepare file edit"
+	}
+	if len(in.Edits) > 0 {
+		return fmt.Sprintf("%s: %d edits", in.FilePath, len(in.Edits))
 	}
 	old := in.OldString
 	if len(old) > 40 {
@@ -81,8 +106,10 @@ func (t *FileEditTool) Execute(_ context.Context, raw json.RawMessage) (string, 
 	if in.FilePath == "" {
 		return "", fmt.Errorf("edit_file: file_path is required")
 	}
-	if in.OldString == "" {
-		return "", fmt.Errorf("edit_file: old_string is required")
+
+	patches, err := normalizeEditPatches(in)
+	if err != nil {
+		return "", fmt.Errorf("edit_file: %w", err)
 	}
 
 	resolvedPath, relPath, err := resolvePath(t.RootDir, in.FilePath)
@@ -94,23 +121,60 @@ func (t *FileEditTool) Execute(_ context.Context, raw json.RawMessage) (string, 
 	if err != nil {
 		return "", fmt.Errorf("edit_file: reading file: %w", err)
 	}
-	content := string(data)
 
-	count := strings.Count(content, in.OldString)
-	switch count {
-	case 0:
-		return "", fmt.Errorf("edit_file: old_string not found in %s. Make sure it matches the file content exactly (including whitespace and newlines)", relPath)
-	default:
-		return "", fmt.Errorf("edit_file: old_string appears %d times in %s — add more surrounding context to make it unique", count, relPath)
-	case 1:
+	content := string(data)
+	totalOldLines, totalNewLines := 0, 0
+	for i, p := range patches {
+		count := strings.Count(content, p.OldString)
+		switch count {
+		case 0:
+			return "", fmt.Errorf(
+				"edit_file: edit #%d old_string not found in %s. Make sure it matches the current file content exactly (later edits see the file as left by earlier ones)",
+				i+1, relPath,
+			)
+		case 1:
+			content = strings.Replace(content, p.OldString, p.NewString, 1)
+			totalOldLines += strings.Count(p.OldString, "\n") + 1
+			totalNewLines += strings.Count(p.NewString, "\n") + 1
+		default:
+			return "", fmt.Errorf(
+				"edit_file: edit #%d old_string appears %d times in %s — add more surrounding context to make it unique",
+				i+1, count, relPath,
+			)
+		}
 	}
 
-	newContent := strings.Replace(content, in.OldString, in.NewString, 1)
-	if err := os.WriteFile(resolvedPath, []byte(newContent), 0o644); err != nil {
+	if err := os.WriteFile(resolvedPath, []byte(content), 0o644); err != nil {
 		return "", fmt.Errorf("edit_file: writing file: %w", err)
 	}
 
-	oldLines := strings.Count(in.OldString, "\n") + 1
-	newLines := strings.Count(in.NewString, "\n") + 1
-	return fmt.Sprintf("Successfully edited %s: replaced %d line(s) with %d line(s)", relPath, oldLines, newLines), nil
+	if len(patches) == 1 {
+		return fmt.Sprintf(
+			"Successfully edited %s: replaced %d line(s) with %d line(s)",
+			relPath, totalOldLines, totalNewLines,
+		), nil
+	}
+	return fmt.Sprintf(
+		"Successfully applied %d edits to %s: replaced %d line(s) with %d line(s) total",
+		len(patches), relPath, totalOldLines, totalNewLines,
+	), nil
+}
+
+// normalizeEditPatches collapses the two input shapes (legacy single-edit
+// vs new edits[]) into one ordered list. If both are provided, edits[]
+// wins — the explicit batch form is the more capable shape; the legacy
+// fields are tolerated for callers that haven't migrated yet.
+func normalizeEditPatches(in editInput) ([]editPatch, error) {
+	if len(in.Edits) > 0 {
+		for i, p := range in.Edits {
+			if p.OldString == "" {
+				return nil, fmt.Errorf("edits[%d].old_string is required", i)
+			}
+		}
+		return in.Edits, nil
+	}
+	if in.OldString == "" {
+		return nil, fmt.Errorf("either old_string or non-empty edits[] is required")
+	}
+	return []editPatch{{OldString: in.OldString, NewString: in.NewString}}, nil
 }

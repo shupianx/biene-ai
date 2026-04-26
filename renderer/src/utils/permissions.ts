@@ -21,9 +21,14 @@ export const permissionDefinitions: PermissionDefinition[] = [
     descriptionKey: 'permissions.write.description',
   },
   {
-    key: 'send_to_agent',
-    labelKey: 'permissions.send_to_agent.label',
-    descriptionKey: 'permissions.send_to_agent.description',
+    key: 'send_message_to_agent',
+    labelKey: 'permissions.send_message_to_agent.label',
+    descriptionKey: 'permissions.send_message_to_agent.description',
+  },
+  {
+    key: 'cowork',
+    labelKey: 'permissions.cowork.label',
+    descriptionKey: 'permissions.cowork.description',
   },
 ]
 
@@ -31,7 +36,8 @@ export function defaultPermissions(): SessionPermissions {
   return {
     execute: false,
     write: false,
-    send_to_agent: false,
+    send_message_to_agent: false,
+    cowork: false,
   }
 }
 
@@ -39,7 +45,8 @@ export function clonePermissions(permissions: SessionPermissions): SessionPermis
   return {
     execute: permissions.execute,
     write: permissions.write,
-    send_to_agent: permissions.send_to_agent,
+    send_message_to_agent: permissions.send_message_to_agent,
+    cowork: permissions.cowork,
   }
 }
 

@@ -28,7 +28,8 @@ func (t *ReadProcessOutputTool) PermissionKey() tools.PermissionKey { return too
 func (t *ReadProcessOutputTool) Description() string {
 	return `Read the log output of the current (or most recent) background process in this session.
 Returns a status header (command, pid, status, exit code) followed by log content. If tail_lines is set, only the final N lines are returned. Otherwise the most recent chunk (up to max_bytes) is returned.
-Call this to check on a dev server's progress, verify a watcher picked up a change, or capture a stack trace after a crash.`
+Call this to summarize what a process did for the user, capture a stack trace after a crash, or sanity-check that a watcher picked up a change.
+DO NOT call this to peek at interactive prompts ("Project name?", "Select a framework:") while the process is waiting for input. Those prompts are addressed at the user, who is reading and answering them through the process panel — your peeking adds nothing and risks tempting you to call stop_process.`
 }
 
 func (t *ReadProcessOutputTool) InputSchema() json.RawMessage {

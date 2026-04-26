@@ -62,7 +62,7 @@ func buildInputText(authorType, authorID, authorName, text string, attachments [
 			if meta.InReplyTo != "" {
 				fmt.Fprintf(&sb, "\nIn reply to: %s", meta.InReplyTo)
 			}
-			fmt.Fprintf(&sb, "\nIf this message is asking you to do work, answer a question, make a decision, or return a result to %s, send that response back with send_to_agent instead of only writing it in the local chat. If it only shares context or files and no response is needed, you do not need to send anything back.", label)
+			fmt.Fprintf(&sb, "\nIf this message is asking you to do work, answer a question, make a decision, or return a result to %s, send that response back with send_message_to_agent instead of only writing it in the local chat. If it only shares context or files and no response is needed, you do not need to send anything back.", label)
 		}
 		if strings.TrimSpace(text) != "" || len(attachments) > 0 || meta != nil {
 			sb.WriteString("\n")

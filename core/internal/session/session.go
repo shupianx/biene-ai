@@ -88,11 +88,11 @@ const (
 	ToolModeWorkspaceChange ToolMode = "workspace_change"
 )
 
-// GrantedShare records one outgoing workspace share from this agent. The
-// actual symlink lives in the target agent's workspace at
-// shared/<this-agent-id>/<basename(source_path)>; this record is the
-// sender's side of the bookkeeping used for unshare and cleanup.
-type GrantedShare struct {
+// GrantedCowork records one outgoing cowork relationship from this agent.
+// The actual symlink lives in the target agent's workspace at
+// cowork/<this-agent-id>/<basename(source_path)>; this record is the
+// sender's side of the bookkeeping used for end_cowork and cleanup.
+type GrantedCowork struct {
 	TargetAgentID string    `json:"target_agent_id"`
 	SourcePath    string    `json:"source_path"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -130,9 +130,10 @@ type Session struct {
 	// so the frontend can detect drag-and-drop name collisions locally.
 	installedSkillIDs []string
 
-	// sharesGranted tracks outgoing shares this agent has created. The
-	// slice is persisted via SessionMeta so shares survive restarts.
-	sharesGranted []GrantedShare
+	// coworksGranted tracks outgoing cowork relationships this agent has
+	// created. The slice is persisted via SessionMeta so coworks survive
+	// restarts.
+	coworksGranted []GrantedCowork
 
 	// pendingSystemNotes queues "something happened outside the agent's
 	// loop that the agent should know next turn" strings. Today this is
@@ -170,8 +171,9 @@ type Session struct {
 	cancelQuery    context.CancelFunc
 	currentRunDone chan struct{}
 	closed         bool
-	onMetaChanged  func(SessionMeta)
-	mu             sync.Mutex
+	onMetaChanged         func(SessionMeta)
+	onProcessStateChanged func(sessionID string, active bool, command string, args []string)
+	mu                    sync.Mutex
 }
 
 // SessionMeta is the public view of a Session returned by the list endpoint.
@@ -189,7 +191,7 @@ type SessionMeta struct {
 	PendingPermission *PermissionRequestPayload `json:"pending_permission,omitempty"`
 	ActiveSkills      []string                  `json:"active_skills,omitempty"`
 	InstalledSkillIDs []string                  `json:"installed_skill_ids"`
-	SharesGranted     []GrantedShare            `json:"shares_granted,omitempty"`
+	CoworksGranted    []GrantedCowork           `json:"coworks_granted,omitempty"`
 	CreatedAt         time.Time                 `json:"created_at"`
 	LastActive        time.Time                 `json:"last_active"`
 }
@@ -215,7 +217,7 @@ func (s *Session) metaLocked() SessionMeta {
 		PendingPermission: clonePermissionPayload(s.pendingPermission),
 		ActiveSkills:      append([]string(nil), s.activeSkills...),
 		InstalledSkillIDs: append([]string(nil), s.installedSkillIDs...),
-		SharesGranted:     append([]GrantedShare(nil), s.sharesGranted...),
+		CoworksGranted:    append([]GrantedCowork(nil), s.coworksGranted...),
 		CreatedAt:         s.CreatedAt,
 		LastActive:        s.LastActive,
 	}

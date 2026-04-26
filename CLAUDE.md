@@ -95,15 +95,15 @@ npm run build            # vue-tsc 类型检查 + vite build
   - `session_realtime.go` / `session_manager_realtime.go`：WebSocket 订阅与事件广播。
   - `tool_mode.go`：在不同智能体 profile / 会话状态下决定启用哪些工具。
 
-- **`tools/`** — 每个工具实现 `Tool` 接口（`tool.go`）。`RegistryForWorkDir()` 预注册文件类工具。`SessionManager` 在创建会话时还会单独注册需要外部依赖的工具（`ListAgents` / `SendToAgent` 需 `AgentDirectory`，skills 工具需 `SkillActivator`，process 工具需 controller）。
-  - **权限模型**：工具通过 `PermissionKey()` 声明所需权限；`""` 表示只读，`"write"` 表示需用户确认，`"send_to_agent"` 等也进入同一流程。
-  - **权限上下文**（`permission_ctx.go`）：工具可选实现 `PermissionContextProvider.PermissionContext(ctx, rawInput)`，在权限请求发出前计算要展示给用户的上下文（例如文件冲突列表）；用户在 UI 中作出的选择（`resolution`）会通过 `WithPermissionResolution` 注入 `context.Context`，工具 `Execute` 用 `PermissionResolutionFromContext(ctx)` 取回。`send_to_agent.go` 是这套机制的典型用法。
+- **`tools/`** — 每个工具实现 `Tool` 接口（`tool.go`）。`RegistryForWorkDir()` 预注册文件类工具。`SessionManager` 在创建会话时还会单独注册需要外部依赖的工具（`ListAgents` / `SendMessageToAgent` / `CoworkWithAgent` / `EndCoworkWithAgent` / `ListCoworks` 需 `AgentDirectory`，skills 工具需 `SkillActivator`，process 工具需 controller）。
+  - **权限模型**：工具通过 `PermissionKey()` 声明所需权限；`""` 表示只读，`"write"` 表示需用户确认，`"send_message_to_agent"`、`"cowork"` 等也进入同一流程。
+  - **权限上下文**（`permission_ctx.go`）：工具可选实现 `PermissionContextProvider.PermissionContext(ctx, rawInput)`，在权限请求发出前计算要展示给用户的上下文（例如文件冲突列表）；用户在 UI 中作出的选择（`resolution`）会通过 `WithPermissionResolution` 注入 `context.Context`，工具 `Execute` 用 `PermissionResolutionFromContext(ctx)` 取回。`send_message_to_agent.go` 是这套机制的典型用法。
   - **内置工具**（`builtins/`）：
     - 文件 / 命令：`read_file` / `write_file` / `edit_file` / `list_files` / `run_command`（Bash，只读命令会跳过权限）。
     - 后台进程：`start_process` / `stop_process` / `read_process_output`。
     - Agent 间通信——两种不同语义，别混为一谈：
-      - **`send_to_agent`**：把文件**复制**到目标 agent 的 `inbox/<selfID>/`（一次性快照，走收件箱冲突检测 + resolution）。
-      - **`share_to_agent`** / `unshare_to_agent` / `list_shares`：在目标 agent 工作区里放**符号链接**，接收方可读写，改动直接落在发送方磁盘上（持续共享，不经过 inbox）。
+      - **`send_message_to_agent`**（邮件式）：发消息为主，可附带文件**快照**，复制到目标 agent 的 `inbox/<selfID>/`（一次性快照，走收件箱冲突检测 + resolution）。对方改了不影响发送方。
+      - **`cowork_with_agent`** / `end_cowork_with_agent` / `list_coworks`（协作邀请式）：在目标 agent 工作区里放**符号链接** `cowork/<selfID>/<basename>`，接收方可读写，改动直接落在发送方磁盘上（持续协作，不经过 inbox）。
     - 技能：`list_skills` / `use_skill`。
 
 - **`permission/`** — 每个会话一个权限管理器。待审权限会阻塞智能体循环，直到用户通过 `POST /api/sessions/{id}/permission` 批准或拒绝。`webperm/checker.go` 是实际挂在会话上的实现，负责把 PermissionContext 序列化进 `PermissionRequest`，并通过 decisionEnvelope 把 `resolution` 回传给循环。
@@ -140,8 +140,8 @@ npm run build            # vue-tsc 类型检查 + vite build
 
 **需要权限的工具执行**：循环触发写类工具 → webperm Checker 先调用工具的 `PermissionContext`（若实现）→ WebSocket 发出 `permission_request`（含 context）→ store 设置 `pendingPermission` → `PermissionDialog` 弹出 → 用户选择决策 + resolution → `POST /api/sessions/{id}/permission` → 循环解除阻塞，将 resolution 注入工具的 execute ctx。
 
-**收件箱约定（Inbox）**：每个 agent 的工作区下都有 `inbox/` 目录；**用户上传**的文件进入 `inbox/user/`（`session_files.go` 中的 `UserUploadSubdir` 常量），**其他 agent 传来**的文件进入 `inbox/<sourceAgentID>/`（`AgentInboxSubdir()` 生成）。**这条规则由服务端强制执行**，`send_to_agent` 工具只能声明要发送的源文件路径，目标路径由 `copyFilesBetweenWorkspaces` 按公式推导——这是 capability isolation：agent 的工具调用只是"请求"，实际落盘由服务端代表它执行。
+**收件箱约定（Inbox）**：每个 agent 的工作区下都有 `inbox/` 目录；**用户上传**的文件进入 `inbox/user/`（`session_files.go` 中的 `UserUploadSubdir` 常量），**其他 agent 传来**的文件进入 `inbox/<sourceAgentID>/`（`AgentInboxSubdir()` 生成）。**这条规则由服务端强制执行**，`send_message_to_agent` 工具只能声明要发送的源文件路径，目标路径由 `copyFilesBetweenWorkspaces` 按公式推导——这是 capability isolation：agent 的工具调用只是"请求"，实际落盘由服务端代表它执行。
 
-**文件名冲突**：`send_to_agent` 的 `PermissionContext` 先调用 `SessionManager.DetectFileCollisions` 把目标收件箱中已有的同名文件列出给用户；用户在 `PermissionDialog` 里选择 `rename` / `overwrite` / `skip` 中的一个作为整体策略；策略通过 resolution 通道传回工具 `Execute`，由服务端在复制时落实。
+**文件名冲突**：`send_message_to_agent` 的 `PermissionContext` 先调用 `SessionManager.DetectFileCollisions` 把目标收件箱中已有的同名文件列出给用户；用户在 `PermissionDialog` 里选择 `rename` / `overwrite` / `skip` 中的一个作为整体策略；策略通过 resolution 通道传回工具 `Execute`，由服务端在复制时落实。
 
 **会话持久化**：每轮对话后 `display_messages` 和 `api_messages` 都序列化写入 SQLite；启动时 `SessionManager.Init()` 扫描 workspace 中已有的 `meta.json` 并重建会话。

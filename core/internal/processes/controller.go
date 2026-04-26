@@ -4,6 +4,10 @@
 // use raw-mode keystrokes, and render ANSI-based UIs. Output is
 // captured to a log file and fanned out to live subscribers as byte
 // chunks; input and window-resize signals flow back into the PTY.
+//
+// The actual PTY plumbing is platform-specific and lives behind the
+// ptySession interface (see pty.go, pty_unix.go, pty_windows.go).
+// Unix uses creack/pty over /dev/ptmx; Windows uses the ConPTY API.
 package processes
 
 import (
@@ -11,14 +15,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/creack/pty"
 )
 
 // Status is the lifecycle state of the current or most recent process.
@@ -106,8 +107,7 @@ type Controller struct {
 	logPath string
 
 	mu          sync.Mutex
-	cmd         *exec.Cmd
-	pty         *os.File // PTY master; nil when idle
+	pty         ptySession // nil when idle
 	state       State
 	logFile     *os.File
 	subscribers map[int]chan Event
@@ -162,21 +162,25 @@ func (c *Controller) Start(opts StartOptions) (StartResult, error) {
 		return StartResult{}, fmt.Errorf("opening log file: %w", err)
 	}
 
-	cmd := exec.Command(opts.Command, opts.Args...)
-	cmd.Dir = opts.Cwd
 	// Start from the controller process's own environment — we need the
 	// augmented PATH that Electron built from the user's login shell (see
 	// resolveLoginShellPath in electron/main.cjs) so commands like npm
 	// can find node on a macOS .app launch. Merge opts.Env on top, then
 	// advertise a modern terminal so interactive CLIs render colour and
-	// recognise key sequences. pty.Start later owns SysProcAttr
-	// (Setsid/Setctty) — do not set Setpgid here.
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	// recognise key sequences.
+	env := append(os.Environ(), "TERM=xterm-256color")
 	for k, v := range opts.Env {
-		cmd.Env = append(cmd.Env, k+"="+v)
+		env = append(env, k+"="+v)
 	}
 
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: defaultCols, Rows: defaultRows})
+	session, err := startPTY(ptyOptions{
+		Command: opts.Command,
+		Args:    opts.Args,
+		Cwd:     opts.Cwd,
+		Env:     env,
+		Cols:    defaultCols,
+		Rows:    defaultRows,
+	})
 	if err != nil {
 		logFile.Close()
 		c.state = State{
@@ -190,8 +194,7 @@ func (c *Controller) Start(opts StartOptions) (StartResult, error) {
 	}
 
 	started := time.Now()
-	c.cmd = cmd
-	c.pty = ptmx
+	c.pty = session
 	c.logFile = logFile
 	c.doneCh = make(chan struct{})
 	c.state = State{
@@ -200,7 +203,7 @@ func (c *Controller) Start(opts StartOptions) (StartResult, error) {
 		Command:   opts.Command,
 		Args:      append([]string(nil), opts.Args...),
 		Cwd:       opts.Cwd,
-		PID:       cmd.Process.Pid,
+		PID:       session.PID(),
 		StartedAt: &started,
 		LogFile:   c.logPath,
 	}
@@ -211,9 +214,9 @@ func (c *Controller) Start(opts StartOptions) (StartResult, error) {
 	// bytes so xterm.js can render ANSI faithfully.
 	var drain sync.WaitGroup
 	drain.Add(1)
-	go c.pumpPTY(&drain, ptmx)
+	go c.pumpPTY(&drain, session)
 
-	go c.wait(cmd, &drain)
+	go c.wait(session, &drain)
 
 	c.broadcastLocked(Event{Kind: "started", State: c.state})
 
@@ -224,19 +227,20 @@ func (c *Controller) Start(opts StartOptions) (StartResult, error) {
 // is running.
 func (c *Controller) Stop() error {
 	c.mu.Lock()
-	if c.cmd == nil || c.state.Status != StatusRunning {
+	if c.pty == nil || c.state.Status != StatusRunning {
 		c.mu.Unlock()
 		return nil
 	}
-	cmd := c.cmd
+	session := c.pty
 	doneCh := c.doneCh
 	c.mu.Unlock()
 
-	// PTY-backed processes are their own session thanks to pty.Start's
-	// Setsid=true; killing the group delivers SIGKILL to the shell and
-	// anything it spawned.
-	if err := killProcessGroup(cmd); err != nil {
-		return fmt.Errorf("kill process group: %w", err)
+	// On Unix, ptySession.Kill signals the whole process group (the
+	// child is its own session leader thanks to pty.Start's Setsid),
+	// so descendants like npm-spawned node die too. On Windows, ConPTY
+	// teardown kills the immediate child only — see the Job Object TODO.
+	if err := session.Kill(); err != nil {
+		return fmt.Errorf("kill process: %w", err)
 	}
 
 	select {
@@ -410,12 +414,12 @@ func (c *Controller) isRunning() bool {
 // pumpPTY reads byte chunks from the PTY master, appends them to the
 // log file, and fans them out to subscribers. The loop exits when the
 // master closes (process exited) or when Read returns an error.
-func (c *Controller) pumpPTY(wg *sync.WaitGroup, ptmx *os.File) {
+func (c *Controller) pumpPTY(wg *sync.WaitGroup, session ptySession) {
 	defer wg.Done()
 
 	buf := make([]byte, pumpBufferSize)
 	for {
-		n, err := ptmx.Read(buf)
+		n, err := session.Read(buf)
 		if n > 0 {
 			chunk := make([]byte, n)
 			copy(chunk, buf[:n])
@@ -440,44 +444,42 @@ func (c *Controller) pumpPTY(wg *sync.WaitGroup, ptmx *os.File) {
 // bytes hit the process' stdin verbatim.
 func (c *Controller) WriteInput(data []byte) error {
 	c.mu.Lock()
-	ptmx := c.pty
+	session := c.pty
 	running := c.state.Status == StatusRunning
 	c.mu.Unlock()
 
-	if !running || ptmx == nil {
+	if !running || session == nil {
 		return errors.New("no running process")
 	}
 	if len(data) == 0 {
 		return nil
 	}
-	_, err := ptmx.Write(data)
+	_, err := session.Write(data)
 	return err
 }
 
 // Resize updates the PTY window size. Interactive CLIs that query
-// TIOCGWINSZ will immediately notice and redraw to fit.
+// TIOCGWINSZ (Unix) or hook ConPTY resize events (Windows) will
+// immediately notice and redraw to fit.
 func (c *Controller) Resize(cols, rows uint16) error {
 	if cols == 0 || rows == 0 {
 		return nil
 	}
 	c.mu.Lock()
-	ptmx := c.pty
+	session := c.pty
 	c.mu.Unlock()
-	if ptmx == nil {
+	if session == nil {
 		return nil
 	}
-	return pty.Setsize(ptmx, &pty.Winsize{Cols: cols, Rows: rows})
+	return session.Resize(cols, rows)
 }
 
-func (c *Controller) wait(cmd *exec.Cmd, drain *sync.WaitGroup) {
-	runErr := cmd.Wait()
+func (c *Controller) wait(session ptySession, drain *sync.WaitGroup) {
+	exitCode, runErr := session.Wait()
 	// Closing the PTY master unblocks the pump's Read call so drain
-	// finishes promptly.
-	c.mu.Lock()
-	if c.pty != nil {
-		_ = c.pty.Close()
-	}
-	c.mu.Unlock()
+	// finishes promptly. On Windows this also frees the ConPTY handles;
+	// on Unix it just closes the master fd. Either way it's idempotent.
+	_ = session.Close()
 	drain.Wait()
 
 	c.mu.Lock()
@@ -487,27 +489,13 @@ func (c *Controller) wait(cmd *exec.Cmd, drain *sync.WaitGroup) {
 	exited := time.Now()
 	c.state.Active = false
 	c.state.ExitedAt = &exited
-
-	exitCode := 0
-	if cmd.ProcessState != nil {
-		exitCode = cmd.ProcessState.ExitCode()
-	}
 	c.state.ExitCode = &exitCode
 
 	switch {
-	case cmd.ProcessState != nil && cmd.ProcessState.ExitCode() == -1:
-		c.state.Status = StatusKilled
 	case runErr != nil:
-		var exitErr *exec.ExitError
-		if errors.As(runErr, &exitErr) {
-			if exitErr.ProcessState != nil && !exitErr.ProcessState.Success() {
-				c.state.Status = StatusExited
-			} else {
-				c.state.Status = StatusFailed
-			}
-		} else {
-			c.state.Status = StatusFailed
-		}
+		c.state.Status = StatusFailed
+	case exitCode == -1:
+		c.state.Status = StatusKilled
 	default:
 		c.state.Status = StatusExited
 	}

@@ -8,16 +8,18 @@ import (
 type PermissionKey string
 
 const (
-	PermissionNone        PermissionKey = ""
-	PermissionExecute     PermissionKey = "execute"
-	PermissionWrite       PermissionKey = "write"
-	PermissionSendToAgent PermissionKey = "send_to_agent"
+	PermissionNone               PermissionKey = ""
+	PermissionExecute            PermissionKey = "execute"
+	PermissionWrite              PermissionKey = "write"
+	PermissionSendMessageToAgent PermissionKey = "send_message_to_agent"
+	PermissionCowork             PermissionKey = "cowork"
 )
 
 type PermissionSet struct {
-	Execute     bool `json:"execute"`
-	Write       bool `json:"write"`
-	SendToAgent bool `json:"send_to_agent"`
+	Execute             bool `json:"execute"`
+	Write               bool `json:"write"`
+	SendMessageToAgent  bool `json:"send_message_to_agent"`
+	Cowork              bool `json:"cowork"`
 }
 
 func (p PermissionSet) Allows(key PermissionKey) bool {
@@ -26,8 +28,10 @@ func (p PermissionSet) Allows(key PermissionKey) bool {
 		return p.Execute
 	case PermissionWrite:
 		return p.Write
-	case PermissionSendToAgent:
-		return p.SendToAgent
+	case PermissionSendMessageToAgent:
+		return p.SendMessageToAgent
+	case PermissionCowork:
+		return p.Cowork
 	default:
 		return true
 	}
@@ -39,8 +43,10 @@ func (p PermissionSet) With(key PermissionKey, allowed bool) PermissionSet {
 		p.Execute = allowed
 	case PermissionWrite:
 		p.Write = allowed
-	case PermissionSendToAgent:
-		p.SendToAgent = allowed
+	case PermissionSendMessageToAgent:
+		p.SendMessageToAgent = allowed
+	case PermissionCowork:
+		p.Cowork = allowed
 	}
 	return p
 }

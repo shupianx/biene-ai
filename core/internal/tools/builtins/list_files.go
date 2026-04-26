@@ -94,13 +94,23 @@ func (t *ListFilesTool) Execute(_ context.Context, raw json.RawMessage) (string,
 		return "", fmt.Errorf("list_files: %w", err)
 	}
 
-	info, err := os.Lstat(resolvedPath)
+	// Stat (not Lstat) so the top-level path follows symlinks. Without
+	// this, listing a cowork link (cowork/<agent>/<name>) would short-
+	// circuit to a single "[link] ..." entry on platforms where Lstat
+	// reports a directory symlink as non-dir (Linux). Children inside
+	// the listing still go through DirEntry.Info() (Lstat-equivalent),
+	// so nested symlinks keep their "[link]" rendering.
+	info, err := os.Stat(resolvedPath)
 	if err != nil {
 		return "", fmt.Errorf("list_files: %w", err)
 	}
 
 	if !info.IsDir() {
-		return formatListEntry(relPath, resolvedPath, info), nil
+		linkInfo, lerr := os.Lstat(resolvedPath)
+		if lerr != nil {
+			linkInfo = info
+		}
+		return formatListEntry(relPath, resolvedPath, linkInfo), nil
 	}
 
 	if !in.Recursive {

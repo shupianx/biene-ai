@@ -58,7 +58,8 @@
       <div class="perm-chips">
         <div class="perm-chip" :class="{ on: session.meta.permissions.execute }">EXEC</div>
         <div class="perm-chip" :class="{ on: session.meta.permissions.write }">WRITE</div>
-        <div class="perm-chip" :class="{ on: session.meta.permissions.send_to_agent }">SEND</div>
+        <div class="perm-chip" :class="{ on: session.meta.permissions.send_message_to_agent }">SEND</div>
+        <div class="perm-chip" :class="{ on: session.meta.permissions.cowork }">COWORK</div>
       </div>
     </div>
   </div>
@@ -70,6 +71,7 @@ import CiOctagonWarning from '~icons/ci/octagon-warning'
 import MaterialSymbolsFolderSharp from '~icons/material-symbols/folder-sharp'
 import MaterialSymbolsCheck from '~icons/material-symbols/check'
 import MaterialSymbolsErrorCircle from '~icons/material-symbols/error-circle-rounded-outline-sharp'
+import BxBxsTerminal from '~icons/bx/bxs-terminal'
 import type { AgentSession } from '../../stores/sessions'
 import { installSkillToSession } from '../../api/http'
 import { t } from '../../i18n'
@@ -129,10 +131,49 @@ const permNotice = computed<Notice | null>(() => {
   }
 })
 
+// Persistent info notice while the session has a live background process.
+// processState is fed by two channels: the per-session WS (rich payload,
+// only when AgentChatView is attached) and the session-list WS event
+// session_process_state (minimal active/command, always live for GridView).
+// Either source flips active=true → notice shows; on exit → it disappears.
+const processNotice = computed<Notice | null>(() => {
+  const state = props.session.processState
+  if (!state || !state.active) return null
+  const label = processCommandLabel(state.command, state.args)
+  return {
+    id: 'process',
+    tone: 'info',
+    icon: BxBxsTerminal,
+    text: label
+      ? t('process.cardNotice', { label })
+      : t('process.cardNoticeFallback'),
+  }
+})
+
+const PROCESS_ARG_PREVIEW_LIMIT = 4
+
+function processCommandLabel(
+  command: string | undefined,
+  args: string[] | undefined,
+): string {
+  const cmd = (command ?? '').trim()
+  if (!cmd) return ''
+  const base = cmd.split(/[\\/]/).filter(Boolean).pop() ?? cmd
+  if (!args || args.length === 0) return base
+  if (args.length <= PROCESS_ARG_PREVIEW_LIMIT) {
+    return `${base} ${args.join(' ')}`
+  }
+  return `${base} ${args.slice(0, PROCESS_ARG_PREVIEW_LIMIT).join(' ')} ...`
+}
+
 const transients = ref<Notice[]>([])
 
+// Stack order: bottom (lowest priority) → top (most visible). The component
+// only shows the topmost. Process info sits at the bottom so any pending
+// permission or short-lived install feedback briefly takes over the slot.
 const noticeStack = computed<Notice[]>(() => {
   const list: Notice[] = []
+  if (processNotice.value) list.push(processNotice.value)
   if (permNotice.value) list.push(permNotice.value)
   list.push(...transients.value)
   return list

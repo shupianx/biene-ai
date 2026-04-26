@@ -25,7 +25,7 @@ func (t *ListAgentsTool) PermissionKey() tools.PermissionKey { return tools.Perm
 
 func (t *ListAgentsTool) Description() string {
 	return `List the current agent and any other available agent instances.
-Use this to confirm your own agent ID/name and to find another agent's ID and current status before send_to_agent.`
+Use this to confirm your own agent ID/name and to find another agent's ID and current status before send_message_to_agent.`
 }
 
 func (t *ListAgentsTool) InputSchema() json.RawMessage {

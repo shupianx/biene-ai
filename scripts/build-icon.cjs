@@ -1,30 +1,19 @@
 const { existsSync, mkdirSync, copyFileSync, rmSync } = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { appBuilderPath } = require('app-builder-bin')
 
 const rootDir = path.resolve(__dirname, '..')
 const sourcePng = path.join(rootDir, 'docs', 'logo.png')
 const buildDir = path.join(rootDir, 'build')
 const stagingDir = path.join(rootDir, 'release', '.icon-staging')
 
-// macOS Big Sur+ icon mask: rounded "squircle" approximated as a rounded
-// rectangle with radius 185 on a 1024 canvas (≈22.5% of the inner 824 area,
-// matching Apple's icon template).
+// macOS Big Sur+ icons sit inside a 1024 canvas with visual padding. Keep the
+// visible tile around 824px so it does not look oversized next to system icons.
 const CANVAS = 1024
+const TILE = 824
+const TILE_INSET = Math.round((CANVAS - TILE) / 2)
 const RADIUS = 185
-
-const ICONSET = [
-  ['icon_16x16.png', 16],
-  ['icon_16x16@2x.png', 32],
-  ['icon_32x32.png', 32],
-  ['icon_32x32@2x.png', 64],
-  ['icon_128x128.png', 128],
-  ['icon_128x128@2x.png', 256],
-  ['icon_256x256.png', 256],
-  ['icon_256x256@2x.png', 512],
-  ['icon_512x512.png', 512],
-  ['icon_512x512@2x.png', 1024],
-]
 
 function ensureSource() {
   if (!existsSync(sourcePng)) {
@@ -46,8 +35,8 @@ function run(command, args, input) {
   }
 }
 
-function applySquircleMask(maskedPath) {
-  // Use PIL to apply the rounded-corner mask. PIL ships with macOS Python 3
+function applyMacIconMask(maskedPath) {
+  // Use PIL to inset the icon and apply a rounded-corner mask. PIL ships with macOS Python 3
   // via Xcode CLT / Homebrew; bail with a clear message if missing.
   const script = `
 import sys
@@ -58,29 +47,34 @@ except ImportError:
     sys.exit(2)
 
 src = Image.open(${JSON.stringify(sourcePng)}).convert("RGBA")
-if src.size != (${CANVAS}, ${CANVAS}):
-    src = src.resize((${CANVAS}, ${CANVAS}), Image.LANCZOS)
+if src.size != (${TILE}, ${TILE}):
+    src = src.resize((${TILE}, ${TILE}), Image.LANCZOS)
 
 mask = Image.new("L", (${CANVAS}, ${CANVAS}), 0)
-ImageDraw.Draw(mask).rounded_rectangle((0, 0, ${CANVAS}, ${CANVAS}), radius=${RADIUS}, fill=255)
+ImageDraw.Draw(mask).rounded_rectangle(
+    (${TILE_INSET}, ${TILE_INSET}, ${TILE_INSET + TILE}, ${TILE_INSET + TILE}),
+    radius=${RADIUS},
+    fill=255,
+)
 
 out = Image.new("RGBA", (${CANVAS}, ${CANVAS}), (0, 0, 0, 0))
-out.paste(src, (0, 0), mask)
+out.paste(src, (${TILE_INSET}, ${TILE_INSET}), mask.crop((${TILE_INSET}, ${TILE_INSET}, ${TILE_INSET + TILE}, ${TILE_INSET + TILE})))
 out.save(${JSON.stringify(maskedPath)})
 `
   run('python3', ['-'], script)
 }
 
-function buildIconset(maskedPath, iconsetDir) {
-  mkdirSync(iconsetDir, { recursive: true })
-  for (const [name, size] of ICONSET) {
-    const dst = path.join(iconsetDir, name)
-    run('sips', ['-z', String(size), String(size), maskedPath, '--out', dst])
-  }
-}
-
-function packIcns(iconsetDir, icnsPath) {
-  run('iconutil', ['-c', 'icns', iconsetDir, '-o', icnsPath])
+function packIcns(sourcePath, icnsPath) {
+  const outDir = path.join(stagingDir, 'icns')
+  mkdirSync(outDir, { recursive: true })
+  run(appBuilderPath, [
+    'icon',
+    '--format=icns',
+    `--root=${path.dirname(sourcePath)}`,
+    `--input=${path.basename(sourcePath)}`,
+    `--out=${outDir}`,
+  ])
+  copyFileSync(path.join(outDir, 'icon.icns'), icnsPath)
 }
 
 function main() {
@@ -89,19 +83,16 @@ function main() {
   mkdirSync(stagingDir, { recursive: true })
   mkdirSync(buildDir, { recursive: true })
 
-  const maskedPath = path.join(stagingDir, 'icon-1024.png')
-  const iconsetDir = path.join(stagingDir, 'icon.iconset')
+  // app-builder's icon converter detects size from the filename.
+  const maskedPath = path.join(stagingDir, '1024x1024.png')
   const icnsPath = path.join(buildDir, 'icon.icns')
   const pngPath = path.join(buildDir, 'icon.png')
 
-  console.log('[icon] applying squircle mask...')
-  applySquircleMask(maskedPath)
-
-  console.log('[icon] generating iconset...')
-  buildIconset(maskedPath, iconsetDir)
+  console.log('[icon] applying macOS icon mask...')
+  applyMacIconMask(maskedPath)
 
   console.log('[icon] packing icns...')
-  packIcns(iconsetDir, icnsPath)
+  packIcns(maskedPath, icnsPath)
 
   copyFileSync(maskedPath, pngPath)
   rmSync(stagingDir, { force: true, recursive: true })

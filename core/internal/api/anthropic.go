@@ -127,10 +127,7 @@ func (p *AnthropicProvider) Stream(
 
 			case anthropic.BetaRawContentBlockStopEvent:
 				if currentToolID != "" {
-					input := json.RawMessage(toolInputBuf)
-					if len(input) == 0 {
-						input = json.RawMessage("{}")
-					}
+					input := finalizeToolInput(toolInputBuf, currentToolID, currentToolName)
 					ch <- StreamEvent{
 						Type: EventToolUse,
 						ToolUse: &ToolUseBlock{

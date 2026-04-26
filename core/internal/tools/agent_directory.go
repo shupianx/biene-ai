@@ -55,8 +55,8 @@ type DeliveryResult struct {
 	MessageMeta AgentMessageMeta
 }
 
-// SharedEntry describes one outgoing workspace share, returned by ListShares.
-type SharedEntry struct {
+// CoworkEntry describes one outgoing cowork relationship, returned by ListCoworks.
+type CoworkEntry struct {
 	TargetAgentID   string    `json:"target_agent_id"`
 	TargetAgentName string    `json:"target_agent_name,omitempty"`
 	SourcePath      string    `json:"source_path"`
@@ -69,18 +69,18 @@ type AgentDirectory interface {
 	DeliverFromAgent(ctx context.Context, fromAgentID string, req DeliveryRequest) (DeliveryResult, error)
 	DetectFileCollisions(fromAgentID, targetAgentID string, filePaths []string) ([]FileCollision, error)
 
-	// CreateShare makes a symlink in the target agent's workspace at
-	// shared/<fromAgentID>/<basename(sourcePath)> that points at sourcePath
-	// within the source agent's workspace. It also records the grant on the
-	// source agent and delivers a user-turn message to the target announcing
-	// the share. Returns the path of the symlink that was created (relative
-	// to the target's workspace root).
-	CreateShare(ctx context.Context, fromAgentID, targetAgentID, sourcePath string) (string, error)
+	// CreateCowork establishes a cowork relationship by creating a symlink in
+	// the target agent's workspace at cowork/<fromAgentID>/<basename(sourcePath)>
+	// pointing at sourcePath within the source agent's workspace. It also
+	// records the grant on the source agent and delivers a user-turn message
+	// to the target announcing the invitation. Returns the path of the symlink
+	// that was created (relative to the target's workspace root).
+	CreateCowork(ctx context.Context, fromAgentID, targetAgentID, sourcePath string) (string, error)
 
-	// RemoveShare tears down the symlink previously created by CreateShare
+	// EndCowork tears down the symlink previously created by CreateCowork
 	// and removes the matching grant from the source agent's meta.
-	RemoveShare(fromAgentID, targetAgentID, sourcePath string) error
+	EndCowork(fromAgentID, targetAgentID, sourcePath string) error
 
-	// ListShares returns every share currently granted by the given agent.
-	ListShares(fromAgentID string) []SharedEntry
+	// ListCoworks returns every cowork relationship currently granted by the given agent.
+	ListCoworks(fromAgentID string) []CoworkEntry
 }

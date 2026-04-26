@@ -16,6 +16,17 @@ type sessionDeletedPayload struct {
 	ID string `json:"id"`
 }
 
+// sessionProcessStatePayload mirrors the runtime "is a background process
+// running" snapshot for one session. Carried only on the wire — not in
+// SessionMeta, not on disk. The frontend grid card subscribes to this so
+// it can render a "running" notice without opening per-session sockets.
+type sessionProcessStatePayload struct {
+	SessionID string   `json:"session_id"`
+	Active    bool     `json:"active"`
+	Command   string   `json:"command,omitempty"`
+	Args      []string `json:"args,omitempty"`
+}
+
 func makeManagerFrame(eventType string, payload any) ManagerFrame {
 	data, _ := json.Marshal(payload)
 	return ManagerFrame{EventType: eventType, Data: data}
@@ -70,4 +81,13 @@ func (m *SessionManager) emitSessionUpdated(meta SessionMeta) {
 
 func (m *SessionManager) emitSessionDeleted(id string) {
 	m.send(makeManagerFrame("session_deleted", sessionDeletedPayload{ID: id}))
+}
+
+func (m *SessionManager) emitSessionProcessState(sessionID string, active bool, command string, args []string) {
+	m.send(makeManagerFrame("session_process_state", sessionProcessStatePayload{
+		SessionID: sessionID,
+		Active:    active,
+		Command:   command,
+		Args:      append([]string(nil), args...),
+	}))
 }

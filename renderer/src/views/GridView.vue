@@ -218,6 +218,9 @@ onMounted(() => {
     onSessionDeleted({ id }) {
       store.removeSessionLocal(id)
     },
+    onSessionProcessState(data) {
+      store.applyListProcessState(data)
+    },
     onReconnect() {
       void store.refresh(false, false)
     },

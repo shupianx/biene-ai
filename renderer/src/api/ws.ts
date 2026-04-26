@@ -13,6 +13,7 @@ import type {
   PermissionClearedData,
   SkillActivatedData,
   ProcessStateData,
+  SessionProcessStateData,
   ToolComposeProgressData,
   ErrorData,
   SessionEventType,
@@ -272,6 +273,7 @@ export interface SessionListWSHandlers {
   onSessionCreated: (data: SessionMetaEventData) => void
   onSessionUpdated: (data: SessionMetaEventData) => void
   onSessionDeleted: (data: SessionDeletedData) => void
+  onSessionProcessState: (data: SessionProcessStateData) => void
   onOpen?: () => void
   onReconnect?: () => void
 }
@@ -294,6 +296,9 @@ export function connectSessionListWS(handlers: SessionListWSHandlers): () => voi
         break
       case 'session_deleted':
         handlers.onSessionDeleted(message.data as SessionDeletedData)
+        break
+      case 'session_process_state':
+        handlers.onSessionProcessState(message.data as SessionProcessStateData)
         break
     }
   }

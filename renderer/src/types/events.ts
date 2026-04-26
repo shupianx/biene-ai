@@ -19,6 +19,14 @@ export type SessionListEventType =
   | 'session_created'
   | 'session_updated'
   | 'session_deleted'
+  | 'session_process_state'
+
+export interface SessionProcessStateData {
+  session_id: string
+  active: boolean
+  command?: string
+  args?: string[]
+}
 
 export interface MessageAddedData {
   message: import('../api/http').DisplayMessage

@@ -25,9 +25,11 @@ func (t *StopProcessTool) PermissionKey() tools.PermissionKey { return tools.Per
 func (t *StopProcessTool) Description() string {
 	return `Stop the session's background process, if one is running.
 
-Call this only when either (a) the user explicitly asked you to stop it, or (b) the process had a one-shot goal that is now clearly complete AND the process is actually still running (e.g., a scaffolder hanging on a prompt you need to abandon).
+Call this only when (a) the user explicitly asked you to stop, or (b) the process is genuinely stuck — silent for a long time AND not waiting for user input (e.g., a known infinite loop, a deadlock, a build that has clearly hung with no progress).
 
-DO NOT call this to "clean up" after a task looks done. Long-running processes — dev servers (npm run dev, vite, webpack-serve), file watchers, build daemons — are supposed to stay running so the user can interact with them. Stopping them defeats their purpose; the user wants to open the URL in their browser or keep watching the terminal. If you just scaffolded a project and started a dev server, leave it running and tell the user about the URL.
+DO NOT call this just because the process is paused on an interactive prompt. The user types directly into the process via the process panel — "Project name?" or "Select a framework:" is for the user to answer, not for you to abandon. A scaffolder waiting on a prompt is NOT stuck.
+
+DO NOT call this to "clean up" after a task looks done. Long-running processes — dev servers (npm run dev, vite, webpack-serve), file watchers, build daemons — are supposed to stay running so the user can interact with them. Stopping them defeats their purpose; the user wants to open the URL in their browser or keep watching the terminal. A dev server printed its URL and is now idle waiting for requests is NOT stuck.
 
 DO NOT call this before starting a replacement process. start_process automatically replaces any previous background process in the same session, so stopping first is redundant.
 

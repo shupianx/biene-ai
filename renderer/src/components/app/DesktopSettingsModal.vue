@@ -854,9 +854,17 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--rule-soft);
-  background: color-mix(in srgb, var(--panel-2) 76%, var(--panel));
+  padding: 14px;
+  /* Bold ink border to signal "this is the active editing surface".
+   * Slightly darker background lifts it off the surrounding section. */
+  border: 2px solid var(--ink);
+  background: color-mix(in srgb, var(--panel-2) 60%, var(--panel));
+  animation: provider-editor-enter 220ms cubic-bezier(.2,.7,.2,1);
+}
+
+@keyframes provider-editor-enter {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
 }
 
 .provider-form-grid {

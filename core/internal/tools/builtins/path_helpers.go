@@ -52,7 +52,7 @@ func resolvePath(rootDir, requestedPath string) (string, string, error) {
 	if tools.IsReservedWorkspacePath(rel) {
 		return "", "", fmt.Errorf("path %q is reserved for session state", requestedPath)
 	}
-	if err := tools.ValidateSharedAccess(rootAbs, rel); err != nil {
+	if err := tools.ValidateCoworkAccess(rootAbs, rel); err != nil {
 		return "", "", err
 	}
 

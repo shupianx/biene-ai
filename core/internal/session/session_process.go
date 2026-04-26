@@ -133,6 +133,11 @@ func (s *Session) SubscribeProcessLogsWithBacklog(maxBacklog int) ([]byte, <-cha
 // the session's own realtime channel so the frontend can update the capsule
 // UI without opening the logs websocket. Output events are ignored here;
 // consumers that want live lines must subscribe to the logs WS directly.
+//
+// Each transition also fires onProcessStateChanged so the session-list WS
+// can carry a runtime-only "is this agent running a process" event to
+// GridView. Deliberately separate from session_updated / SessionMeta so
+// nothing about background processes leaks into persistence.
 func (s *Session) startProcessWatcher() {
 	if s.processes == nil {
 		return
@@ -144,6 +149,9 @@ func (s *Session) startProcessWatcher() {
 				continue
 			}
 			s.send(makeFrame("process_state", ev.State))
+			if s.onProcessStateChanged != nil {
+				s.onProcessStateChanged(s.ID, ev.State.Active, ev.State.Command, ev.State.Args)
+			}
 		}
 	}()
 }

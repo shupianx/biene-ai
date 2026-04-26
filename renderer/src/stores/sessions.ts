@@ -279,6 +279,33 @@ export const useSessionsStore = defineStore('sessions', () => {
     return state
   }
 
+  // Merge a runtime-only process snapshot pushed on the session-list WS.
+  // The list event carries only {active, command} — the rich per-session
+  // process state (PID, started_at, log_file) keeps coming through the
+  // per-session WS and overwrites this when AgentChatView attaches.
+  function applyListProcessState(data: {
+    session_id: string
+    active: boolean
+    command?: string
+    args?: string[]
+  }) {
+    const sess = sessions.value[data.session_id]
+    if (!sess) return
+    if (data.active) {
+      sess.processState = {
+        ...(sess.processState ?? { status: 'running' }),
+        active: true,
+        status: 'running',
+        command: data.command ?? sess.processState?.command,
+        args: data.args ?? sess.processState?.args,
+      }
+    } else if (sess.processState) {
+      sess.processState = { ...sess.processState, active: false }
+    } else {
+      sess.processState = { active: false, status: 'idle' }
+    }
+  }
+
   async function resolvePermission(
     sessionId: string,
     decision: 'allow' | 'always' | 'deny',
@@ -332,15 +359,15 @@ export const useSessionsStore = defineStore('sessions', () => {
     _setSubscription(sess, meta.id, subscribe)
   }
 
+  // Subscribe means "ensure this session has its realtime channel open" —
+  // it never closes one. `subscribe=false` is "I don't need the channel
+  // for my use case, leave whatever's there alone", NOT "force-disconnect".
+  // The latter caused a nasty regression where a list-WS event handler in
+  // an agent window would silently kill the per-session feed it was
+  // depending on for tool_compose / tool_result. Drop the channel
+  // explicitly via removeSessionLocal when a session truly goes away.
   function _setSubscription(sess: AgentSession, id: string, subscribe: boolean) {
-    if (!subscribe) {
-      if (sess._disconnect) {
-        sess._disconnect()
-        sess._disconnect = null
-      }
-      return
-    }
-
+    if (!subscribe) return
     if (sess._disconnect) return
 
     sess._disconnect = connectWS(id, {
@@ -506,7 +533,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     sessions, sessionList,
     init, refresh, syncSession, upsertSessionMeta, removeSessionLocal, ensureSession, ensureHistory, loadMoreHistory, create, update, remove,
     sendMessage, setThinkingEnabled, interrupt, resolvePermission,
-    stopProcess,
+    stopProcess, applyListProcessState,
   }
 })
 

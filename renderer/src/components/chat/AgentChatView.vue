@@ -448,7 +448,20 @@ function onInterrupt() {
 const logsOpen = ref(false)
 const isStopping = ref(false)
 
+// When a process starts, the capsule should appear in its closed state
+// and then animate itself open after a short beat — letting the user
+// see the capsule materialize before the log panel slides down.
+let autoOpenLogsTimer: number | null = null
+function clearAutoOpenLogsTimer() {
+  if (autoOpenLogsTimer !== null) {
+    window.clearTimeout(autoOpenLogsTimer)
+    autoOpenLogsTimer = null
+  }
+}
+
 function onToggleLogs() {
+  // Manual toggle wins over the pending auto-open.
+  clearAutoOpenLogsTimer()
   logsOpen.value = !logsOpen.value
 }
 
@@ -469,10 +482,21 @@ watch(
   (active, wasActive) => {
     if (!active) {
       logsOpen.value = false
+      clearAutoOpenLogsTimer()
     }
     if (active) {
       // A new process started — discard any lingering post-exit banner.
       resetPostExit()
+      // Fresh start (was inactive → now active): show closed first, then
+      // auto-expand so the user sees the capsule appear and slide open.
+      // Skip if already open (defensive — covers consecutive replacements).
+      if (!wasActive && !logsOpen.value) {
+        clearAutoOpenLogsTimer()
+        autoOpenLogsTimer = window.setTimeout(() => {
+          logsOpen.value = true
+          autoOpenLogsTimer = null
+        }, 220)
+      }
       return
     }
     // Post-exit routing:
@@ -515,6 +539,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearAutoOpenLogsTimer()
   inputOverlayResizeObserver?.disconnect()
   inputOverlayResizeObserver = null
   topSentinelObserver?.disconnect()

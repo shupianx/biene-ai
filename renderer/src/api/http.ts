@@ -38,7 +38,8 @@ const del  = <T>(path: string)                   => request<T>('DELETE', path)
 export interface SessionPermissions {
   execute: boolean
   write: boolean
-  send_to_agent: boolean
+  send_message_to_agent: boolean
+  cowork: boolean
 }
 
 export type AgentDomain = string

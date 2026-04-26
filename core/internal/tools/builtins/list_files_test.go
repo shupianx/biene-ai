@@ -85,6 +85,100 @@ func TestFileReadToolSuggestsListForDirectories(t *testing.T) {
 	}
 }
 
+func TestCoworkLinkIsTraversableByFileTools(t *testing.T) {
+	// Layout:
+	//   senderRoot/<shared>/inner.txt   (the actual file)
+	//   receiverRoot/cowork/agent-a/<shared> -> senderRoot/<shared>  (symlink)
+	// Receiver agent should be able to list, read, and write through the link.
+
+	senderRoot := t.TempDir()
+	receiverRoot := t.TempDir()
+
+	sharedDir := filepath.Join(senderRoot, "shared")
+	if err := os.Mkdir(sharedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sharedDir, "inner.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	linkParent := filepath.Join(receiverRoot, "cowork", "agent-a")
+	if err := os.MkdirAll(linkParent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	linkPath := filepath.Join(linkParent, "shared")
+	if err := os.Symlink(sharedDir, linkPath); err != nil {
+		// Windows without Developer Mode can't create symlinks. The runtime
+		// path returns a clear error to the user; nothing for this test to do.
+		t.Skipf("skipping: cannot create symlink (likely Windows without Developer Mode): %v", err)
+	}
+
+	listTool := NewListFilesToolInDir(receiverRoot)
+	listRaw, err := json.Marshal(map[string]any{"path": "cowork/agent-a/shared"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listOut, err := listTool.Execute(context.Background(), listRaw)
+	if err != nil {
+		t.Fatalf("list_files through cowork link failed: %v", err)
+	}
+	if !strings.Contains(listOut, "inner.txt") {
+		t.Fatalf("expected inner.txt in cowork listing, got:\n%s", listOut)
+	}
+
+	readTool := NewFileReadToolInDir(receiverRoot)
+	readRaw, err := json.Marshal(map[string]any{"file_path": "cowork/agent-a/shared/inner.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	readOut, err := readTool.Execute(context.Background(), readRaw)
+	if err != nil {
+		t.Fatalf("read_file through cowork link failed: %v", err)
+	}
+	if !strings.Contains(readOut, "hello") {
+		t.Fatalf("expected file contents in read output, got:\n%s", readOut)
+	}
+
+	writeTool := NewFileWriteToolInDir(receiverRoot)
+	writeRaw, err := json.Marshal(map[string]any{
+		"file_path": "cowork/agent-a/shared/new.txt",
+		"file_text": "from receiver",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writeTool.Execute(context.Background(), writeRaw); err != nil {
+		t.Fatalf("write_file through cowork link failed: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(sharedDir, "new.txt"))
+	if err != nil {
+		t.Fatalf("expected receiver write to land on sender disk: %v", err)
+	}
+	if string(got) != "from receiver" {
+		t.Fatalf("unexpected content on sender disk: %q", string(got))
+	}
+}
+
+func TestCoworkPathRejectsFakeSymlink(t *testing.T) {
+	// A regular directory placed at cowork/<agent>/<name> must NOT be
+	// treated as a valid share — only real symlinks created by
+	// cowork_with_agent count.
+	receiverRoot := t.TempDir()
+	fakeShare := filepath.Join(receiverRoot, "cowork", "agent-a", "shared")
+	if err := os.MkdirAll(fakeShare, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	listTool := NewListFilesToolInDir(receiverRoot)
+	raw, err := json.Marshal(map[string]any{"path": "cowork/agent-a/shared"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := listTool.Execute(context.Background(), raw); err == nil {
+		t.Fatal("expected non-symlink cowork path to be rejected")
+	}
+}
+
 func TestListFilesToolHidesBieneDirectory(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".biene", "nested"), 0o755); err != nil {

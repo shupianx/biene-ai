@@ -44,6 +44,58 @@ func TestBuildOmitsInstalledSkillsWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestBuildDoesNotReferenceStaleToolName(t *testing.T) {
+	// send_to_agent was renamed to send_message_to_agent. Catch any future
+	// catalog / Base prompt drift that reintroduces the old name. Run with
+	// every domain so a single domain regressing also fails.
+	domains := []Domain{"general", "coding"}
+	workDir := t.TempDir()
+	for _, d := range domains {
+		profile := AgentProfile{Domain: d, Style: "balanced"}
+		got := Build(tools.NewRegistry(), workDir, profile, AgentIdentity{
+			ID:      "sess_test",
+			Name:    "Test",
+			WorkDir: workDir,
+		}, nil)
+		if strings.Contains(got, "send_to_agent") && !strings.Contains(got, "send_message_to_agent") {
+			t.Fatalf("domain=%s: stale tool name 'send_to_agent' present without the new name; output:\n%s", d, got)
+		}
+		// Stricter check: the bare "send_to_agent" token (not as part of
+		// send_message_to_agent) must never appear.
+		idx := 0
+		for {
+			at := strings.Index(got[idx:], "send_to_agent")
+			if at < 0 {
+				break
+			}
+			absolute := idx + at
+			// If it's part of "send_message_to_agent", skip past it.
+			if absolute >= len("send_message_") &&
+				strings.HasPrefix(got[absolute-len("send_message_"):], "send_message_to_agent") {
+				idx = absolute + len("send_to_agent")
+				continue
+			}
+			t.Fatalf("domain=%s: stale tool name 'send_to_agent' found at offset %d:\n%s", d, absolute, got)
+		}
+	}
+}
+
+func TestDomainRulesAreUnique(t *testing.T) {
+	// Domain rules must be domain-specific. Anything that appears verbatim
+	// in two domains is a sign of a rule that belongs in Base instead —
+	// keep it from sneaking back in via copy-paste.
+	catalog := CurrentCatalog()
+	seen := map[string]Domain{}
+	for _, d := range catalog.Domains {
+		for _, rule := range d.Rules {
+			if other, dup := seen[rule]; dup {
+				t.Fatalf("rule duplicated across domains %q and %q: %q", other, d.Value, rule)
+			}
+			seen[rule] = d.Value
+		}
+	}
+}
+
 func TestBuildIncludesCurrentAgentIdentity(t *testing.T) {
 	workDir := t.TempDir()
 

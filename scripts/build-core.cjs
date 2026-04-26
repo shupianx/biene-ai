@@ -55,7 +55,9 @@ const env = {
   GOARCH: targetArch,
 }
 
-if ((targetPlatform !== normalizePlatform('') || targetArch !== normalizeArch('')) && env.CGO_ENABLED == null) {
+// Force a static, libc-only build regardless of host vs. cross-compile so signing,
+// hardened runtime, and library validation behave identically across machines.
+if (env.CGO_ENABLED == null) {
   env.CGO_ENABLED = '0'
 }
 

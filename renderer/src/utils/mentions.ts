@@ -3,7 +3,7 @@
 //   @[Name](agent:<ID>)     — agent mention, value is the agent ID
 //   /[Name](skill:<Name>)   — skill invocation, value is the skill name
 // Both render in the transcript as stylized chips; the inline form is what
-// the LLM actually consumes, so send_to_agent / use_skill can extract the
+// the LLM actually consumes, so send_message_to_agent / use_skill can extract the
 // precise target from the user's message.
 export type TokenKind = 'agent' | 'skill'
 

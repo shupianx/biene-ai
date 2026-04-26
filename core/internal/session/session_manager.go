@@ -166,10 +166,10 @@ func (m *SessionManager) Init() {
 		checker := webperm.NewChecker(perms)
 		procCtl := processes.New(workDir)
 		registry.Register(builtins.NewListAgentsTool(m, id))
-		registry.Register(builtins.NewSendToAgentTool(m, id))
-		registry.Register(builtins.NewShareToAgentTool(m, id))
-		registry.Register(builtins.NewUnshareToAgentTool(m, id))
-		registry.Register(builtins.NewListSharesTool(m, id))
+		registry.Register(builtins.NewSendMessageToAgentTool(m, id))
+		registry.Register(builtins.NewCoworkWithAgentTool(m, id))
+		registry.Register(builtins.NewEndCoworkWithAgentTool(m, id))
+		registry.Register(builtins.NewListCoworksTool(m, id))
 		registry.Register(builtins.NewStartProcessTool(workDir, procCtl))
 		registry.Register(builtins.NewReadProcessOutputTool(procCtl))
 		registry.Register(builtins.NewStopProcessTool(procCtl))
@@ -199,7 +199,7 @@ func (m *SessionManager) Init() {
 			thinkingOff:       modelEntry.ThinkingOff,
 			activeSkills:      append([]string(nil), meta.ActiveSkills...),
 			installedSkillIDs: installedIDs,
-			sharesGranted:     append([]GrantedShare(nil), meta.SharesGranted...),
+			coworksGranted:    append([]GrantedCowork(nil), meta.CoworksGranted...),
 			apiMessages:       apiMsgs,
 			history:           history,
 			pendingPermission: clonePermissionPayload(meta.PendingPermission),
@@ -215,6 +215,7 @@ func (m *SessionManager) Init() {
 			WorkDir: workDir,
 		}, nil)
 		sess.onMetaChanged = m.emitSessionUpdated
+		sess.onProcessStateChanged = m.emitSessionProcessState
 		checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
 			payload := sess.setPendingPermission(req)
 			sess.send(makeFrame("permission_request", payload))
@@ -253,7 +254,10 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	procCtl := processes.New(workDir)
 
 	registry.Register(builtins.NewListAgentsTool(m, id))
-	registry.Register(builtins.NewSendToAgentTool(m, id))
+	registry.Register(builtins.NewSendMessageToAgentTool(m, id))
+	registry.Register(builtins.NewCoworkWithAgentTool(m, id))
+	registry.Register(builtins.NewEndCoworkWithAgentTool(m, id))
+	registry.Register(builtins.NewListCoworksTool(m, id))
 	registry.Register(builtins.NewStartProcessTool(workDir, procCtl))
 	registry.Register(builtins.NewReadProcessOutputTool(procCtl))
 	registry.Register(builtins.NewStopProcessTool(procCtl))
@@ -297,6 +301,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		WorkDir: workDir,
 	}, nil)
 	sess.onMetaChanged = m.emitSessionUpdated
+	sess.onProcessStateChanged = m.emitSessionProcessState
 	checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
 		payload := sess.setPendingPermission(req)
 		sess.send(makeFrame("permission_request", payload))
@@ -508,9 +513,9 @@ func (m *SessionManager) Delete(id string) bool {
 	m.mu.Unlock()
 	if ok {
 		sess.mu.Lock()
-		grants := append([]GrantedShare(nil), sess.sharesGranted...)
+		grants := append([]GrantedCowork(nil), sess.coworksGranted...)
 		sess.mu.Unlock()
-		m.cleanupSharesForDeletedSession(id, grants)
+		m.cleanupCoworksForDeletedSession(id, grants)
 
 		m.emitSessionDeleted(id)
 		sess.close()

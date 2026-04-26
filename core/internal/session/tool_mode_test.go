@@ -22,7 +22,7 @@ func (t stubTool) Summary(json.RawMessage) string                           { re
 
 func TestRegistryForToolModeRestrictsAnswerOnlyTools(t *testing.T) {
 	registry := tools.NewRegistry()
-	for _, name := range []string{"list_skills", "list_files", "read_file", "write_file", "edit_file", "run_command", "list_agents", "send_to_agent"} {
+	for _, name := range []string{"list_skills", "list_files", "read_file", "write_file", "edit_file", "run_command", "list_agents", "send_message_to_agent"} {
 		registry.Register(stubTool{name: name})
 	}
 
@@ -30,7 +30,7 @@ func TestRegistryForToolModeRestrictsAnswerOnlyTools(t *testing.T) {
 	if changed {
 		t.Fatal("expected registry to remain unchanged")
 	}
-	for _, name := range []string{"list_skills", "list_files", "read_file", "write_file", "edit_file", "run_command", "list_agents", "send_to_agent"} {
+	for _, name := range []string{"list_skills", "list_files", "read_file", "write_file", "edit_file", "run_command", "list_agents", "send_message_to_agent"} {
 		if filtered.Find(name) == nil {
 			t.Fatalf("expected %s to remain available", name)
 		}

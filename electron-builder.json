@@ -5,6 +5,7 @@
     "output": "release/.tmp/default",
     "buildResources": "build"
   },
+  "forceCodeSigning": true,
   "files": [
     "electron/**/*",
     "renderer/dist/**/*",
@@ -23,8 +24,11 @@
     "category": "public.app-category.developer-tools",
     "hardenedRuntime": true,
     "gatekeeperAssess": false,
+    "binaries": [
+      "Contents/Resources/bin/biene-core"
+    ],
     "entitlements": "build/entitlements.mac.plist",
-    "entitlementsInherit": "build/entitlements.mac.plist",
-    "notarize": true
+    "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+    "notarize": false
   }
 }

@@ -50,6 +50,7 @@ import IconButton from '../components/ui/IconButton.vue'
 import { t } from '../i18n'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import { useSessionsStore } from '../stores/sessions'
+import { connectSessionListWS } from '../api/ws'
 
 const route = useRoute()
 const store = useSessionsStore()
@@ -130,14 +131,48 @@ watch(
   { immediate: true },
 )
 
+// Subscribe to the sessions-list channel so newly-created peer agents
+// appear in @mention immediately rather than only after a focus-driven
+// resync. Same handlers as GridView; the store now treats subscribe=false
+// as "don't open one if not already open" (never as "force-disconnect"),
+// so this is safe for the current session's per-session WS.
+//
+// onSessionDeleted still skips the current session because
+// removeSessionLocal calls _disconnect directly — that path predates the
+// store fix and remains intentional for genuine teardown.
+let disconnectListWS: (() => void) | null = null
+
 onMounted(() => {
   window.addEventListener('focus', syncSessionMeta)
   document.addEventListener('visibilitychange', onVisibilityChange)
+  disconnectListWS = connectSessionListWS({
+    onOpen() {
+      void store.refresh(false, false)
+    },
+    onSessionCreated({ session }) {
+      void store.upsertSessionMeta(session, false)
+    },
+    onSessionUpdated({ session }) {
+      void store.upsertSessionMeta(session, false)
+    },
+    onSessionDeleted({ id }) {
+      if (id === sessionId.value) return
+      store.removeSessionLocal(id)
+    },
+    onSessionProcessState(data) {
+      store.applyListProcessState(data)
+    },
+    onReconnect() {
+      void store.refresh(false, false)
+    },
+  })
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('focus', syncSessionMeta)
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  disconnectListWS?.()
+  disconnectListWS = null
 })
 </script>
 

@@ -37,24 +37,53 @@
     </div>
 
     <div class="field">
-      <span class="label">{{ t('modal.toolPermissions') }}</span>
-      <div class="permission-list">
-        <div
-          v-for="permission in permissionOptions"
-          :key="permission.key"
-          class="permission-item"
-        >
-          <div class="permission-copy">
-            <span class="permission-name">{{ permission.label }}</span>
-            <span class="permission-desc">{{ permission.description }}</span>
-          </div>
-          <ToggleSwitch
-            v-model="permissions[permission.key]"
-            :label="permission.label"
-          />
+      <span class="label">{{ t('modal.profile') }}</span>
+      <div class="profile-grid">
+        <div class="field">
+          <span class="sub-label">{{ t('modal.domain') }}</span>
+          <PopupMenu :items="domainMenuItems" @select="onDomainSelect">
+            <template #trigger="{ open, toggle }">
+              <button
+                type="button"
+                class="select select-trigger"
+                :class="{ open }"
+                @click="toggle"
+              >
+                <span class="select-label">{{ currentDomainLabel }}</span>
+                <ArrowDropDownIcon class="chevron" aria-hidden="true" />
+              </button>
+            </template>
+          </PopupMenu>
+          <span class="field-hint">{{ selectedDomainDescription }}</span>
+        </div>
+
+        <div class="field">
+          <span class="sub-label">{{ t('modal.style') }}</span>
+          <PopupMenu :items="styleMenuItems" @select="onStyleSelect">
+            <template #trigger="{ open, toggle }">
+              <button
+                type="button"
+                class="select select-trigger"
+                :class="{ open }"
+                @click="toggle"
+              >
+                <span class="select-label">{{ currentStyleLabel }}</span>
+                <ArrowDropDownIcon class="chevron" aria-hidden="true" />
+              </button>
+            </template>
+          </PopupMenu>
+          <span class="field-hint">{{ selectedStyleDescription }}</span>
         </div>
       </div>
-      <p class="hint">{{ t('modal.toolPermissionsHint') }}</p>
+
+      <label class="field">
+        <span class="sub-label">{{ t('modal.customInstructions') }}</span>
+        <AutoGrowTextarea
+          v-model="profile.custom_instructions"
+          class="textarea"
+          :placeholder="t('modal.customInstructionsPlaceholder')"
+        />
+      </label>
     </div>
 
     <section class="advanced-section">
@@ -70,53 +99,24 @@
 
       <div v-if="advancedOpen" class="advanced-panel">
         <div class="field">
-          <span class="label">{{ t('modal.profile') }}</span>
-          <div class="profile-grid">
-            <div class="field">
-              <span class="sub-label">{{ t('modal.domain') }}</span>
-              <PopupMenu :items="domainMenuItems" @select="onDomainSelect">
-                <template #trigger="{ open, toggle }">
-                  <button
-                    type="button"
-                    class="select select-trigger"
-                    :class="{ open }"
-                    @click="toggle"
-                  >
-                    <span class="select-label">{{ currentDomainLabel }}</span>
-                    <ArrowDropDownIcon class="chevron" aria-hidden="true" />
-                  </button>
-                </template>
-              </PopupMenu>
-              <span class="field-hint">{{ selectedDomainDescription }}</span>
-            </div>
-
-            <div class="field">
-              <span class="sub-label">{{ t('modal.style') }}</span>
-              <PopupMenu :items="styleMenuItems" @select="onStyleSelect">
-                <template #trigger="{ open, toggle }">
-                  <button
-                    type="button"
-                    class="select select-trigger"
-                    :class="{ open }"
-                    @click="toggle"
-                  >
-                    <span class="select-label">{{ currentStyleLabel }}</span>
-                    <ArrowDropDownIcon class="chevron" aria-hidden="true" />
-                  </button>
-                </template>
-              </PopupMenu>
-              <span class="field-hint">{{ selectedStyleDescription }}</span>
+          <span class="label">{{ t('modal.toolPermissions') }}</span>
+          <div class="permission-list">
+            <div
+              v-for="permission in permissionOptions"
+              :key="permission.key"
+              class="permission-item"
+            >
+              <div class="permission-copy">
+                <span class="permission-name">{{ permission.label }}</span>
+                <span class="permission-desc">{{ permission.description }}</span>
+              </div>
+              <ToggleSwitch
+                v-model="permissions[permission.key]"
+                :label="permission.label"
+              />
             </div>
           </div>
-
-          <label class="field">
-            <span class="sub-label">{{ t('modal.customInstructions') }}</span>
-            <AutoGrowTextarea
-              v-model="profile.custom_instructions"
-              class="textarea"
-              :placeholder="t('modal.customInstructionsPlaceholder')"
-            />
-          </label>
+          <p class="hint">{{ t('modal.toolPermissionsHint') }}</p>
         </div>
       </div>
     </section>

@@ -151,10 +151,7 @@ func (p *OpenAIProvider) Stream(
 
 			if resp.Choices[0].FinishReason == openAIChatFinishReasonToolCalls {
 				for _, acc := range toolAccums {
-					input := json.RawMessage(acc.args)
-					if len(input) == 0 {
-						input = json.RawMessage("{}")
-					}
+					input := finalizeToolInput(acc.args, acc.id, acc.name)
 					ch <- StreamEvent{
 						Type: EventToolUse,
 						ToolUse: &ToolUseBlock{
@@ -285,9 +282,16 @@ type openAIChatCompletionRequest struct {
 }
 
 type openAIChatCompletionMessage struct {
-	Role             string                         `json:"role"`
-	Content          any                            `json:"content,omitempty"`
-	ReasoningContent string                         `json:"reasoning_content,omitempty"`
+	Role string `json:"role"`
+	Content any `json:"content,omitempty"`
+	// ReasoningContent is a pointer so we can distinguish "field absent"
+	// (nil → omitted from JSON) from "field present and empty" (&""). The
+	// latter is required by DeepSeek's thinking mode: when a request enables
+	// thinking, every prior assistant turn MUST carry the reasoning_content
+	// key, even if that turn was generated with thinking off and has no
+	// reasoning text. Otherwise DeepSeek 400s with "The reasoning_content in
+	// the thinking mode must be passed back to the API."
+	ReasoningContent *string                        `json:"reasoning_content,omitempty"`
 	ToolCallID       string                         `json:"tool_call_id,omitempty"`
 	ToolCalls        []openAIChatCompletionToolCall `json:"tool_calls,omitempty"`
 }
@@ -350,12 +354,79 @@ const openAIChatFinishReasonToolCalls = "tool_calls"
 
 // ─── Conversion helpers ───────────────────────────────────────────────────
 
+// computeReasoningRetention applies the DeepSeek-style retention rule for
+// `reasoning_content` between consecutive real user messages:
+//
+//   - If the user-to-user interval contains no tool_use, the assistant's
+//     reasoning is ignored by the API on replay; we drop it to save tokens
+//     and keep prompt-cache prefixes stable.
+//   - If the interval contains any tool_use, every assistant turn's
+//     reasoning in that interval MUST be echoed back, or the model loses
+//     the chain-of-thought continuity that drove the tool calls.
+//
+// Tool-result messages do not count as "user messages" for boundary
+// purposes — only real user input (text or image) closes an interval.
+// Returns a parallel bool slice; entries for non-assistant indices are
+// always false (caller only consults assistant indices).
+func computeReasoningRetention(msgs []Message) []bool {
+	keep := make([]bool, len(msgs))
+
+	boundaries := make([]int, 0, len(msgs)+1)
+	for i, m := range msgs {
+		if m.Role == RoleUser && hasUserInput(m) {
+			boundaries = append(boundaries, i)
+		}
+	}
+	boundaries = append(boundaries, len(msgs))
+
+	for k := 0; k+1 < len(boundaries); k++ {
+		start, end := boundaries[k], boundaries[k+1]
+		intervalHasToolUse := false
+		for j := start; j < end; j++ {
+			if msgs[j].Role == RoleAssistant && hasToolUse(msgs[j]) {
+				intervalHasToolUse = true
+				break
+			}
+		}
+		if !intervalHasToolUse {
+			continue
+		}
+		for j := start; j < end; j++ {
+			if msgs[j].Role == RoleAssistant {
+				keep[j] = true
+			}
+		}
+	}
+	return keep
+}
+
+func hasUserInput(m Message) bool {
+	for _, b := range m.Content {
+		switch b.(type) {
+		case TextBlock, ImageBlock:
+			return true
+		}
+	}
+	return false
+}
+
+func hasToolUse(m Message) bool {
+	for _, b := range m.Content {
+		if _, ok := b.(ToolUseBlock); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openAIChatCompletionMessage, error) {
 	out := []openAIChatCompletionMessage{
 		{Role: "system", Content: systemPrompt},
 	}
 
-	for _, m := range msgs {
+	keepReasoning := computeReasoningRetention(msgs)
+
+	for i, m := range msgs {
 		switch m.Role {
 		case RoleUser:
 			var parts []openAIContentPart
@@ -406,7 +477,14 @@ func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openAIChatC
 			}
 
 		case RoleAssistant:
-			msg := openAIChatCompletionMessage{Role: "assistant"}
+			// Default reasoning_content to explicit empty string so
+			// DeepSeek's thinking-mode validator sees the field present
+			// even on assistant turns generated with thinking off.
+			empty := ""
+			msg := openAIChatCompletionMessage{
+				Role:             "assistant",
+				ReasoningContent: &empty,
+			}
 			var toolCalls []openAIChatCompletionToolCall
 			for _, b := range m.Content {
 				switch v := b.(type) {
@@ -415,7 +493,10 @@ func convertMessagesToOpenAI(msgs []Message, systemPrompt string) ([]openAIChatC
 						msg.Content = v.Text
 					}
 				case ReasoningBlock:
-					msg.ReasoningContent = v.Text
+					if keepReasoning[i] {
+						txt := v.Text
+						msg.ReasoningContent = &txt
+					}
 				case ToolUseBlock:
 					toolCalls = append(toolCalls, openAIChatCompletionToolCall{
 						ID:   v.ID,

@@ -46,42 +46,43 @@ func IsReservedWorkspacePath(relPath string) bool {
 	return true
 }
 
-// SharedRootPrefix is the top-level directory inside a receiver's workspace
-// where incoming shares from other agents are exposed as symlinks. Mirrors
-// session.SharedRootSubdir; duplicated here so the tools package can check
-// paths without importing session.
-const SharedRootPrefix = "shared"
+// CoworkRootPrefix is the top-level directory inside a receiver's workspace
+// where incoming cowork relationships from other agents are exposed as
+// symlinks. Mirrors session.CoworkRootSubdir; duplicated here so the tools
+// package can check paths without importing session.
+const CoworkRootPrefix = "cowork"
 
-// ValidateSharedAccess enforces that any access under shared/ must go
-// through a real symlink created by share_to_agent. It accepts:
-//   - anything not under shared/
-//   - shared/ itself (listing)
-//   - shared/<agentID>/ (listing incoming shares from one agent)
-//   - shared/<agentID>/<name>[/...] as long as shared/<agentID>/<name>
-//     is an existing symlink; this is the share the agent is operating on
+// ValidateCoworkAccess enforces that any access under cowork/ must go
+// through a real symlink created by cowork_with_agent. It accepts:
+//   - anything not under cowork/
+//   - cowork/ itself (listing)
+//   - cowork/<agentID>/ (listing incoming coworks from one agent)
+//   - cowork/<agentID>/<name>[/...] as long as cowork/<agentID>/<name>
+//     is an existing symlink; this is the cowork the agent is operating on
 //
 // It rejects any other form — notably attempts to create a new directory
-// or file directly under shared/ that would masquerade as a share.
-func ValidateSharedAccess(rootAbs, relPath string) error {
+// or file directly under cowork/ that would masquerade as a cowork link.
+func ValidateCoworkAccess(rootAbs, relPath string) error {
 	slash := filepath.ToSlash(relPath)
 	if slash == "" || slash == "." {
 		return nil
 	}
 	parts := strings.Split(slash, "/")
-	if parts[0] != SharedRootPrefix {
+	if parts[0] != CoworkRootPrefix {
 		return nil
 	}
-	// shared or shared/<agentID>
+	// cowork or cowork/<agentID>
 	if len(parts) <= 2 {
 		return nil
 	}
 	shareRoot := filepath.Join(rootAbs, parts[0], parts[1], parts[2])
-	info, err := os.Lstat(shareRoot)
-	if err != nil {
+	// Use Readlink rather than the ModeSymlink bit. On Windows, os.Lstat
+	// only sets ModeSymlink for IO_REPARSE_TAG_SYMLINK; junctions and other
+	// reparse tags are reported as ModeIrregular even though Readlink can
+	// resolve them. Readlink succeeds on any reparse point with a target,
+	// which is exactly the gate we want here.
+	if _, err := os.Readlink(shareRoot); err != nil {
 		return fmt.Errorf("share %s/%s/%s is not registered", parts[0], parts[1], parts[2])
-	}
-	if info.Mode()&os.ModeSymlink == 0 {
-		return fmt.Errorf("%s/%s/%s is not a valid share", parts[0], parts[1], parts[2])
 	}
 	return nil
 }

@@ -117,6 +117,7 @@ onBeforeUnmount(clearTimer)
   width: 13px;
   height: 13px;
   flex: 0 0 auto;
+  opacity: 0.7;
 }
 
 .notice-text {
@@ -140,7 +141,37 @@ onBeforeUnmount(clearTimer)
 }
 .tone-info {
   color: var(--ink-2);
-  background: var(--panel);
+  /* Pale sage that drifts toward the cream panel — derived from the theme's
+   * --ok green so light/dark modes stay coherent. The 12% blend keeps it
+   * whisper-soft against the cream card so it reads as "running" rather
+   * than "success" (which is the warn/ok tones' job). */
+  background: color-mix(in srgb, var(--ok) 12%, var(--panel) 88%);
+}
+
+/* Metallic gleam — scoped to info-tone leading icons (currently only the
+ * running-process notice). The icon's base sits at 0.7 opacity (the dim
+ * default further up); during the peak we override BOTH opacity and color
+ * so the icon visibly snaps from "dim grey" to "bright white with halo"
+ * for ~150ms each cycle. Brightness alone wasn't enough — it was fighting
+ * the dim opacity floor. */
+.tone-info .notice-icon {
+  animation: notice-icon-metal-shine 2.4s ease-in-out infinite;
+  will-change: opacity, filter, color;
+}
+
+@keyframes notice-icon-metal-shine {
+  0%, 100% {
+    opacity: 0.7;
+    color: var(--ink-2);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    opacity: 1;
+    color: var(--ink-1);
+    filter:
+      drop-shadow(0 0 4px color-mix(in srgb, var(--ink-1) 70%, transparent))
+      drop-shadow(0 0 8px color-mix(in srgb, var(--ink-1) 35%, transparent));
+  }
 }
 
 .push-enter-active,

@@ -28,22 +28,23 @@ func (t *StartProcessTool) Name() string { return "start_process" }
 func (t *StartProcessTool) PermissionKey() tools.PermissionKey { return tools.PermissionExecute }
 
 func (t *StartProcessTool) Description() string {
-	return `Start a process under a real pseudo-terminal. Two situations require this:
+	return `Start a process under a real pseudo-terminal that the user interacts with directly. The user sees live output and types into the process through the process panel in the UI — you are NOT in the input loop and never will be.
+
+Two situations require this:
 (a) Interactive commands that prompt the user — npm create vue, pnpm create, yarn create, create-next-app without --yes, git commit without -m, anything using prompts/inquirer, full-screen terminal programs like vim/nano/less/top/htop. Use this even when they complete in seconds. run_command cannot handle them — the child detects the missing TTY and either hangs or exits with "stdin is not a TTY".
 (b) Long-running processes whose output streams over time — dev servers, watchers, build daemons. run_command would hang forever waiting for them to exit.
 
-Each agent session has exactly one background process slot. Starting a new process automatically stops the previous one.
-Use read_process_output to inspect the log; the tool returns plain text with ANSI control codes already stripped.
-Use stop_process to terminate explicitly.
-This tool does not support shell syntax (no pipes, redirects, globs, or variable expansion). Pass environment variables via the env object.
+After starting, yield control to the user. Tell them briefly what to expect ("the scaffolder will ask for a project name and template"), then stop calling tools. Do not poll read_process_output to peek at what the process is asking — prompts like "Project name?" or "Select a framework:" are addressed at the user, not at you. Do NOT call stop_process just because the process is paused on a prompt; that prompt is exactly what the user is supposed to answer.
 
 Quick decision:
   interactive / prompts the user   → start_process
   long-running (dev server, watch) → start_process
   short + quiet + need stdout      → run_command
 
-Interactive commands — hand-off protocol:
-When you start a command that will prompt the user (picking a template, typing a project name, confirming y/N), do not keep calling tools in the same turn. The user needs to see the terminal and type into it; your next tool call, if any, should verify the outcome (list_files, read_file, another process). Check read_process_output and the process state before assuming the interactive phase is over.`
+Each agent session has exactly one background process slot; starting a new process automatically stops the previous one.
+Use read_process_output AFTER the interactive phase or AFTER an exit to summarize for the user or capture an error trace.
+Use stop_process only when the user asks, or when the process is genuinely stuck (silent for a long time AND not awaiting input).
+This tool does not support shell syntax (no pipes, redirects, globs, or variable expansion). Pass environment variables via the env object.`
 }
 
 func (t *StartProcessTool) InputSchema() json.RawMessage {

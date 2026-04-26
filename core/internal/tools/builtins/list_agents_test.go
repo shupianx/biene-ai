@@ -38,13 +38,13 @@ func (d *listAgentsTestDirectory) DetectFileCollisions(string, string, []string)
 	return nil, nil
 }
 
-func (d *listAgentsTestDirectory) CreateShare(context.Context, string, string, string) (string, error) {
+func (d *listAgentsTestDirectory) CreateCowork(context.Context, string, string, string) (string, error) {
 	return "", nil
 }
 
-func (d *listAgentsTestDirectory) RemoveShare(string, string, string) error { return nil }
+func (d *listAgentsTestDirectory) EndCowork(string, string, string) error { return nil }
 
-func (d *listAgentsTestDirectory) ListShares(string) []tools.SharedEntry { return nil }
+func (d *listAgentsTestDirectory) ListCoworks(string) []tools.CoworkEntry { return nil }
 
 func TestListAgentsToolIncludesCurrentAgentAndPeers(t *testing.T) {
 	directory := &listAgentsTestDirectory{
