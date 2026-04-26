@@ -49,33 +49,39 @@
 }
 
 :root[data-theme='dark'] {
-  /* ── Dark paper / graphite palette ────────────────────────────────── */
-  --bg:           #1A1814;
-  --bg-2:         #14120F;
-  --panel:        #1F1C17;
-  --panel-2:      #26221C;
-  --ink:          #F0EBE1;
-  --ink-2:        #D9D3C6;
-  --ink-3:        #A59F92;
-  --ink-4:        #6F695F;
-  --rule:         #524C42;
-  --rule-soft:    #3A342C;
-  --rule-softer:  #2C2720;
+  /* ── One Dark Pro inspired palette ────────────────────────────────── */
+  --bg:           #282c34;
+  --bg-2:         #21252b;
+  --panel:        #2c313c;
+  --panel-2:      #323842;
+  /* One Dark Pro's editor foreground (#abb2bf) is calibrated for code-only
+   * surfaces. Across general UI (titles, buttons, chat body) it reads
+   * washed-out, so we lift the top two ink stops while keeping the lower
+   * two at the original "comment" range for muted hints. */
+  --ink:          #e6e9ef;
+  --ink-2:        #c5cad3;
+  --ink-3:        #8b929e;
+  --ink-4:        #5c6370;
+  --rule:         #3e4451;
+  --rule-soft:    #2c313c;
+  --rule-softer:  #252932;
 
-  --accent:       oklch(72% 0.14 60);
-  --accent-2:     oklch(66% 0.16 54);
-  --accent-ink:   #12080A;
+  --accent:       #61afef;
+  --accent-2:     #4a96d6;
+  --accent-ink:   #0d1117;
 
-  --ok:           oklch(70% 0.15 145);
-  --warn:         oklch(76% 0.14 85);
-  --err:          oklch(66% 0.18 25);
-  --info:         oklch(66% 0.15 245);
-  --info-ink:     #08121F;
+  --ok:           #98c379;
+  --warn:         #e5c07b;
+  --err:          #e06c75;
+  --info:         #56b6c2;
+  --info-ink:     #07141b;
 
-  --sel-bg:       rgba(214, 150, 82, 0.38);
+  --sel-bg:       rgba(82, 139, 255, 0.28);
   --overlay:      rgba(0, 0, 0, 0.62);
-  --hover-soft:   rgba(240, 235, 225, 0.05);
-  --paper-grain-opacity: 0.55;
+  --hover-soft:   rgba(171, 178, 191, 0.06);
+  /* Paper grain reads off-key against a cool, code-editor palette —
+   * keep a whisper for texture, otherwise the surface looks plasticky. */
+  --paper-grain-opacity: 0.18;
 
   --switch-track-off: var(--panel-2);
   --switch-knob-off: var(--bg-2);
@@ -87,25 +93,28 @@
 }
 
 /* highlight.js keeps the GitHub light theme globally. In dark mode we
-   override the token colors with a Darcula-like palette. */
+   override the token colors with a One Dark Pro palette so code blocks
+   match the surrounding chrome. */
 :root[data-theme='dark'] .markdown pre {
-  background: #2b2b2b;
-  border-color: #3c3f41;
+  background: #21252b;
+  border-color: #181a1f;
 }
 
 :root[data-theme='dark'] .markdown pre code.hljs {
-  color: #a9b7c6;
+  color: #abb2bf;
   background: transparent;
 }
 
+/* Comments — muted slate */
 :root[data-theme='dark'] .markdown .hljs-comment,
 :root[data-theme='dark'] .markdown .hljs-code,
 :root[data-theme='dark'] .markdown .hljs-formula,
 :root[data-theme='dark'] .markdown .hljs-quote {
-  color: #808080;
+  color: #5c6370;
   font-style: italic;
 }
 
+/* Keywords / control flow / types — purple */
 :root[data-theme='dark'] .markdown .hljs-doctag,
 :root[data-theme='dark'] .markdown .hljs-keyword,
 :root[data-theme='dark'] .markdown .hljs-meta .hljs-keyword,
@@ -113,18 +122,24 @@
 :root[data-theme='dark'] .markdown .hljs-template-variable,
 :root[data-theme='dark'] .markdown .hljs-type,
 :root[data-theme='dark'] .markdown .hljs-variable.language_ {
-  color: #cc7832;
+  color: #c678dd;
 }
 
+/* Function and class names, built-ins — blue */
 :root[data-theme='dark'] .markdown .hljs-title,
-:root[data-theme='dark'] .markdown .hljs-title.class_,
-:root[data-theme='dark'] .markdown .hljs-title.class_.inherited__,
 :root[data-theme='dark'] .markdown .hljs-title.function_,
 :root[data-theme='dark'] .markdown .hljs-section,
 :root[data-theme='dark'] .markdown .hljs-built_in {
-  color: #ffc66d;
+  color: #61afef;
 }
 
+/* Class titles — yellow (One Dark Pro splits class from function color) */
+:root[data-theme='dark'] .markdown .hljs-title.class_,
+:root[data-theme='dark'] .markdown .hljs-title.class_.inherited__ {
+  color: #e5c07b;
+}
+
+/* Numbers, attributes, literals, properties — orange */
 :root[data-theme='dark'] .markdown .hljs-attr,
 :root[data-theme='dark'] .markdown .hljs-attribute,
 :root[data-theme='dark'] .markdown .hljs-literal,
@@ -136,28 +151,31 @@
 :root[data-theme='dark'] .markdown .hljs-selector-class,
 :root[data-theme='dark'] .markdown .hljs-selector-id,
 :root[data-theme='dark'] .markdown .hljs-variable {
-  color: #9876aa;
+  color: #d19a66;
 }
 
+/* Strings, regex, symbols — green */
 :root[data-theme='dark'] .markdown .hljs-regexp,
 :root[data-theme='dark'] .markdown .hljs-string,
 :root[data-theme='dark'] .markdown .hljs-meta .hljs-string,
 :root[data-theme='dark'] .markdown .hljs-symbol {
-  color: #6a8759;
+  color: #98c379;
 }
 
+/* HTML tag names, selector tags, pseudo-selectors — red */
 :root[data-theme='dark'] .markdown .hljs-name,
 :root[data-theme='dark'] .markdown .hljs-selector-tag,
 :root[data-theme='dark'] .markdown .hljs-selector-pseudo {
-  color: #e8bf6a;
+  color: #e06c75;
 }
 
+/* Punctuation, params, plain tag chrome — default fg */
 :root[data-theme='dark'] .markdown .hljs-subst,
 :root[data-theme='dark'] .markdown .hljs-punctuation,
 :root[data-theme='dark'] .markdown .hljs-tag,
 :root[data-theme='dark'] .markdown .hljs-link,
 :root[data-theme='dark'] .markdown .hljs-params {
-  color: #a9b7c6;
+  color: #abb2bf;
 }
 
 :root[data-theme='dark'] .markdown .hljs-emphasis {
@@ -168,14 +186,15 @@
   font-weight: 700;
 }
 
+/* Diff additions / deletions — match One Dark Pro git decoration */
 :root[data-theme='dark'] .markdown .hljs-addition {
-  color: #a5c261;
-  background-color: rgba(106, 135, 89, 0.18);
+  color: #98c379;
+  background-color: rgba(152, 195, 121, 0.16);
 }
 
 :root[data-theme='dark'] .markdown .hljs-deletion {
-  color: #ff6b68;
-  background-color: rgba(255, 107, 104, 0.14);
+  color: #e06c75;
+  background-color: rgba(224, 108, 117, 0.14);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
