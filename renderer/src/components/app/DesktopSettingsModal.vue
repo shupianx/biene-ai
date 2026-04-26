@@ -126,8 +126,12 @@
 
           <div class="provider-form-grid">
             <div class="provider-field">
-              <span class="provider-field-label">{{ t('modal.quickAddTemplate') }}</span>
-              <PopupMenu :items="templateMenuItems" @select="onTemplateSelect">
+              <span class="provider-field-label">{{ t('modal.addModel') }}</span>
+              <ProviderTemplateMenu
+                :selected-id="providerTemplate"
+                :custom-label="t('modal.customProvider')"
+                @select="onTemplateSelect"
+              >
                 <template #trigger="{ open, toggle }">
                   <button
                     type="button"
@@ -139,7 +143,7 @@
                     <ArrowDropDownIcon class="chevron" aria-hidden="true" />
                   </button>
                 </template>
-              </PopupMenu>
+              </ProviderTemplateMenu>
             </div>
 
             <label class="provider-field">
@@ -147,7 +151,7 @@
               <input v-model="providerDraft.name" class="provider-input" type="text" autocomplete="off" />
             </label>
 
-            <div class="provider-field">
+            <div v-if="!isProviderTemplateLocked" class="provider-field">
               <span class="provider-field-label">{{ t('modal.providerType') }}</span>
               <PopupMenu :items="providerTypeMenuItems" @select="onProviderTypeSelect">
                 <template #trigger="{ open, toggle }">
@@ -155,7 +159,6 @@
                     type="button"
                     class="provider-input provider-select-trigger"
                     :class="{ open }"
-                    :disabled="isProviderTemplateLocked"
                     @click="toggle"
                   >
                     <span class="select-label">{{ currentProviderTypeLabel }}</span>
@@ -165,14 +168,13 @@
               </PopupMenu>
             </div>
 
-            <label class="provider-field">
+            <label v-if="!isProviderTemplateLocked" class="provider-field">
               <span class="provider-field-label">{{ t('modal.providerModel') }}</span>
               <input
                 v-model="providerDraft.model"
                 class="provider-input mono"
                 type="text"
                 autocomplete="off"
-                :disabled="isProviderTemplateLocked"
               />
             </label>
 
@@ -181,14 +183,13 @@
               <input v-model="providerDraft.api_key" class="provider-input mono" type="password" autocomplete="off" />
             </label>
 
-            <label class="provider-field provider-field-wide">
+            <label v-if="!isProviderTemplateLocked" class="provider-field provider-field-wide">
               <span class="provider-field-label">{{ t('modal.providerBaseUrl') }}</span>
               <input
                 v-model="providerDraft.base_url"
                 class="provider-input mono"
                 type="text"
                 autocomplete="off"
-                :disabled="isProviderTemplateLocked"
               />
             </label>
           </div>
@@ -214,11 +215,17 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { fetchConfig, listSessions, saveConfig, type ConfigModelEntry, type CoreConfig, type SessionMeta } from '../../api/http'
-import { providerTemplateList, providerTemplates, type ProviderTemplateKey } from '../../constants/providerTemplates'
+import {
+  customTemplate,
+  defaultTemplateID,
+  providerTemplates,
+  providerVendors,
+} from '../../constants/providerTemplates'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
 import AppButton from '../ui/AppButton.vue'
 import BaseModal from '../ui/BaseModal.vue'
 import PopupMenu, { type PopupMenuEntry } from '../ui/PopupMenu.vue'
+import ProviderTemplateMenu from '../ui/ProviderTemplateMenu.vue'
 import SelectField from '../ui/SelectField.vue'
 import ToggleSwitch from '../ui/ToggleSwitch.vue'
 import { useTheme } from '../../composables/useTheme'
@@ -227,7 +234,9 @@ import { t } from '../../i18n'
 import type { AppLocale } from '../../i18n/messages'
 
 type ProviderEditorMode = 'add' | 'edit' | null
-type ProviderTemplateID = 'none' | ProviderTemplateKey
+// One of: 'custom', 'vendor:<vendorId>' (no preset model selected,
+// vendor's provider/base_url were applied), or a model template id.
+type ProviderTemplateID = string
 
 const emit = defineEmits<{
   (e: 'close'): void
@@ -249,7 +258,7 @@ const configError = ref('')
 const editorError = ref('')
 const editorMode = ref<ProviderEditorMode>(null)
 const editingProviderID = ref('')
-const providerTemplate = ref<ProviderTemplateID>('none')
+const providerTemplate = ref<ProviderTemplateID>(defaultTemplateID)
 const providerDraft = reactive<ConfigModelEntry>(emptyProviderDraft())
 const sessionMetas = ref<SessionMeta[]>([])
 const editorRef = ref<HTMLElement | null>(null)
@@ -264,23 +273,29 @@ const providerTypeOptions = computed(() => [
   { value: 'anthropic', label: t('modal.providerTypes.anthropic') },
   { value: 'openai_compatible', label: t('modal.providerTypes.openaiCompatible') },
 ])
-const providerTemplateOptions = computed<Array<{ value: ProviderTemplateID; label: string }>>(() => [
-  { value: 'none', label: t('common.none') },
-  ...providerTemplateList.map((template) => ({ value: template.id, label: template.name })),
-])
-const isProviderTemplateLocked = computed(() => providerTemplate.value !== 'none')
-
-const templateMenuItems = computed<PopupMenuEntry[]>(() =>
-  providerTemplateOptions.value.map((option) => ({
-    key: option.value,
-    label: option.label,
-    selected: option.value === providerTemplate.value,
-  }))
-)
-const currentTemplateLabel = computed(
+// Locked = a concrete model preset is selected; the user can still edit
+// `name` and `api_key`, but provider type / model / base_url come from
+// the template and are read-only. Both "custom" and "vendor:<id>" leave
+// the form fully editable.
+const isProviderTemplateLocked = computed(
   () =>
-    providerTemplateOptions.value.find((o) => o.value === providerTemplate.value)?.label ?? ''
+    providerTemplate.value !== customTemplate.id &&
+    !providerTemplate.value.startsWith('vendor:') &&
+    Boolean(providerTemplates[providerTemplate.value]),
 )
+
+const currentTemplateLabel = computed(() => {
+  const id = providerTemplate.value
+  if (id === customTemplate.id) return t('modal.customProvider')
+  if (id.startsWith('vendor:')) {
+    const vendorId = id.slice('vendor:'.length)
+    const vendor = providerVendors.find((v) => v.id === vendorId)
+    return vendor?.name ?? t('modal.customProvider')
+  }
+  const template = providerTemplates[id]
+  if (!template) return t('modal.customProvider')
+  return `${template.vendorName} · ${template.name}`
+})
 
 const providerTypeMenuItems = computed<PopupMenuEntry[]>(() =>
   providerTypeOptions.value.map((option) => ({
@@ -395,28 +410,47 @@ function detectProviderTemplate(entry: ConfigModelEntry): ProviderTemplateID {
       entry.base_url === template.base_url &&
       Boolean(entry.thinking_available) === Boolean(template.thinking_available)
     ) {
-      return id as ProviderTemplateID
+      return id
     }
   }
-  return 'none'
+  return customTemplate.id
 }
 
 function applyProviderTemplate(templateID: ProviderTemplateID) {
   providerTemplate.value = templateID
-  if (templateID === 'none') {
+
+  if (templateID === customTemplate.id) {
+    providerDraft.thinking_on = undefined
+    providerDraft.thinking_off = undefined
+    return
+  }
+
+  if (templateID.startsWith('vendor:')) {
+    // Vendor-only selection: pre-fill provider type + base_url, leave name
+    // and model blank for the user to enter. Useful for vendors we know
+    // about but haven't shipped a concrete model preset for.
+    const vendorId = templateID.slice('vendor:'.length)
+    const vendor = providerVendors.find((v) => v.id === vendorId)
+    if (!vendor) return
+    providerDraft.name = ''
+    providerDraft.provider = vendor.provider
+    providerDraft.model = ''
+    providerDraft.base_url = vendor.base_url
+    providerDraft.thinking_available = false
     providerDraft.thinking_on = undefined
     providerDraft.thinking_off = undefined
     return
   }
 
   const template = providerTemplates[templateID]
-  providerDraft.name = template.name
+  if (!template) return
+  providerDraft.name = `${template.vendorName} ${template.name}`
   providerDraft.provider = template.provider
   providerDraft.model = template.model
   providerDraft.base_url = template.base_url
   providerDraft.thinking_available = Boolean(template.thinking_available)
-  providerDraft.thinking_on = 'thinking_on' in template ? template.thinking_on : undefined
-  providerDraft.thinking_off = 'thinking_off' in template ? template.thinking_off : undefined
+  providerDraft.thinking_on = template.thinking_on
+  providerDraft.thinking_off = template.thinking_off
 }
 
 async function loadCoreConfig() {
@@ -459,8 +493,11 @@ function openAddProvider() {
   editorMode.value = 'add'
   editingProviderID.value = ''
   editorError.value = ''
-  providerTemplate.value = 'none'
   Object.assign(providerDraft, emptyProviderDraft())
+  // Pre-apply the configured default model so the editor opens with a
+  // working baseline (provider type, model name, base url, thinking
+  // toggles). User still has to fill in api_key.
+  applyProviderTemplate(defaultTemplateID)
   nextTick(() => {
     editorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   })
@@ -478,7 +515,7 @@ function cancelProviderEditor() {
   editorMode.value = null
   editingProviderID.value = ''
   editorError.value = ''
-  providerTemplate.value = 'none'
+  providerTemplate.value = customTemplate.id
   Object.assign(providerDraft, emptyProviderDraft())
 }
 
@@ -574,6 +611,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Breathing room below the last section so the last row doesn't sit
+   * flush against the modal's bottom edge / footer rule. */
+  padding-bottom: 32px;
 }
 
 .setting-row,

@@ -11,8 +11,12 @@
 
     <div class="form-grid">
       <div class="field">
-        <span class="field-label">{{ t('modal.quickAddTemplate') }}</span>
-        <PopupMenu :items="templateMenuItems" @select="onTemplateSelect">
+        <span class="field-label">{{ t('modal.addModel') }}</span>
+        <ProviderTemplateMenu
+          :selected-id="template"
+          :custom-label="t('welcome.customTemplate')"
+          @select="onTemplateSelect"
+        >
           <template #trigger="{ open, toggle }">
             <button
               type="button"
@@ -24,7 +28,7 @@
               <ArrowDropDownIcon class="chevron" aria-hidden="true" />
             </button>
           </template>
-        </PopupMenu>
+        </ProviderTemplateMenu>
       </div>
 
       <label class="field">
@@ -37,7 +41,7 @@
         />
       </label>
 
-      <div class="field">
+      <div v-if="!isTemplateLocked" class="field">
         <span class="field-label">{{ t('modal.providerType') }}</span>
         <PopupMenu :items="providerTypeMenuItems" @select="onProviderTypeSelect">
           <template #trigger="{ open, toggle }">
@@ -45,7 +49,6 @@
               type="button"
               class="input select-trigger"
               :class="{ open }"
-              :disabled="isTemplateLocked"
               @click="toggle"
             >
               <span class="select-label">{{ currentProviderTypeLabel }}</span>
@@ -55,14 +58,13 @@
         </PopupMenu>
       </div>
 
-      <label class="field">
+      <label v-if="!isTemplateLocked" class="field">
         <span class="field-label">{{ t('modal.providerModel') }}</span>
         <input
           v-model="draft.model"
           class="input mono"
           type="text"
           autocomplete="off"
-          :disabled="isTemplateLocked"
         />
       </label>
 
@@ -77,14 +79,13 @@
         <span class="field-hint">{{ t('welcome.apiKeyHint') }}</span>
       </label>
 
-      <label class="field field-wide">
+      <label v-if="!isTemplateLocked" class="field field-wide">
         <span class="field-label">{{ t('modal.providerBaseUrl') }}</span>
         <input
           v-model="draft.base_url"
           class="input mono"
           type="text"
           autocomplete="off"
-          :disabled="isTemplateLocked"
         />
       </label>
     </div>
@@ -101,19 +102,26 @@
 import { computed, reactive, ref } from 'vue'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
 import { saveConfig, type ConfigModelEntry, type CoreConfig } from '../../api/http'
-import { providerTemplateList, providerTemplates, type ProviderTemplateKey } from '../../constants/providerTemplates'
+import {
+  customTemplate,
+  defaultTemplateID,
+  providerTemplates,
+  providerVendors,
+} from '../../constants/providerTemplates'
 import { t } from '../../i18n'
 import AppButton from '../ui/AppButton.vue'
 import BaseModal from '../ui/BaseModal.vue'
 import PopupMenu, { type PopupMenuEntry } from '../ui/PopupMenu.vue'
+import ProviderTemplateMenu from '../ui/ProviderTemplateMenu.vue'
 
-type TemplateID = 'none' | ProviderTemplateKey
+// Same id shape as DesktopSettingsModal: 'custom' | 'vendor:<id>' | <modelID>.
+type TemplateID = string
 
 const emit = defineEmits<{
   (e: 'done', config: CoreConfig): void
 }>()
 
-const template = ref<TemplateID>('none')
+const template = ref<TemplateID>(defaultTemplateID)
 const saving = ref(false)
 const errorMessage = ref('')
 
@@ -129,22 +137,21 @@ const draft = reactive<ConfigModelEntry>({
   thinking_off: undefined,
 })
 
-const templateOptions = computed<Array<{ value: TemplateID; label: string }>>(() => [
-  { value: 'none', label: t('welcome.customTemplate') },
-  ...providerTemplateList.map((entry) => ({ value: entry.id, label: entry.name })),
-])
+// Apply the default template once at mount so the form opens with a
+// concrete preset (provider, model, base_url). User still has to fill
+// api_key.
+applyTemplate(defaultTemplateID)
 
-const templateMenuItems = computed<PopupMenuEntry[]>(() =>
-  templateOptions.value.map((option) => ({
-    key: option.value,
-    label: option.label,
-    selected: option.value === template.value,
-  }))
-)
-
-const currentTemplateLabel = computed(
-  () => templateOptions.value.find((o) => o.value === template.value)?.label ?? ''
-)
+const currentTemplateLabel = computed(() => {
+  const id = template.value
+  if (id === customTemplate.id) return t('welcome.customTemplate')
+  if (id.startsWith('vendor:')) {
+    const vendor = providerVendors.find((v) => `vendor:${v.id}` === id)
+    return vendor?.name ?? t('welcome.customTemplate')
+  }
+  const preset = providerTemplates[id]
+  return preset ? `${preset.vendorName} · ${preset.name}` : t('welcome.customTemplate')
+})
 
 const providerTypeOptions = computed(() => [
   { value: 'anthropic', label: t('modal.providerTypes.anthropic') },
@@ -163,7 +170,12 @@ const currentProviderTypeLabel = computed(
   () => providerTypeOptions.value.find((o) => o.value === draft.provider)?.label ?? ''
 )
 
-const isTemplateLocked = computed(() => template.value !== 'none')
+const isTemplateLocked = computed(
+  () =>
+    template.value !== customTemplate.id &&
+    !template.value.startsWith('vendor:') &&
+    Boolean(providerTemplates[template.value]),
+)
 
 const saveDisabled = computed(
   () =>
@@ -174,21 +186,42 @@ const saveDisabled = computed(
 )
 
 function onTemplateSelect(key: string) {
-  const id = key as TemplateID
+  applyTemplate(key as TemplateID)
+}
+
+function applyTemplate(id: TemplateID) {
   template.value = id
-  if (id === 'none') {
+
+  if (id === customTemplate.id) {
+    draft.name = ''
     draft.thinking_on = undefined
     draft.thinking_off = undefined
     return
   }
+
+  if (id.startsWith('vendor:')) {
+    const vendorId = id.slice('vendor:'.length)
+    const vendor = providerVendors.find((v) => v.id === vendorId)
+    if (!vendor) return
+    draft.name = ''
+    draft.provider = vendor.provider
+    draft.model = ''
+    draft.base_url = vendor.base_url
+    draft.thinking_available = false
+    draft.thinking_on = undefined
+    draft.thinking_off = undefined
+    return
+  }
+
   const preset = providerTemplates[id]
-  draft.name = preset.name
+  if (!preset) return
+  draft.name = `${preset.vendorName} ${preset.name}`
   draft.provider = preset.provider
   draft.model = preset.model
   draft.base_url = preset.base_url
   draft.thinking_available = Boolean(preset.thinking_available)
-  draft.thinking_on = 'thinking_on' in preset ? preset.thinking_on : undefined
-  draft.thinking_off = 'thinking_off' in preset ? preset.thinking_off : undefined
+  draft.thinking_on = preset.thinking_on
+  draft.thinking_off = preset.thinking_off
 }
 
 function onProviderTypeSelect(key: string) {

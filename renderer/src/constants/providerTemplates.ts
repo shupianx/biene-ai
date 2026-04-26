@@ -1,60 +1,164 @@
+import { markRaw, type Component } from 'vue'
 import type { ConfigModelEntry } from '../api/http'
+
+import RiDeepseekFill from '~icons/ri/deepseek-fill'
+import HugeiconsQwen from '~icons/hugeicons/qwen'
+import HugeiconsKimiAi from '~icons/hugeicons/kimi-ai'
+import MsTune from '~icons/material-symbols/tune-sharp'
 
 // `model` holds the thinking-OFF model name; the thinking toggle applies
 // `thinking_on` / `thinking_off` as a shallow JSON patch to the request body.
 // A patch may add a new field (Qwen), nest one (Kimi), or overwrite `model`
 // itself (DeepSeek swaps to deepseek-reasoner).
-type ProviderTemplateDefinition = Pick<
-  ConfigModelEntry,
-  'name' | 'provider' | 'model' | 'base_url' | 'thinking_available' | 'thinking_on' | 'thinking_off'
-> & {
+export type ProviderModelTemplate = {
+  /** Globally unique id used by detectProviderTemplate / applyProviderTemplate. */
   id: string
+  /** Short display label shown inside a vendor's submenu (e.g. "V3.2 (chat)"). */
+  name: string
+  /** API model string sent in the chat completion `model` field. */
+  model: string
+  thinking_available?: boolean
+  thinking_on?: ConfigModelEntry['thinking_on']
+  thinking_off?: ConfigModelEntry['thinking_off']
 }
 
-export const providerTemplateList = [
+export type ProviderVendor = {
+  id: string
+  name: string
+  icon: Component
+  provider: ConfigModelEntry['provider']
+  base_url: string
+  models: ProviderModelTemplate[]
+}
+
+/**
+ * Vendors are the L1 entries in the model picker. Each carries the shared
+ * provider type + base_url for all its models, plus an icon shown next to
+ * the vendor name in the menu.
+ */
+export const providerVendors: ProviderVendor[] = [
   {
-    id: 'deepseek-v3-2',
-    name: 'Deepseek-V3.2',
+    id: 'deepseek',
+    name: 'DeepSeek',
+    icon: markRaw(RiDeepseekFill),
     provider: 'openai_compatible',
-    model: 'deepseek-chat',
     base_url: 'https://api.deepseek.com',
-    thinking_available: true,
-    thinking_on: { model: 'deepseek-reasoner' },
+    models: [
+      {
+        id: 'deepseek-v4-pro',
+        name: 'V4-Pro',
+        model: 'deepseek-v4-pro',
+        thinking_available: true,
+        thinking_on: { thinking: { type: 'enabled' } },
+        thinking_off: { thinking: { type: 'disabled' } },
+      },
+      {
+        id: 'deepseek-v4-flash',
+        name: 'V4-Flash',
+        model: 'deepseek-v4-flash',
+        thinking_available: true,
+        thinking_on: { thinking: { type: 'enabled' } },
+        thinking_off: { thinking: { type: 'disabled' } },
+      },
+      {
+        id: 'deepseek-v3-2',
+        name: 'V3.2 (chat)',
+        model: 'deepseek-chat',
+        thinking_available: true,
+        thinking_on: { model: 'deepseek-reasoner' },
+      },
+      
+    ],
   },
   {
-    id: 'deepseek-v4-chat',
-    name: 'Deepseek-V4-chat',
+    id: 'qwen',
+    name: 'Qwen',
+    icon: markRaw(HugeiconsQwen),
     provider: 'openai_compatible',
-    model: 'deepseek-v4-flash',
-    base_url: 'https://api.deepseek.com',
-    thinking_available: true,
-    thinking_on: { thinking: {type: "enabled"} },
-    thinking_off: { thinking: {type: "disabled"} },
-  },
-  {
-    id: 'qwen3-6-plus',
-    name: 'Qwen3.6-plus',
-    provider: 'openai_compatible',
-    model: 'qwen3.6-plus',
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    thinking_available: true,
-    thinking_on: { enable_thinking: true },
-    thinking_off: { enable_thinking: false },
+    models: [
+      {
+        id: 'qwen3-6-plus',
+        name: 'Qwen3.6-plus',
+        model: 'qwen3.6-plus',
+        thinking_available: true,
+        thinking_on: { enable_thinking: true },
+        thinking_off: { enable_thinking: false },
+      },
+    ],
   },
   {
-    id: 'kimi-k2-6',
-    name: 'Kimi-K2.6',
+    id: 'kimi',
+    name: 'Kimi (Moonshot)',
+    icon: markRaw(HugeiconsKimiAi),
     provider: 'openai_compatible',
-    model: 'kimi-k2.6',
     base_url: 'https://api.moonshot.cn/v1',
-    thinking_available: true,
-    thinking_on: { thinking: { type: 'enabled' } },
-    thinking_off: { thinking: { type: 'disabled' } },
+    models: [
+      {
+        id: 'kimi-k2-6',
+        name: 'K2.6',
+        model: 'kimi-k2.6',
+        thinking_available: true,
+        thinking_on: { thinking: { type: 'enabled' } },
+        thinking_off: { thinking: { type: 'disabled' } },
+      },
+    ],
   },
-] as const satisfies readonly ProviderTemplateDefinition[]
+]
 
-export type ProviderTemplateKey = (typeof providerTemplateList)[number]['id']
+/**
+ * Custom provider sentinel — the L1 entry shown last so the user can
+ * always escape into a fully manual config.
+ */
+export const customTemplate = {
+  id: 'custom' as const,
+  icon: markRaw(MsTune),
+}
+export type CustomTemplateID = typeof customTemplate.id
 
-export const providerTemplates = Object.fromEntries(
-  providerTemplateList.map((template) => [template.id, template])
-) as Record<ProviderTemplateKey, (typeof providerTemplateList)[number]>
+/**
+ * Default L2 model id. Picked when the editor first opens. Change this one
+ * line to point at any model id under any vendor in `providerVendors`.
+ */
+export const defaultTemplateID = 'deepseek-v4-flash'
+
+// ── Flat dictionary for back-compat ────────────────────────────────────
+//
+// Many call sites (DesktopSettingsModal.detectProviderTemplate,
+// applyProviderTemplate, WelcomeModal preset flow) look up a template by
+// model id without caring which vendor it belongs to. Surface a flat
+// {[modelID]: FlatTemplate} dictionary that includes the vendor's
+// provider/base_url so the consumer can splat it onto a draft.
+
+export type ProviderTemplate = ProviderModelTemplate & {
+  vendorId: string
+  vendorName: string
+  provider: ConfigModelEntry['provider']
+  base_url: string
+}
+
+export const providerTemplates: Record<string, ProviderTemplate> = Object.fromEntries(
+  providerVendors.flatMap((vendor) =>
+    vendor.models.map((model) => [
+      model.id,
+      {
+        ...model,
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        provider: vendor.provider,
+        base_url: vendor.base_url,
+      } satisfies ProviderTemplate,
+    ]),
+  ),
+)
+
+export type ProviderTemplateKey = keyof typeof providerTemplates
+
+// Module-load guard: catch typos in defaultTemplateID at the earliest
+// possible moment instead of silently falling back to "Custom" the first
+// time someone opens the editor.
+if (!providerTemplates[defaultTemplateID]) {
+  throw new Error(
+    `providerTemplates: defaultTemplateID '${defaultTemplateID}' does not match any model id under providerVendors`,
+  )
+}
