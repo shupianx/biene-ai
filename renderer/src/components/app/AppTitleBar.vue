@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import RiSettings3Line from '~icons/ri/settings-3-line'
-import bieneLogo from '../../assets/biene-logo.svg'
+import bieneLogo from '../../assets/biene-logo.png'
 import { getDesktopBridge } from '../../runtime'
 import DesktopSettingsModal from './DesktopSettingsModal.vue'
 import IconButton from '../ui/IconButton.vue'
