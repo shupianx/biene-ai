@@ -14,12 +14,14 @@
     "package:desktop": "electron-builder --config electron-builder.json",
     "build": "node scripts/release.cjs all",
     "build:mac": "node scripts/release.cjs mac",
+    "build:mac:sign-only": "node scripts/release.cjs mac --sign-only",
     "build:win": "node scripts/release.cjs win",
     "release:mac": "node scripts/publish-github.cjs mac",
     "release:win": "node scripts/publish-github.cjs win",
     "release:all": "node scripts/publish-github.cjs mac win"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "electron": "^35.3.0",
     "electron-builder": "^26.0.12"
   }

@@ -6,6 +6,7 @@
     "buildResources": "build"
   },
   "forceCodeSigning": true,
+  "afterSign": "scripts/notarize.cjs",
   "files": [
     "electron/**/*",
     "renderer/dist/**/*",

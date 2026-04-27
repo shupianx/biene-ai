@@ -8,9 +8,19 @@ const releaseDir = path.join(rootDir, 'release')
 const tempDir = path.join(releaseDir, '.tmp')
 const builderCacheDir = path.join(rootDir, '.cache', 'electron-builder')
 
-const mode = process.argv[2] || 'all'
+const cliArgs = process.argv.slice(2)
+const flags = new Set(cliArgs.filter((arg) => arg.startsWith('--')))
+const mode = cliArgs.find((arg) => !arg.startsWith('--')) || 'all'
 const validModes = new Set(['mac', 'win', 'all'])
 let macSigningEnv = null
+
+// Default keeps the historical behaviour: build:mac and build (all) sign
+// + notarize + staple + verify before producing artifacts that publish
+// directly to GitHub. --sign-only opts into the fast local path that
+// signs the .app for testing on the developer's machines but skips
+// notarization (which takes 5–15 minutes against Apple's servers) and
+// the Gatekeeper-staple verification that depends on it.
+const macSignOnly = flags.has('--sign-only')
 
 if (!validModes.has(mode)) {
   console.error(`Unknown release mode: ${mode}`)
@@ -117,7 +127,22 @@ function buildCore(platform, arch, output) {
 function ensureMacSigningEnv() {
   if (process.env.BIENE_SKIP_MAC_SIGNING === '1') {
     console.warn('[release] BIENE_SKIP_MAC_SIGNING=1 — building unsigned macOS artifacts (will not run on other machines).')
-    return { skipSigning: true }
+    return { skipSigning: true, signOnly: false }
+  }
+
+  if (!hasMacSigningIdentity()) {
+    console.error('[release] Missing Developer ID Application signing identity.')
+    console.error('[release] Install a valid certificate in the keychain, or provide CSC_LINK/CSC_NAME for electron-builder.')
+    console.error('[release] Set BIENE_SKIP_MAC_SIGNING=1 only for local unsigned test builds.')
+    process.exit(1)
+  }
+
+  // Sign-only path stops here: no Apple notary credentials required, no
+  // notarytool / staple / spctl pass — just produce a signed bundle
+  // that runs locally for the developer.
+  if (macSignOnly) {
+    console.log('[release] --sign-only: signing artifacts without submitting to Apple notary.')
+    return { skipSigning: false, signOnly: true }
   }
 
   const hasAppleIdCredentials = Boolean(
@@ -136,18 +161,11 @@ function ensureMacSigningEnv() {
     console.error('[release] Provide one of:')
     console.error('[release]   APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID')
     console.error('[release]   APPLE_API_KEY + APPLE_API_KEY_ID + APPLE_API_ISSUER')
-    console.error('[release] Set them, or pass BIENE_SKIP_MAC_SIGNING=1 to build an unsigned artifact for local testing.')
+    console.error('[release] Set them, pass --sign-only to skip notarization, or pass BIENE_SKIP_MAC_SIGNING=1 to build an unsigned artifact for local testing.')
     process.exit(1)
   }
 
-  if (!hasMacSigningIdentity()) {
-    console.error('[release] Missing Developer ID Application signing identity.')
-    console.error('[release] Install a valid certificate in the keychain, or provide CSC_LINK/CSC_NAME for electron-builder.')
-    console.error('[release] Set BIENE_SKIP_MAC_SIGNING=1 only for local unsigned test builds.')
-    process.exit(1)
-  }
-
-  return { skipSigning: false }
+  return { skipSigning: false, signOnly: false }
 }
 
 function getMacSigningEnv() {
@@ -190,50 +208,22 @@ function findAppBundle(searchDir) {
   return ''
 }
 
-function buildNotarizeCredentialArgs() {
-  if (
-    process.env.APPLE_API_KEY &&
-    process.env.APPLE_API_KEY_ID &&
-    process.env.APPLE_API_ISSUER
-  ) {
-    return [
-      '--key', process.env.APPLE_API_KEY,
-      '--key-id', process.env.APPLE_API_KEY_ID,
-      '--issuer', process.env.APPLE_API_ISSUER,
-    ]
-  }
-  return [
-    '--apple-id', process.env.APPLE_ID,
-    '--password', process.env.APPLE_APP_SPECIFIC_PASSWORD,
-    '--team-id', process.env.APPLE_TEAM_ID,
-  ]
-}
-
-function notarizeMacDmg(dmgPath) {
-  const credArgs = buildNotarizeCredentialArgs()
-  console.log(`[release] Submitting ${path.basename(dmgPath)} to Apple notary (typically 5-15 minutes)...`)
-  run('xcrun', ['notarytool', 'submit', dmgPath, '--wait', ...credArgs])
-
-  console.log(`[release] Stapling notarization ticket to ${path.basename(dmgPath)}...`)
-  runChecked('xcrun', ['stapler', 'staple', dmgPath], 'staple DMG')
-}
-
-function validateMacDmg(dmgPath) {
-  console.log(`[release] Verifying notarized DMG ${path.basename(dmgPath)}...`)
-  runChecked('codesign', ['--verify', '--strict', '--verbose=2', dmgPath], 'codesign DMG')
-  runChecked('xcrun', ['stapler', 'validate', dmgPath], 'stapler DMG')
-  runChecked(
-    'spctl',
-    ['-a', '-vvv', '-t', 'open', '--context', 'context:primary-signature', dmgPath],
-    'Gatekeeper DMG',
+// Validation runs on the .app extracted from the auto-updater ZIP.
+// Both DMG and ZIP carry the same signed bundle that the afterSign hook
+// already submitted to Apple, so checking once (and the stapled ticket
+// embedded inside the .app) is enough to confirm the build.
+function validateMacApp({ requireStapled }) {
+  const platformDir = path.join(releaseDir, 'mac-arm64')
+  const updateDir = path.join(platformDir, 'update')
+  const zips = readdirSync(updateDir).filter(
+    (name) => name.endsWith('.zip') && !name.endsWith('.zip.blockmap'),
   )
-}
+  if (zips.length === 0) {
+    console.error(`[release] No update ZIP under ${updateDir} — nothing to validate.`)
+    process.exit(1)
+  }
+  const zipPath = path.join(updateDir, zips[0])
 
-// Auto-updater ZIP carries the same signed .app as the DMG, but it is not
-// individually notarized — the .app inside has no stapled ticket. Gatekeeper
-// will accept it via online notary lookup (Apple recognizes the hash from the
-// DMG submission). We only verify codesign integrity here.
-function validateMacZip(zipPath) {
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'biene-mac-zip-'))
   try {
     const extractDir = path.join(tempRoot, 'extract')
@@ -252,13 +242,21 @@ function validateMacZip(zipPath) {
       ['--verify', '--deep', '--strict', '--verbose=2', appPath],
       'codesign zip .app',
     )
+
+    if (requireStapled) {
+      // @electron/notarize stapled the ticket inside the .app bundle
+      // itself; this final stapler check confirms the round-trip with
+      // Apple's notary service actually completed.
+      console.log(`[release] Validating stapled notarization ticket on .app...`)
+      runChecked('xcrun', ['stapler', 'validate', appPath], 'stapler .app')
+    }
   } finally {
     cleanPath(tempRoot)
   }
 }
 
 function packageMac() {
-  const { skipSigning } = getMacSigningEnv()
+  const { skipSigning, signOnly } = getMacSigningEnv()
 
   const platformDir = path.join(releaseDir, 'mac-arm64')
   const updateDir = path.join(platformDir, 'update')
@@ -269,13 +267,21 @@ function packageMac() {
   ensureDir(updateDir)
 
   const signingOverrides = skipSigning
-    ? ['--config.forceCodeSigning=false', '--config.mac.identity=null', '--config.mac.notarize=false']
+    ? ['--config.forceCodeSigning=false', '--config.mac.identity=null']
     : []
+
+  // The afterSign hook (scripts/notarize.cjs) reads BIENE_SKIP_NOTARIZE
+  // to decide whether to submit the .app to Apple. Setting it for
+  // --sign-only builds keeps the hook in place without paying the
+  // 5–15-minute notarization tax during fast iteration.
+  const builderEnv = {}
+  if (signOnly) builderEnv.BIENE_SKIP_NOTARIZE = '1'
 
   buildCore('darwin', 'arm64', 'core/dist/biene-core')
 
-  // Single builder run produces both dmg and zip from the same signed/notarized .app,
-  // halving signing + notarization time vs. running electron-builder twice.
+  // Single builder run produces both dmg and zip from the same signed +
+  // (when applicable) notarized .app — afterSign stapled the ticket
+  // inside the .app, so both archives carry the offline-valid bundle.
   run('npm', [
     'run',
     'package:desktop',
@@ -284,24 +290,26 @@ function packageMac() {
     '--arm64',
     `--config.directories.output=${builderOutputDir}`,
     ...signingOverrides,
-  ])
+  ], builderEnv)
 
-  const dmgFiles = moveFiles(builderOutputDir, platformDir, (name) => name.endsWith('.dmg'))
-  const updateFiles = moveFiles(builderOutputDir, updateDir, (name) => (
+  moveFiles(builderOutputDir, platformDir, (name) => name.endsWith('.dmg'))
+  moveFiles(builderOutputDir, updateDir, (name) => (
     name === 'latest-mac.yml' ||
     name.endsWith('.zip') ||
     name.endsWith('.zip.blockmap')
   ))
 
-  if (!skipSigning) {
-    const dmgPath = dmgFiles.find((name) => name.endsWith('.dmg'))
-    const zipPath = updateFiles.find((name) => name.endsWith('.zip') && !name.endsWith('.zip.blockmap'))
-    if (!dmgPath) throw new Error('Missing expected macOS DMG artifact.')
-    if (!zipPath) throw new Error('Missing expected macOS update ZIP artifact.')
-    notarizeMacDmg(dmgPath)
-    validateMacDmg(dmgPath)
-    validateMacZip(zipPath)
+  if (skipSigning) return
+
+  if (signOnly) {
+    validateMacApp({ requireStapled: false })
+    console.log('[release] --sign-only build complete (no notarization).')
+    console.log('[release]   First-run users will need to right-click → Open or remove the quarantine xattr.')
+    return
   }
+
+  validateMacApp({ requireStapled: true })
+  console.log('[release] mac build complete: .app signed + notarized + ticket stapled in place.')
 }
 
 function packageWin() {
