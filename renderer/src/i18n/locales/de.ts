@@ -94,6 +94,7 @@ const de: Messages = {
     send: 'Senden',
     thinkingToggle: 'Denkmodus',
     attachImage: 'Bild anhängen',
+    attachImageUnsupported: 'Das aktuelle Modell akzeptiert keine Bildeingaben',
     removeImage: 'Bild entfernen',
     mention: {
       empty: 'Keine passenden Agenten',
@@ -184,6 +185,7 @@ const de: Messages = {
     providerDeleteInUseTooltip: 'Dieser Anbieter kann nicht gelöscht werden, weil er noch von {count} Agent(en) genutzt wird.',
     providerInUse: 'Von {count} Agent(en) genutzt',
     newAgentTitle: 'Neuer Agent',
+    avatarPicker: 'Avatar wählen',
     profile: 'Profil',
     style: 'Stil',
     domain: 'Bereich',

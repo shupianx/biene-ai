@@ -291,8 +291,8 @@ async function onRefresh() {
   }
 }
 
-async function onCreateAgent(name: string, modelID: string, permissions: SessionPermissions, profile: AgentProfile) {
-  const meta = await store.create(name, modelID, permissions, profile, { subscribe: false })
+async function onCreateAgent(name: string, modelID: string, permissions: SessionPermissions, profile: AgentProfile, avatar: string) {
+  const meta = await store.create(name, modelID, permissions, profile, avatar, { subscribe: false })
   showNewModal.value = false
   await openAgent(meta.id)
 }

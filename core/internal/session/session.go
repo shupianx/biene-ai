@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -114,12 +115,17 @@ type Session struct {
 	permissions       tools.PermissionSet
 	profile           prompt.AgentProfile
 	toolMode          ToolMode
+	// avatar is the persisted sprite index ("0".."19") chosen at creation
+	// from renderer/public/avatar_sprite.png. Empty means "not yet
+	// assigned" — the manager backfills it on the next persistence write.
+	avatar            string
 	modelID           string
 	modelName         string
 	thinkingAvailable bool
 	thinkingEnabled   bool
 	thinkingOn        map[string]any
 	thinkingOff       map[string]any
+	imagesAvailable   bool
 
 	// activeSkills tracks skills that have been loaded via use_skill during
 	// this session. Names are unique and kept in activation order.
@@ -182,10 +188,19 @@ type SessionMeta struct {
 	Name              string                    `json:"name"`
 	WorkDir           string                    `json:"work_dir"`
 	Status            SessionStatus             `json:"status"`
+	// Avatar is the sprite index ("0".."19") for this agent's robot icon.
+	// Persisted to meta.json so it stays stable across restarts and
+	// surfaces on every list/get response so the renderer can render the
+	// matching cell from public/avatar_sprite.png.
+	Avatar            string                    `json:"avatar,omitempty"`
 	ModelID           string                    `json:"model_id"`
 	ModelName         string                    `json:"model_name"`
 	ThinkingAvailable bool                      `json:"thinking_available,omitempty"`
 	ThinkingEnabled   bool                      `json:"thinking_enabled,omitempty"`
+	// ImagesAvailable is the resolved (default-true) flag the renderer uses
+	// to gate the composer's image attach control. Always emitted so the
+	// frontend can rely on `=== false` checks.
+	ImagesAvailable   bool                      `json:"images_available"`
 	Permissions       tools.PermissionSet       `json:"permissions"`
 	Profile           prompt.AgentProfile       `json:"profile"`
 	PendingPermission *PermissionRequestPayload `json:"pending_permission,omitempty"`
@@ -208,10 +223,12 @@ func (s *Session) metaLocked() SessionMeta {
 		Name:              s.Name,
 		WorkDir:           s.WorkDir,
 		Status:            s.Status,
+		Avatar:            s.avatar,
 		ModelID:           s.modelID,
 		ModelName:         s.modelName,
 		ThinkingAvailable: s.thinkingAvailable,
 		ThinkingEnabled:   s.thinkingEnabled,
+		ImagesAvailable:   s.imagesAvailable,
 		Permissions:       s.permissions,
 		Profile:           s.profile,
 		PendingPermission: clonePermissionPayload(s.pendingPermission),
@@ -262,6 +279,40 @@ func newSessionID() string {
 	b := make([]byte, 6)
 	_, _ = rand.Read(b)
 	return "sess_" + hex.EncodeToString(b)
+}
+
+// avatarSpriteCount must stay in sync with the layout of
+// renderer/public/avatar.png — 5 columns × 4 rows of 50×50 cells = 20.
+const avatarSpriteCount = 20
+
+// randomAvatar returns a sprite index (as a string) drawn uniformly at
+// random from the [0, avatarSpriteCount) range. Stored on the session so
+// every agent gets a stable robot face across restarts.
+func randomAvatar() string {
+	var b [1]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// Reading from crypto/rand is effectively infallible on supported
+		// platforms; fall back to index 0 rather than aborting session
+		// creation if the kernel ever does refuse us.
+		return "0"
+	}
+	return strconv.Itoa(int(b[0]) % avatarSpriteCount)
+}
+
+// resolveAvatar accepts a client-supplied avatar id and returns either it
+// (when it's a valid sprite index in [0, avatarSpriteCount)) or a freshly
+// randomised one. Anything outside the range — including an empty string,
+// non-numeric input, or a stale index from a future smaller sprite — is
+// treated as "let the server choose".
+func resolveAvatar(supplied string) string {
+	if supplied == "" {
+		return randomAvatar()
+	}
+	n, err := strconv.Atoi(supplied)
+	if err != nil || n < 0 || n >= avatarSpriteCount {
+		return randomAvatar()
+	}
+	return strconv.Itoa(n)
 }
 
 func newMsgID() string {

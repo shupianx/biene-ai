@@ -56,10 +56,18 @@ export interface SessionMeta {
   name: string
   work_dir: string
   status: 'idle' | 'running' | 'error'
+  // Sprite index ("0".."19") into renderer/public/avatar_sprite.png. The
+  // server picks one at session creation and backfills any legacy session
+  // missing this field, so it should always be present on a fresh load —
+  // but the type stays optional for safety against transient mismatches.
+  avatar?: string
   model_id: string
   model_name: string
   thinking_available?: boolean
   thinking_enabled?: boolean
+  // Defaults to true when unset. Only `false` disables the composer's
+  // image attachment control.
+  images_available?: boolean
   permissions: SessionPermissions
   profile: AgentProfile
   pending_permission?: import('../types/events').PermissionRequestData
@@ -78,6 +86,9 @@ export interface CreateSessionOptions {
   model_id?: string
   permissions?: SessionPermissions
   profile?: AgentProfile
+  // Sprite index ("0".."19") chosen by the user in the new-agent modal.
+  // Optional — when omitted, the server picks a random one.
+  avatar?: string
 }
 
 export function createSession(opts: CreateSessionOptions) {
@@ -233,6 +244,7 @@ export interface ConfigModelEntry {
   thinking_available?: boolean
   thinking_on?: Record<string, unknown>
   thinking_off?: Record<string, unknown>
+  images_available?: boolean
 }
 
 export interface CoreConfig {

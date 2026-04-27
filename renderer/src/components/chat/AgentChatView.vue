@@ -91,6 +91,7 @@
         :interrupting="session.isInterrupting"
         :thinking-available="session.meta.thinking_available"
         :thinking-enabled="Boolean(session.meta.thinking_enabled)"
+        :images-available="session.meta.images_available !== false"
         :mention-candidates="mentionCandidates"
         :skill-candidates="skillCandidates"
         @send="onSend"

@@ -27,10 +27,23 @@ type ModelEntry struct {
 	ThinkingAvailable bool           `json:"thinking_available,omitempty"`
 	ThinkingOn        map[string]any `json:"thinking_on,omitempty"`
 	ThinkingOff       map[string]any `json:"thinking_off,omitempty"`
+	// ImagesAvailable advertises whether the model accepts image inputs.
+	// `nil` means "unspecified" and is treated as true at every read site
+	// so existing entries (and hand-edited config files that omit the
+	// field) keep working. Only an explicit `false` makes the renderer
+	// hide its image attach control.
+	ImagesAvailable *bool `json:"images_available,omitempty"`
 }
 
 // Config is the root configuration structure.
+//
+// `Version` tracks the schema version this file was written under. When
+// Load() reads a file with a lower version, the migrations in
+// `configMigrations` are applied in order to bring it up to
+// `CurrentConfigVersion`. A missing field decodes as 0, which matches the
+// pre-versioning baseline.
 type Config struct {
+	Version      int          `json:"version,omitempty"`
 	DefaultModel string       `json:"default_model"`
 	ModelList    []ModelEntry `json:"model_list"`
 }
@@ -47,6 +60,7 @@ type LoadResult struct {
 // configure their first provider before any agent can be created.
 func TemplateConfig() *Config {
 	return &Config{
+		Version:      CurrentConfigVersion,
 		DefaultModel: "",
 		ModelList:    []ModelEntry{},
 	}
@@ -85,8 +99,13 @@ func Load() (*LoadResult, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
-	needsSave := Normalize(&cfg)
-	if needsSave {
+	// Run schema migrations before Normalize so later steps see the
+	// upgraded shape. Migrate + Normalize are both idempotent, so calling
+	// them on every Load is safe; the boolean reports whether anything
+	// changed and only then do we rewrite the file.
+	migrated := Migrate(&cfg)
+	normalized := Normalize(&cfg)
+	if migrated || normalized {
 		if err := Save(&cfg); err != nil {
 			return nil, fmt.Errorf("updating config file: %w", err)
 		}
@@ -99,6 +118,7 @@ func Load() (*LoadResult, error) {
 
 // Save writes the config to ~/.biene/config.json, creating directories as needed.
 func Save(cfg *Config) error {
+	Migrate(cfg)
 	Normalize(cfg)
 	path, err := bienehome.ConfigPath()
 	if err != nil {

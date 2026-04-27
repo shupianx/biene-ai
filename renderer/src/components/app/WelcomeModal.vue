@@ -135,6 +135,7 @@ const draft = reactive<ConfigModelEntry>({
   thinking_available: false,
   thinking_on: undefined,
   thinking_off: undefined,
+  images_available: true,
 })
 
 // Apply the default template once at mount so the form opens with a
@@ -196,6 +197,7 @@ function applyTemplate(id: TemplateID) {
     draft.name = ''
     draft.thinking_on = undefined
     draft.thinking_off = undefined
+    draft.images_available = true
     return
   }
 
@@ -210,6 +212,7 @@ function applyTemplate(id: TemplateID) {
     draft.thinking_available = false
     draft.thinking_on = undefined
     draft.thinking_off = undefined
+    draft.images_available = true
     return
   }
 
@@ -222,6 +225,7 @@ function applyTemplate(id: TemplateID) {
   draft.thinking_available = Boolean(preset.thinking_available)
   draft.thinking_on = preset.thinking_on
   draft.thinking_off = preset.thinking_off
+  draft.images_available = preset.images_available !== false
 }
 
 function onProviderTypeSelect(key: string) {
@@ -254,6 +258,7 @@ async function submit() {
       thinking_available: Boolean(draft.thinking_available),
       thinking_on: draft.thinking_on,
       thinking_off: draft.thinking_off,
+      images_available: draft.images_available !== false,
     }
     const nextConfig: CoreConfig = {
       default_model: id,

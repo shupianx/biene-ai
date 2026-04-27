@@ -92,6 +92,7 @@ const en = {
     send: 'Send',
     thinkingToggle: 'Thinking Mode',
     attachImage: 'Attach image',
+    attachImageUnsupported: 'The current model does not accept image inputs',
     removeImage: 'Remove image',
     mention: {
       empty: 'No matching agents',
@@ -182,6 +183,7 @@ const en = {
     providerDeleteInUseTooltip: 'This provider cannot be deleted because it is still used by {count} agent(s).',
     providerInUse: 'Used by {count} agent(s)',
     newAgentTitle: 'New Agent',
+    avatarPicker: 'Pick avatar',
     profile: 'Profile',
     style: 'Style',
     domain: 'Domain',

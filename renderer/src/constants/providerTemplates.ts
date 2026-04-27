@@ -4,6 +4,8 @@ import type { ConfigModelEntry } from '../api/http'
 import RiDeepseekFill from '~icons/ri/deepseek-fill'
 import HugeiconsQwen from '~icons/hugeicons/qwen'
 import HugeiconsKimiAi from '~icons/hugeicons/kimi-ai'
+import SimpleIconsAnthropic from '~icons/simple-icons/anthropic'
+import SimpleIconsOpenai from '~icons/simple-icons/openai'
 import MsTune from '~icons/material-symbols/tune-sharp'
 
 // `model` holds the thinking-OFF model name; the thinking toggle applies
@@ -20,6 +22,12 @@ export type ProviderModelTemplate = {
   thinking_available?: boolean
   thinking_on?: ConfigModelEntry['thinking_on']
   thinking_off?: ConfigModelEntry['thinking_off']
+  /**
+   * Whether the model accepts image inputs. Default (unset) is treated as
+   * `true`; templates for vision-incapable models should set this to
+   * `false` so the composer hides the image attachment control.
+   */
+  images_available?: boolean
 }
 
 export type ProviderVendor = {
@@ -38,6 +46,50 @@ export type ProviderVendor = {
  */
 export const providerVendors: ProviderVendor[] = [
   {
+    id: 'anthropic',
+    name: 'Anthropic',
+    icon: markRaw(SimpleIconsAnthropic),
+    provider: 'anthropic',
+    base_url: 'https://api.anthropic.com',
+    models: [
+      {
+        id: 'claude-opus-4-7',
+        name: 'Opus 4.7',
+        model: 'claude-opus-4-7',
+        thinking_available: true,
+        thinking_on: { thinking: { type: 'enabled', budget_tokens: 8000 } },
+        thinking_off: { thinking: { type: 'disabled' } },
+      },
+      {
+        id: 'claude-sonnet-4-6',
+        name: 'Sonnet 4.6',
+        model: 'claude-sonnet-4-6',
+        thinking_available: true,
+        thinking_on: { thinking: { type: 'enabled', budget_tokens: 8000 } },
+        thinking_off: { thinking: { type: 'disabled' } },
+      },
+    ],
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    icon: markRaw(SimpleIconsOpenai),
+    provider: 'openai_compatible',
+    base_url: 'https://api.openai.com/v1',
+    models: [
+      {
+        id: 'gpt-5-5',
+        name: 'GPT-5.5',
+        model: 'gpt-5.5',
+      },
+      {
+        id: 'gpt-5-4',
+        name: 'GPT-5.4',
+        model: 'gpt-5.4',
+      },
+    ],
+  },
+  {
     id: 'deepseek',
     name: 'DeepSeek',
     icon: markRaw(RiDeepseekFill),
@@ -51,6 +103,7 @@ export const providerVendors: ProviderVendor[] = [
         thinking_available: true,
         thinking_on: { thinking: { type: 'enabled' } },
         thinking_off: { thinking: { type: 'disabled' } },
+        images_available: false,
       },
       {
         id: 'deepseek-v4-flash',
@@ -59,6 +112,7 @@ export const providerVendors: ProviderVendor[] = [
         thinking_available: true,
         thinking_on: { thinking: { type: 'enabled' } },
         thinking_off: { thinking: { type: 'disabled' } },
+        images_available: false,
       },
       {
         id: 'deepseek-v3-2',

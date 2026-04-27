@@ -22,6 +22,11 @@ type createSessionRequest struct {
 	ModelID     string               `json:"model_id"`
 	Permissions *tools.PermissionSet `json:"permissions"`
 	Profile     *prompt.AgentProfile `json:"profile"`
+	// Avatar lets the client pick the sprite cell (string "0".."19"). Empty
+	// or out-of-range values fall back to a server-side random pick — this
+	// keeps legacy clients working and means a misconfigured renderer
+	// can't ship a session with no avatar at all.
+	Avatar string `json:"avatar"`
 }
 
 // handleCreateSession creates a new agent session with its own workspace.
@@ -47,7 +52,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if req.Profile != nil {
 		profile = *req.Profile
 	}
-	sess, err := s.mgr.Create(req.Name, perms, profile, req.ModelID)
+	sess, err := s.mgr.Create(req.Name, perms, profile, req.ModelID, req.Avatar)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

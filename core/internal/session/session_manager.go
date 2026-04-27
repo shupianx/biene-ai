@@ -161,6 +161,12 @@ func (m *SessionManager) Init() {
 				slog.Error("init: save thinking state", "session_id", id, "err", err)
 			}
 		}
+		if meta.Avatar == "" {
+			meta.Avatar = randomAvatar()
+			if err := st.SaveMeta(meta); err != nil {
+				slog.Error("init: save backfilled avatar", "session_id", id, "err", err)
+			}
+		}
 		provider := newProvider(modelEntry)
 		registry := builtins.RegistryForWorkDir(workDir)
 		checker := webperm.NewChecker(perms)
@@ -197,6 +203,8 @@ func (m *SessionManager) Init() {
 			thinkingEnabled:   thinkingEnabled,
 			thinkingOn:        modelEntry.ThinkingOn,
 			thinkingOff:       modelEntry.ThinkingOff,
+			imagesAvailable:   resolveImagesAvailable(modelEntry),
+			avatar:            meta.Avatar,
 			activeSkills:      append([]string(nil), meta.ActiveSkills...),
 			installedSkillIDs: installedIDs,
 			coworksGranted:    append([]GrantedCowork(nil), meta.CoworksGranted...),
@@ -231,7 +239,12 @@ func (m *SessionManager) Init() {
 }
 
 // Create allocates a new session with its own workspace directory.
-func (m *SessionManager) Create(name string, permissions tools.PermissionSet, profile prompt.AgentProfile, modelID string) (*Session, error) {
+//
+// `avatar` is optional: pass a sprite index ("0".."avatarSpriteCount-1") to
+// honour an explicit pick from the renderer, or "" to let the server
+// randomise. Anything else outside the valid range falls back to random
+// rather than failing the create call.
+func (m *SessionManager) Create(name string, permissions tools.PermissionSet, profile prompt.AgentProfile, modelID, avatar string) (*Session, error) {
 	id := newSessionID()
 	workDir := filepath.Join(m.workspaceRoot, id)
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -287,6 +300,8 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		thinkingEnabled:   false,
 		thinkingOn:        modelEntry.ThinkingOn,
 		thinkingOff:       modelEntry.ThinkingOff,
+		imagesAvailable:   resolveImagesAvailable(modelEntry),
+		avatar:            resolveAvatar(avatar),
 		installedSkillIDs: installedIDs,
 		apiMessages:       []api.Message{},
 		history:           []DisplayMessage{},

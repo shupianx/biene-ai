@@ -1,19 +1,51 @@
 <template>
   <BaseModal :title="t('modal.newAgentTitle')" @close="emit('close')">
-    <label class="field">
+    <div class="field">
       <span class="label">{{ t('agentName.label') }}</span>
-      <input
-        ref="nameInput"
-        v-model="name"
-        class="input"
-        :class="{ invalid: nameConflict }"
-        :placeholder="defaultName"
-        @keydown.enter="onNameEnter"
-        @compositionstart="onCompositionStart"
-        @compositionend="onCompositionEnd"
-      />
+      <div class="name-row">
+        <button
+          ref="avatarTriggerRef"
+          type="button"
+          class="avatar-trigger"
+          :class="{ open: avatarPickerOpen }"
+          :aria-label="t('modal.avatarPicker')"
+          :title="t('modal.avatarPicker')"
+          @click="toggleAvatarPicker"
+        >
+          <AgentAvatar :index="selectedAvatar" :size="32" />
+        </button>
+        <input
+          ref="nameInput"
+          v-model="name"
+          class="input name-input"
+          :class="{ invalid: nameConflict }"
+          :placeholder="defaultName"
+          @keydown.enter="onNameEnter"
+          @compositionstart="onCompositionStart"
+          @compositionend="onCompositionEnd"
+        />
+        <div
+          v-if="avatarPickerOpen"
+          ref="avatarPickerRef"
+          class="avatar-picker"
+          role="listbox"
+          :aria-label="t('modal.avatarPicker')"
+        >
+          <button
+            v-for="idx in avatarChoices"
+            :key="idx"
+            type="button"
+            class="avatar-option"
+            :class="{ selected: idx === selectedAvatar }"
+            :aria-selected="idx === selectedAvatar"
+            @click="pickAvatar(idx)"
+          >
+            <AgentAvatar :index="idx" :size="36" />
+          </button>
+        </div>
+      </div>
       <span v-if="nameConflict" class="error-text">{{ t('agentName.exists') }}</span>
-    </label>
+    </div>
 
     <div class="field">
       <span class="label">{{ t('modal.agentModel') }}</span>
@@ -129,9 +161,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
 import { fetchConfig, type AgentProfile, type ConfigModelEntry, type SessionPermissions } from '../../api/http'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
+import AgentAvatar from '../ui/AgentAvatar.vue'
 import AppButton from '../ui/AppButton.vue'
 import AutoGrowTextarea from '../ui/AutoGrowTextarea.vue'
 import BaseModal from '../ui/BaseModal.vue'
@@ -154,8 +187,16 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'create', name: string, modelID: string, permissions: SessionPermissions, profile: AgentProfile): void
+  (e: 'create', name: string, modelID: string, permissions: SessionPermissions, profile: AgentProfile, avatar: string): void
 }>()
+
+// Sprite layout — keep in sync with AgentAvatar.vue. 5 cols × 4 rows = 20.
+const AVATAR_TOTAL = 20
+const avatarChoices = Array.from({ length: AVATAR_TOTAL }, (_, i) => i)
+
+function randomAvatarIndex() {
+  return Math.floor(Math.random() * AVATAR_TOTAL)
+}
 
 const name = ref('')
 const selectedModelID = ref('')
@@ -166,11 +207,51 @@ const nameInput = ref<HTMLInputElement | null>(null)
 const configLoading = ref(false)
 const configError = ref('')
 const modelOptions = ref<ConfigModelEntry[]>([])
+// Pre-roll a random avatar so the modal opens with a concrete face — the
+// user only has to interact with the picker if they want to change it.
+const selectedAvatar = ref(randomAvatarIndex())
+const avatarPickerOpen = ref(false)
+const avatarTriggerRef = ref<HTMLButtonElement | null>(null)
+const avatarPickerRef = ref<HTMLDivElement | null>(null)
 
 onMounted(() => {
   nameInput.value?.focus()
   void loadModelOptions()
+  document.addEventListener('mousedown', onDocumentMouseDown)
+  document.addEventListener('keydown', onDocumentKeyDown)
 })
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', onDocumentMouseDown)
+  document.removeEventListener('keydown', onDocumentKeyDown)
+})
+
+function toggleAvatarPicker() {
+  avatarPickerOpen.value = !avatarPickerOpen.value
+}
+
+function pickAvatar(idx: number) {
+  selectedAvatar.value = idx
+  avatarPickerOpen.value = false
+}
+
+// Close the picker when the user clicks outside it. Listening on
+// `mousedown` rather than `click` lets us swallow the press before the
+// trigger button toggles itself back open on the same gesture.
+function onDocumentMouseDown(event: MouseEvent) {
+  if (!avatarPickerOpen.value) return
+  const target = event.target as Node | null
+  if (!target) return
+  if (avatarTriggerRef.value?.contains(target)) return
+  if (avatarPickerRef.value?.contains(target)) return
+  avatarPickerOpen.value = false
+}
+
+function onDocumentKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && avatarPickerOpen.value) {
+    avatarPickerOpen.value = false
+  }
+}
 
 const domainOptions = computed(() =>
   listDomainOptions(profile.value.domain)
@@ -305,6 +386,7 @@ function submit() {
     selectedModelID.value,
     { ...permissions.value },
     { ...profile.value, custom_instructions: (profile.value.custom_instructions ?? '').trim() },
+    String(selectedAvatar.value),
   )
 }
 </script>
@@ -412,6 +494,88 @@ function submit() {
 
 .input.invalid {
   border-color: var(--err);
+}
+
+.name-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.name-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.avatar-trigger {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rule-soft);
+  background: var(--panel-2);
+  cursor: pointer;
+  transition: border-color .12s, box-shadow .12s;
+}
+
+.avatar-trigger:hover {
+  border-color: var(--rule);
+}
+
+.avatar-trigger.open,
+.avatar-trigger:focus-visible {
+  border-color: var(--ink);
+  box-shadow: 2px 2px 0 0 var(--rule);
+  outline: none;
+}
+
+/* Float the picker just below the trigger so the modal layout doesn't
+ * jump when it opens. The grid mirrors the sprite (5×4) and uses the
+ * sprite's natural pixel-art style. */
+.avatar-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(5, 44px);
+  gap: 4px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  box-shadow: 4px 4px 0 0 var(--rule);
+}
+
+.avatar-option {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: border-color .12s, background-color .12s;
+}
+
+.avatar-option:hover {
+  border-color: var(--rule-soft);
+  background: var(--bg-2);
+}
+
+.avatar-option.selected {
+  border-color: var(--ink);
+  background: var(--bg-2);
+}
+
+.avatar-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .profile-grid {

@@ -94,6 +94,7 @@ const zh: Messages = {
     send: '发送',
     thinkingToggle: '思考模式',
     attachImage: '添加图片',
+    attachImageUnsupported: '当前模型不支持发送图片',
     removeImage: '移除图片',
     mention: {
       empty: '没有匹配的智能体',
@@ -184,6 +185,7 @@ const zh: Messages = {
     providerDeleteInUseTooltip: '这个服务商目前仍被 {count} 个智能体使用，所以不能删除。',
     providerInUse: '正在被 {count} 个智能体使用',
     newAgentTitle: '新建智能体',
+    avatarPicker: '选择头像',
     profile: '配置',
     style: '风格',
     domain: '领域',

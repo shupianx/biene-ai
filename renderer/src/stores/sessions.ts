@@ -177,9 +177,10 @@ export const useSessionsStore = defineStore('sessions', () => {
     modelID: string,
     permissions: SessionPermissions,
     profile: AgentProfile,
+    avatar: string,
     options: AttachOptions = {},
   ) {
-    const meta = await createSession({ name, model_id: modelID, permissions, profile })
+    const meta = await createSession({ name, model_id: modelID, permissions, profile, avatar })
     await _attach(meta, options)
     return meta
   }

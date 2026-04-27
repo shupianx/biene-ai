@@ -38,14 +38,16 @@
       <div class="composer-actions">
         <IconButton
           class="attach-btn"
+          :class="{ unsupported: imagesAvailable === false }"
           :disabled="disabled"
-          :aria-label="t('input.attachImage')"
-          :title="t('input.attachImage')"
+          :aria-label="attachImageLabel"
+          :title="attachImageLabel"
           @click="openFilePicker"
         >
           <MaterialSymbolsImageOutline class="attach-icon" aria-hidden="true" />
         </IconButton>
         <input
+          v-if="imagesAvailable !== false"
           ref="fileInputRef"
           class="file-input"
           type="file"
@@ -123,6 +125,11 @@ const props = defineProps<{
   interrupting?: boolean
   thinkingAvailable?: boolean
   thinkingEnabled?: boolean
+  // Whether the active model accepts image inputs. Defaults to true; only
+  // an explicit `false` (declared via the provider template's
+  // `images_available` flag) hides the attach control and silently drops
+  // pasted images.
+  imagesAvailable?: boolean
   mentionCandidates?: MentionCandidate[]
   skillCandidates?: MentionCandidate[]
 }>()
@@ -198,6 +205,12 @@ const actionLabel = computed(() => {
   }
   return t('input.send')
 })
+
+const attachImageLabel = computed(() =>
+  props.imagesAvailable === false
+    ? t('input.attachImageUnsupported')
+    : t('input.attachImage')
+)
 
 // ── Composition (IME) ─────────────────────────────────────────────────────
 
@@ -465,17 +478,21 @@ function onPaste(event: ClipboardEvent) {
   const cd = event.clipboardData
   if (!cd) return
 
-  const images: File[] = []
-  for (const item of Array.from(cd.items)) {
-    if (item.kind !== 'file') continue
-    if (!item.type.startsWith('image/')) continue
-    const file = item.getAsFile()
-    if (file) images.push(file)
-  }
-  if (images.length) {
-    event.preventDefault()
-    stageImages(images)
-    return
+  // When the active model can't accept images, drop pasted image data on
+  // the floor and fall through to the text branch instead of staging.
+  if (props.imagesAvailable !== false) {
+    const images: File[] = []
+    for (const item of Array.from(cd.items)) {
+      if (item.kind !== 'file') continue
+      if (!item.type.startsWith('image/')) continue
+      const file = item.getAsFile()
+      if (file) images.push(file)
+    }
+    if (images.length) {
+      event.preventDefault()
+      stageImages(images)
+      return
+    }
   }
 
   const text = cd.getData('text/plain')
@@ -553,6 +570,7 @@ function handleAction() {
 // ── Image attachments (unchanged) ─────────────────────────────────────────
 
 function openFilePicker() {
+  if (props.imagesAvailable === false) return
   fileInputRef.value?.click()
 }
 
@@ -732,6 +750,20 @@ onBeforeUnmount(() => {
 
 .attach-btn {
   margin-right: auto;
+}
+
+/* When the active model can't accept images, dim the button to half
+ * opacity instead of removing it. The button still receives hover so the
+ * tooltip explaining the unsupported state can show; clicks are
+ * intercepted in the JS handler. */
+.attach-btn.unsupported {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.attach-btn.unsupported:hover:not(:disabled) {
+  background: transparent;
+  color: var(--ink-3);
 }
 
 .attach-icon {

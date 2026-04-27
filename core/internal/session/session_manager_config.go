@@ -7,6 +7,15 @@ import (
 	"biene/internal/config"
 )
 
+// resolveImagesAvailable applies the default-true semantics for
+// ModelEntry.ImagesAvailable (nil → true).
+func resolveImagesAvailable(entry config.ModelEntry) bool {
+	if entry.ImagesAvailable == nil {
+		return true
+	}
+	return *entry.ImagesAvailable
+}
+
 func resolveModelEntry(cfg *config.Config, requestedID string) (config.ModelEntry, string, error) {
 	requestedID = strings.TrimSpace(requestedID)
 	if requestedID != "" {
@@ -79,6 +88,7 @@ func (m *SessionManager) UpdateConfig(cfg *config.Config) error {
 		sess.thinkingEnabled = thinkingEnabled
 		sess.thinkingOn = modelEntry.ThinkingOn
 		sess.thinkingOff = modelEntry.ThinkingOff
+		sess.imagesAvailable = resolveImagesAvailable(modelEntry)
 		meta := sess.metaLocked()
 		persistedMeta := sess.persistentMetaLocked()
 		sess.mu.Unlock()

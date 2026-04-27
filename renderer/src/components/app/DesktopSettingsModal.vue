@@ -335,6 +335,7 @@ function emptyProviderDraft(): ConfigModelEntry {
     thinking_available: false,
     thinking_on: undefined,
     thinking_off: undefined,
+    images_available: true,
   }
 }
 
@@ -349,6 +350,7 @@ function cloneProvider(entry: ConfigModelEntry): ConfigModelEntry {
     thinking_available: Boolean(entry.thinking_available),
     thinking_on: entry.thinking_on,
     thinking_off: entry.thinking_off,
+    images_available: entry.images_available !== false,
   }
 }
 
@@ -408,7 +410,8 @@ function detectProviderTemplate(entry: ConfigModelEntry): ProviderTemplateID {
       entry.provider === template.provider &&
       entry.model === template.model &&
       entry.base_url === template.base_url &&
-      Boolean(entry.thinking_available) === Boolean(template.thinking_available)
+      Boolean(entry.thinking_available) === Boolean(template.thinking_available) &&
+      (entry.images_available !== false) === (template.images_available !== false)
     ) {
       return id
     }
@@ -422,6 +425,7 @@ function applyProviderTemplate(templateID: ProviderTemplateID) {
   if (templateID === customTemplate.id) {
     providerDraft.thinking_on = undefined
     providerDraft.thinking_off = undefined
+    providerDraft.images_available = true
     return
   }
 
@@ -439,6 +443,7 @@ function applyProviderTemplate(templateID: ProviderTemplateID) {
     providerDraft.thinking_available = false
     providerDraft.thinking_on = undefined
     providerDraft.thinking_off = undefined
+    providerDraft.images_available = true
     return
   }
 
@@ -451,6 +456,7 @@ function applyProviderTemplate(templateID: ProviderTemplateID) {
   providerDraft.thinking_available = Boolean(template.thinking_available)
   providerDraft.thinking_on = template.thinking_on
   providerDraft.thinking_off = template.thinking_off
+  providerDraft.images_available = template.images_available !== false
 }
 
 async function loadCoreConfig() {
@@ -535,6 +541,7 @@ async function saveProviderDraft() {
     thinking_available: Boolean(providerDraft.thinking_available),
     thinking_on: providerDraft.thinking_on,
     thinking_off: providerDraft.thinking_off,
+    images_available: providerDraft.images_available !== false,
   }
 
   if (!nextEntry.name) {

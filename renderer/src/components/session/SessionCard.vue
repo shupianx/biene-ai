@@ -13,6 +13,15 @@
     <!-- Top strip: name + menu -->
     <div class="top-strip">
       <div class="title-row">
+        <AgentAvatar
+          class="card-avatar"
+          :index="session.meta.avatar"
+          :size="25"
+          :state="statusTone"
+          :installing="isDropTarget"
+          :install-flash="installFlash"
+          :aria-label="session.meta.name"
+        />
         <div class="name" :title="session.meta.name">{{ session.meta.name }}</div>
         <div class="title-path" :title="session.meta.work_dir">
           <MaterialSymbolsFolderSharp class="path-icon" aria-hidden="true" />
@@ -66,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import CiOctagonWarning from '~icons/ci/octagon-warning'
 import MaterialSymbolsFolderSharp from '~icons/material-symbols/folder-sharp'
 import MaterialSymbolsCheck from '~icons/material-symbols/check'
@@ -82,6 +91,7 @@ import { formatMessageTime } from '../../utils/messageTime'
 import PopupMenu, { type PopupMenuEntry } from '../ui/PopupMenu.vue'
 import ConfirmModal from '../ui/ConfirmModal.vue'
 import NoticeBoard from '../ui/NoticeBoard.vue'
+import AgentAvatar from '../ui/AgentAvatar.vue'
 import { createNoticeId, type Notice } from '../ui/notice'
 
 const TRANSIENT_TTL_MS = 2400
@@ -201,8 +211,21 @@ function onMenuSelect(key: string) {
 const dragDepth = ref(0)
 const installingSkill = ref(false)
 const conflict = ref<{ skillId: string; skillName: string } | null>(null)
+// Drives the avatar's celebration overlay for the brief window after
+// a successful skill install. Held independently of the install API
+// call so the flash duration is decoupled from network latency.
+const installFlash = ref(false)
+let installFlashTimer: ReturnType<typeof setTimeout> | null = null
+const INSTALL_FLASH_MS = 1500
 
 const isDropTarget = computed(() => dragDepth.value > 0)
+
+onBeforeUnmount(() => {
+  if (installFlashTimer != null) {
+    clearTimeout(installFlashTimer)
+    installFlashTimer = null
+  }
+})
 
 function hasSkillPayload(event: DragEvent) {
   const types = event.dataTransfer?.types
@@ -234,6 +257,12 @@ async function performInstall(skillId: string) {
   installingSkill.value = true
   try {
     const result = await installSkillToSession(props.session.meta.id, skillId)
+    if (installFlashTimer != null) clearTimeout(installFlashTimer)
+    installFlash.value = true
+    installFlashTimer = setTimeout(() => {
+      installFlash.value = false
+      installFlashTimer = null
+    }, INSTALL_FLASH_MS)
     transients.value.push({
       id: createNoticeId('ok'),
       tone: 'ok',
@@ -369,6 +398,14 @@ async function onConflictConfirm() {
   align-items: center;
   gap: 10px;
   min-width: 0;
+}
+
+/* Pull the avatar closer to the card edge and the name. Negative margin
+ * on a flex item bites into the surrounding padding / gap so we can
+ * tighten the spacing without restyling the rest of the row. */
+.card-avatar {
+  margin-left: -4px;
+  margin-right: -2px;
 }
 
 .name {

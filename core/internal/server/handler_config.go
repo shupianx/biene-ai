@@ -18,6 +18,7 @@ type editableModelEntry struct {
 	ThinkingAvailable bool           `json:"thinking_available,omitempty"`
 	ThinkingOn        map[string]any `json:"thinking_on,omitempty"`
 	ThinkingOff       map[string]any `json:"thinking_off,omitempty"`
+	ImagesAvailable   *bool          `json:"images_available,omitempty"`
 }
 
 type editableConfig struct {
@@ -59,6 +60,7 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 			ThinkingAvailable: entry.ThinkingAvailable,
 			ThinkingOn:        entry.ThinkingOn,
 			ThinkingOff:       entry.ThinkingOff,
+			ImagesAvailable:   entry.ImagesAvailable,
 		}
 	}
 
@@ -140,6 +142,7 @@ func configResponse(cfg *config.Config) editableConfig {
 			ThinkingAvailable: e.ThinkingAvailable,
 			ThinkingOn:        e.ThinkingOn,
 			ThinkingOff:       e.ThinkingOff,
+			ImagesAvailable:   e.ImagesAvailable,
 		}
 	}
 
