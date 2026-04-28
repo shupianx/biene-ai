@@ -99,6 +99,9 @@ function createDraftRelease(tag) {
     '--draft',
     '--title', tag,
     '--notes', '',
+    // Mark every alpha/beta/rc tag as a pre-release on GitHub so the
+    // repo doesn't promote them as the latest stable.
+    ...(isPreReleaseTag(tag) ? ['--prerelease'] : []),
   ], { stdio: 'inherit', cwd: rootDir })
   if (result.status !== 0) {
     process.exit(result.status ?? 1)
@@ -128,11 +131,20 @@ function showReleaseUrl(tag) {
   }
 }
 
+// SemVer says any tag with a hyphen-separated identifier (e.g.
+// `v0.3.1-alpha`, `v1.0.0-beta.2`, `v2.0.0-rc.1`) is a pre-release.
+// We mirror that distinction onto GitHub's --prerelease flag.
+function isPreReleaseTag(tag) {
+  return /-(alpha|beta|rc|pre)/i.test(tag)
+}
+
 function main() {
   ensureGhAvailable()
 
   const version = readVersion()
   const tag = `v${version}`
+
+  console.log(`[publish] Version tag: ${tag}`)
 
   const stagingDir = path.join(releaseDir, '.publish-staging')
   rmSync(stagingDir, { force: true, recursive: true })

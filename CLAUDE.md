@@ -45,9 +45,38 @@ VITE_CORE_URL=http://127.0.0.1:8080 npm --prefix renderer run dev
 ```bash
 npm run build:core       # 将 Go 编译为二进制，输出到 core/dist/
 npm run build:renderer   # 类型检查 + vite build，输出到 renderer/dist/
-npm run build            # 串行执行上面两步
 npm run package:desktop  # electron-builder 打包，产物在 release/
+
+# 端到端构建（含签名 + 公证 + 平台分发包）
+npm run build            # mac + win，调 scripts/release.cjs
+npm run build:mac        # 只 mac
+npm run build:win        # 只 win
 ```
+
+### 发布到 GitHub
+
+源码 + 二进制都发到 `shupianx/biene-ai`（当前是私有仓库 ——
+release assets 仅 collaborator 能下载）。`scripts/publish-github.cjs`
+通过 `gh release create` 在当前 origin 创建 draft release 并上传
+electron-builder 的产物。
+
+```bash
+# 一次性安装 + 登录
+brew install gh
+gh auth login
+
+# 发布流程（基于当前 package.json 的 version → tag v<version>）
+git push origin main --follow-tags    # 把 tag 推到 origin
+npm run build:mac                      # 构建 mac (.dmg + .zip + latest-mac.yml)
+npm run release:mac                    # 创建 draft release + 上传
+
+# 然后浏览器打开返回的 URL，编辑 release notes，点 "Publish release"
+```
+
+带 `-alpha` / `-beta` / `-rc` 后缀的 tag 会被自动标记为 GitHub
+pre-release（不会成为仓库的 "latest"）。
+
+`gh auth status` 要登录，且账号对仓库有写权限。
 
 ### Core（Go）
 
