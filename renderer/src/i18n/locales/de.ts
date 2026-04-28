@@ -130,6 +130,9 @@ const de: Messages = {
     errorEmpty: 'Name erforderlich',
     errorTaken: 'Ein Agent mit diesem Namen existiert bereits',
   },
+  about: {
+    title: 'Über Biene',
+  },
   process: {
     logs: 'Protokoll',
     expand: 'Ausklappen',

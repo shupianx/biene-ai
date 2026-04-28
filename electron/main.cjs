@@ -654,13 +654,13 @@ function showSettingsMenu(event, labels) {
     {
       label: menuLabels.about,
       click: () => {
-        dialog.showMessageBox(win, {
-          type: 'info',
-          title: 'Biene',
-          message: 'Biene',
-          detail: `Version ${app.getVersion()}`,
-          buttons: ['OK'],
-        })
+        // Renderer owns the About modal so it follows the app's
+        // visual language (BaseModal + blueprint mono tags). The
+        // native dialog.showMessageBox path was inconsistent with
+        // every other dialog in the app and unstyleable.
+        if (!win.isDestroyed()) {
+          win.webContents.send('desktop:settingsMenuAction', { action: 'about' })
+        }
       },
     },
   ])

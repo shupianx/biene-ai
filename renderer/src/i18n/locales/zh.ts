@@ -130,6 +130,9 @@ const zh: Messages = {
     errorEmpty: '请输入名字',
     errorTaken: '已存在同名智能体',
   },
+  about: {
+    title: '关于 Biene',
+  },
   process: {
     logs: '日志',
     expand: '展开',

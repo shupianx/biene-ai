@@ -128,6 +128,9 @@ const en = {
     errorEmpty: 'Name is required',
     errorTaken: 'An agent with this name already exists',
   },
+  about: {
+    title: 'About Biene',
+  },
   process: {
     logs: 'Logs',
     expand: 'Expand',

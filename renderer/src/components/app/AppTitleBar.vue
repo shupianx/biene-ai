@@ -27,6 +27,7 @@
       </IconButton>
     </div>
     <DesktopSettingsModal v-if="settingsModalOpen" @close="settingsModalOpen = false" />
+    <AboutModal v-if="aboutModalOpen" @close="aboutModalOpen = false" />
   </header>
 </template>
 
@@ -36,6 +37,7 @@ import RiSettings3Line from '~icons/ri/settings-3-line'
 import bieneLogo from '../../assets/biene-logo.png'
 import { getDesktopBridge } from '../../runtime'
 import DesktopSettingsModal from './DesktopSettingsModal.vue'
+import AboutModal from './AboutModal.vue'
 import IconButton from '../ui/IconButton.vue'
 import { t } from '../../i18n'
 
@@ -44,6 +46,7 @@ const platform = bridge?.platform ?? 'web'
 const isElectron = bridge?.isElectron ?? false
 const windowKind = bridge?.windowKind ?? 'main'
 const settingsModalOpen = ref(false)
+const aboutModalOpen = ref(false)
 const settingsIconRotation = ref(0)
 const contextLabel = computed(() => t('titleBar.context'))
 
@@ -67,6 +70,8 @@ function onSettingsMenuAction(event: Event) {
   const detail = (event as CustomEvent<{ action?: string }>).detail
   if (detail?.action === 'settings') {
     settingsModalOpen.value = true
+  } else if (detail?.action === 'about') {
+    aboutModalOpen.value = true
   }
 }
 
