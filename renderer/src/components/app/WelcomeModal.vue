@@ -102,12 +102,8 @@
 import { computed, reactive, ref } from 'vue'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
 import { saveConfig, type ConfigModelEntry, type CoreConfig } from '../../api/http'
-import {
-  customTemplate,
-  defaultTemplateID,
-  providerTemplates,
-  providerVendors,
-} from '../../constants/providerTemplates'
+import { customTemplate, defaultTemplateID, type ProviderVendor } from '../../constants/providerTemplates'
+import { useProviderTemplatesStore } from '../../stores/providerTemplates'
 import { t } from '../../i18n'
 import AppButton from '../ui/AppButton.vue'
 import BaseModal from '../ui/BaseModal.vue'
@@ -124,6 +120,10 @@ const emit = defineEmits<{
 const template = ref<TemplateID>(defaultTemplateID)
 const saving = ref(false)
 const errorMessage = ref('')
+const tplStore = useProviderTemplatesStore()
+// Templates are fetched at app boot; the modal also kicks off a load to
+// stay safe when opened directly (e.g. dev hot reload).
+void tplStore.ensureLoaded()
 
 const draft = reactive<ConfigModelEntry>({
   id: '',
@@ -136,21 +136,28 @@ const draft = reactive<ConfigModelEntry>({
   thinking_on: undefined,
   thinking_off: undefined,
   images_available: true,
+  context_window: undefined,
 })
 
 // Apply the default template once at mount so the form opens with a
 // concrete preset (provider, model, base_url). User still has to fill
-// api_key.
+// api_key. Runs eagerly when templates are already cached, otherwise
+// re-runs after the fetch resolves.
 applyTemplate(defaultTemplateID)
+void tplStore.ensureLoaded().then(() => {
+  if (template.value === defaultTemplateID && !draft.model) {
+    applyTemplate(defaultTemplateID)
+  }
+})
 
 const currentTemplateLabel = computed(() => {
   const id = template.value
   if (id === customTemplate.id) return t('welcome.customTemplate')
   if (id.startsWith('vendor:')) {
-    const vendor = providerVendors.find((v) => `vendor:${v.id}` === id)
+    const vendor = tplStore.vendors.find((v: ProviderVendor) => `vendor:${v.id}` === id)
     return vendor?.name ?? t('welcome.customTemplate')
   }
-  const preset = providerTemplates[id]
+  const preset = tplStore.byId[id]
   return preset ? `${preset.vendorName} · ${preset.name}` : t('welcome.customTemplate')
 })
 
@@ -175,7 +182,7 @@ const isTemplateLocked = computed(
   () =>
     template.value !== customTemplate.id &&
     !template.value.startsWith('vendor:') &&
-    Boolean(providerTemplates[template.value]),
+    Boolean(tplStore.byId[template.value]),
 )
 
 const saveDisabled = computed(
@@ -198,12 +205,13 @@ function applyTemplate(id: TemplateID) {
     draft.thinking_on = undefined
     draft.thinking_off = undefined
     draft.images_available = true
+    draft.context_window = undefined
     return
   }
 
   if (id.startsWith('vendor:')) {
     const vendorId = id.slice('vendor:'.length)
-    const vendor = providerVendors.find((v) => v.id === vendorId)
+    const vendor = tplStore.vendors.find((v: ProviderVendor) => v.id === vendorId)
     if (!vendor) return
     draft.name = ''
     draft.provider = vendor.provider
@@ -213,10 +221,11 @@ function applyTemplate(id: TemplateID) {
     draft.thinking_on = undefined
     draft.thinking_off = undefined
     draft.images_available = true
+    draft.context_window = undefined
     return
   }
 
-  const preset = providerTemplates[id]
+  const preset = tplStore.byId[id]
   if (!preset) return
   draft.name = `${preset.vendorName} ${preset.name}`
   draft.provider = preset.provider
@@ -226,6 +235,7 @@ function applyTemplate(id: TemplateID) {
   draft.thinking_on = preset.thinking_on
   draft.thinking_off = preset.thinking_off
   draft.images_available = preset.images_available !== false
+  draft.context_window = preset.context_window
 }
 
 function onProviderTypeSelect(key: string) {
@@ -259,6 +269,8 @@ async function submit() {
       thinking_on: draft.thinking_on,
       thinking_off: draft.thinking_off,
       images_available: draft.images_available !== false,
+      context_window:
+        draft.context_window && draft.context_window > 0 ? draft.context_window : undefined,
     }
     const nextConfig: CoreConfig = {
       default_model: id,

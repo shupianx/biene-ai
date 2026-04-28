@@ -79,6 +79,7 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("GET /api/sessions", s.handleListSessions)
 	mux.HandleFunc("GET /api/sessions/ws", s.handleSessionListWebSocket)
 	mux.HandleFunc("POST /api/sessions", s.handleCreateSession)
+	mux.HandleFunc("POST /api/sessions/{id}/fork", s.handleForkSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.handleDeleteSession)
 	mux.HandleFunc("POST /api/sessions/{id}/settings", s.handleUpdateSession)
 	mux.HandleFunc("GET /api/sessions/{id}/history", s.handleSessionHistory)
@@ -90,6 +91,7 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("POST /api/sessions/{id}/send", s.handleChatSend)
 	mux.HandleFunc("POST /api/sessions/{id}/thinking", s.handleThinking)
 	mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.handleChatInterrupt)
+	mux.HandleFunc("POST /api/sessions/{id}/compact", s.handleCompact)
 	mux.HandleFunc("POST /api/sessions/{id}/permission", s.handlePermission)
 	mux.HandleFunc("POST /api/sessions/{id}/skills/install", s.handleSessionInstallSkill)
 	mux.HandleFunc("DELETE /api/sessions/{id}/skills/{skill_id}", s.handleSessionUninstallSkill)
@@ -103,6 +105,7 @@ func (s *Server) ListenAndServe() error {
 	// Global config
 	mux.HandleFunc("GET /api/config", s.handleConfig)
 	mux.HandleFunc("POST /api/config", s.handleUpdateConfig)
+	mux.HandleFunc("GET /api/provider-templates", s.handleProviderTemplates)
 	mux.HandleFunc("GET /api/skills", s.handleListSkills)
 	mux.HandleFunc("POST /api/skills/config", s.handleUpdateSkillsConfig)
 	mux.HandleFunc("POST /api/skills/import", s.handleImportSkills)

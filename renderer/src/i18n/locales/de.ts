@@ -57,7 +57,8 @@ const de: Messages = {
     },
     emptyFilteredTitle: 'Keine passenden Agenten',
     emptyFilteredHint: 'Passe die Filter an oder erstelle einen neuen Agenten.',
-    openFolderMenu: 'Ordner öffnen',
+    openWorkdirMenu: 'Arbeitsverzeichnis öffnen',
+    openSkillsDirMenu: 'Skills-Verzeichnis öffnen',
     openMenu: 'Fenster öffnen',
   },
   statusBar: {
@@ -99,6 +100,35 @@ const de: Messages = {
     mention: {
       empty: 'Keine passenden Agenten',
     },
+    slash: {
+      empty: 'Keine passenden Befehle oder Skills',
+      commandsLabel: 'Befehle',
+      skillsLabel: 'Skills',
+    },
+  },
+  command: {
+    compact: {
+      name: '/compact',
+      description: 'Älteren Kontext zu einer Zusammenfassung bündeln',
+    },
+    help: {
+      name: '/help',
+      description: 'Alle verfügbaren Befehle anzeigen',
+    },
+  },
+  help: {
+    tag: 'VERFÜGBARE BEFEHLE',
+    colCommand: 'Befehl',
+    colDescription: 'Beschreibung',
+  },
+  fork: {
+    menuLabel: 'Forken',
+    dialogTitle: '{source} forken',
+    nameLabel: 'Neuer Name',
+    confirmButton: 'Forken',
+    defaultNameSuffix: '(Kopie)',
+    errorEmpty: 'Name erforderlich',
+    errorTaken: 'Ein Agent mit diesem Namen existiert bereits',
   },
   process: {
     logs: 'Protokoll',
@@ -159,7 +189,7 @@ const de: Messages = {
     language: 'Sprache',
     languageHint: 'Wähle die Anzeigesprache der Oberfläche.',
     modelProviders: 'Modell-Anbieter',
-    modelProvidersHint: 'Verwalte die in ~/.biene/config.json gespeicherten Anbieter und wähle den Standard aus.',
+    modelProvidersHint: 'Verwalte deine gespeicherten Anbieter und wähle den Standard aus.',
     modelLoading: 'Modelle werden geladen…',
     addProvider: 'Anbieter hinzufügen',
     providerLoading: 'Modell-Anbieter werden geladen…',
@@ -315,6 +345,17 @@ const de: Messages = {
       load_skill_named: 'Skill {name} laden',
       invalid_input: '<ungültige Eingabe>',
     },
+  },
+  compaction: {
+    tagAuto: 'KOMPAKT · AUTO',
+    tagManual: 'KOMPAKT · MANUELL',
+    meta: '{before} → {after} tok · {n} Nachr. gebündelt',
+    summaryEyebrow: 'ZUSAMMENFASSUNG',
+    inflight: 'KONTEXT WIRD KOMPRIMIERT',
+    errorTag: 'KOMPAKT · FEHLGESCHLAGEN',
+    errorDismiss: 'Schließen',
+    noticeTag: 'KOMPAKT · NICHT NÖTIG',
+    noticeMsg: 'Das Gespräch ist kurz genug — Kompression würde kaum Kontext freigeben.',
   },
 }
 

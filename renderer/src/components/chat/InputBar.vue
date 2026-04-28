@@ -92,12 +92,19 @@
       </div>
     </div>
     <AgentMentionMenu
-      :visible="mentionOpen"
-      :candidates="filteredCandidates"
+      :visible="agentMenuOpen"
+      :candidates="filteredAgents"
       :selected-index="selectedCandidateIndex"
       :position="mentionPosition"
-      :kind="activeQuery?.kind"
-      @pick="pickCandidate"
+      @pick="pickAgent"
+      @hover="selectedCandidateIndex = $event"
+    />
+    <SlashMenu
+      :visible="slashMenuOpen"
+      :groups="slashGroups"
+      :selected-index="selectedCandidateIndex"
+      :position="mentionPosition"
+      @pick="pickSlashItem"
       @hover="selectedCandidateIndex = $event"
     />
   </div>
@@ -110,7 +117,9 @@ import MaterialSymbolsImageOutline from '~icons/material-symbols/image-outline'
 import IconButton from '../ui/IconButton.vue'
 import ToggleSwitch from '../ui/ToggleSwitch.vue'
 import AgentMentionMenu, { type MentionCandidate } from './AgentMentionMenu.vue'
+import SlashMenu, { type SlashItem } from './SlashMenu.vue'
 import { chipToInlineText, type TokenKind } from '../../utils/mentions'
+import { builtinCommands, parseCommandLine } from '../../commands'
 import { t } from '../../i18n'
 
 interface StagedImage {
@@ -135,6 +144,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   (e: 'send', payload: { text: string; files: File[] }): void
+  (e: 'command', payload: { id: string; args: string }): void
   (e: 'update:thinkingEnabled', value: boolean): void
   (e: 'interrupt'): void
 }>()
@@ -147,12 +157,19 @@ const focused = ref(false)
 const isEmpty = ref(true)
 let compositionLockedUntil = 0
 
-// ── Mention / skill state ─────────────────────────────────────────────────
-// Both triggers share one popup, one query cursor, and one keyboard loop;
-// only the candidate source and the chip's kind differ per trigger.
+// ── Popup state ───────────────────────────────────────────────────────────
+// Two triggers, two distinct menu components (AgentMentionMenu for `@`,
+// SlashMenu for `/`). They share the trigger-scanning + positioning +
+// keyboard-nav infrastructure but render different items and have
+// different pick semantics:
+//   - Agent / Skill picks become inline chips embedded in the message.
+//   - Command picks either execute immediately (no args) or auto-complete
+//     `/command-id ` into the editor (has args).
+
+type TriggerKind = 'agent' | 'slash'
 
 interface ActiveQuery {
-  kind: TokenKind
+  kind: TriggerKind
   textNode: Text
   atIdx: number       // index of the trigger character in the text node
   caretOffset: number // current cursor offset within the text node
@@ -160,25 +177,78 @@ interface ActiveQuery {
 }
 
 const activeQuery = ref<ActiveQuery | null>(null)
-const mentionOpen = computed(() => activeQuery.value !== null)
+const agentMenuOpen = computed(() => activeQuery.value?.kind === 'agent')
+const slashMenuOpen = computed(() => activeQuery.value?.kind === 'slash')
 const selectedCandidateIndex = ref(0)
 const mentionPosition = ref({ left: 0, top: 0 })
 
-const filteredCandidates = computed<MentionCandidate[]>(() => {
+// Agent menu candidates — substring match on name OR id.
+const filteredAgents = computed<MentionCandidate[]>(() => {
   const q = activeQuery.value
-  if (!q) return []
-  const all = q.kind === 'skill'
-    ? props.skillCandidates ?? []
-    : props.mentionCandidates ?? []
+  if (q?.kind !== 'agent') return []
+  const all = props.mentionCandidates ?? []
   const needle = q.query.trim().toLowerCase()
   if (!needle) return all
   return all.filter(c =>
-    c.name.toLowerCase().includes(needle) || c.id.toLowerCase().includes(needle)
+    c.name.toLowerCase().includes(needle) || c.id.toLowerCase().includes(needle),
   )
 })
 
-watch(filteredCandidates, (list) => {
-  if (selectedCandidateIndex.value >= list.length) {
+// Slash menu groups — commands first, then skills. Filter applies
+// across both (substring match on name OR id OR description).
+const slashGroups = computed(() => {
+  const q = activeQuery.value
+  if (q?.kind !== 'slash') return []
+  const needle = q.query.trim().toLowerCase()
+
+  const commands: SlashItem[] = builtinCommands
+    .map((c): SlashItem => ({
+      kind: 'command',
+      id: c.id,
+      name: t(c.nameKey),
+      description: t(c.descriptionKey),
+      hasArgs: c.hasArgs,
+    }))
+    .filter(c => matches(c, needle))
+
+  const skills: SlashItem[] = (props.skillCandidates ?? [])
+    .map((s): SlashItem => ({
+      kind: 'skill',
+      id: s.id,
+      name: s.name,
+      description: '',
+    }))
+    .filter(s => matches(s, needle))
+
+  return [
+    { kind: 'command' as const, label: t('input.slash.commandsLabel'), items: commands },
+    { kind: 'skill' as const, label: t('input.slash.skillsLabel'), items: skills },
+  ]
+})
+
+function matches(item: SlashItem, needle: string): boolean {
+  if (!needle) return true
+  return (
+    item.name.toLowerCase().includes(needle) ||
+    item.id.toLowerCase().includes(needle) ||
+    item.description.toLowerCase().includes(needle)
+  )
+}
+
+// Flat list used by ↑/↓ navigation. Must traverse groups in the same
+// order SlashMenu renders them so SlashMenu.flatIndex agrees.
+const flatSlashItems = computed<SlashItem[]>(() =>
+  slashGroups.value.flatMap(g => g.items),
+)
+
+const totalCandidates = computed(() => {
+  if (activeQuery.value?.kind === 'agent') return filteredAgents.value.length
+  if (activeQuery.value?.kind === 'slash') return flatSlashItems.value.length
+  return 0
+})
+
+watch(totalCandidates, (count) => {
+  if (selectedCandidateIndex.value >= count) {
     selectedCandidateIndex.value = 0
   }
 })
@@ -247,7 +317,8 @@ function onKeydown(event: KeyboardEvent) {
   if (isComposing.value) return
   if (Date.now() < compositionLockedUntil) return
 
-  if (mentionOpen.value) {
+  const popupOpen = agentMenuOpen.value || slashMenuOpen.value
+  if (popupOpen) {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       moveSelection(1)
@@ -264,10 +335,9 @@ function onKeydown(event: KeyboardEvent) {
       return
     }
     if (event.key === 'Enter' || event.key === 'Tab') {
-      const picked = filteredCandidates.value[selectedCandidateIndex.value]
+      const picked = pickAtIndex(selectedCandidateIndex.value)
       if (picked) {
         event.preventDefault()
-        pickCandidate(picked)
         return
       }
       // no candidates: fall through to normal behavior
@@ -327,14 +397,14 @@ function scanMentionQuery() {
 //   '@' triggers anywhere (a name may include no preceding space, e.g.
 //   "foo@bar" — matching was user-requested for agent mentions).
 //   '/' triggers only at word boundaries so paths like "src/utils/foo"
-//   don't open the skill menu on every slash.
+//   don't open the slash menu on every slash.
 // Returns null once whitespace between trigger and caret ends the query.
-function findActiveTrigger(text: string): { kind: TokenKind; idx: number } | null {
+function findActiveTrigger(text: string): { kind: TriggerKind; idx: number } | null {
   for (let i = text.length - 1; i >= 0; i--) {
     const ch = text[i]
     if (ch === '@') return { kind: 'agent', idx: i }
     if (ch === '/') {
-      if (i === 0 || /\s/.test(text[i - 1])) return { kind: 'skill', idx: i }
+      if (i === 0 || /\s/.test(text[i - 1])) return { kind: 'slash', idx: i }
       return null
     }
     if (/\s/.test(ch)) return null
@@ -342,22 +412,55 @@ function findActiveTrigger(text: string): { kind: TokenKind; idx: number } | nul
   return null
 }
 
-// These must stay in sync with AgentMentionMenu.vue's styles. They are
-// approximations used to decide whether the menu fits below the caret
-// before it is actually painted; good-enough numbers beat measuring in a
-// post-paint pass (which would cause a visible reposition jitter).
-const MENTION_MENU_WIDTH = 260
-const MENTION_MENU_ITEM_HEIGHT = 32
-const MENTION_MENU_VPAD = 8
-const MENTION_MENU_MAX_HEIGHT = 240
-const MENTION_MENU_GAP = 4
-const MENTION_MENU_VIEWPORT_MARGIN = 8
+// Per-trigger menu dimensions — must stay in sync with each menu
+// component's CSS. Numbers are approximations used to decide whether
+// the menu fits below the caret before it is actually painted, which
+// avoids a post-paint reposition jitter.
+const MENU_GAP = 4
+const MENU_VIEWPORT_MARGIN = 8
 
-function estimateMenuHeight(count: number): number {
-  if (count === 0) return 40
+interface MenuDims {
+  width: number          // typical width used to clamp horizontal position
+  itemHeight: number     // per-row height
+  groupOverhead: number  // total vertical space group labels + dividers add (slash only)
+  vpad: number           // top/bottom container padding
+  maxHeight: number      // CSS max-height ceiling
+  emptyHeight: number    // height shown when there are no candidates
+}
+
+const AGENT_MENU_DIMS: MenuDims = {
+  width: 260,
+  itemHeight: 32,
+  groupOverhead: 0,
+  vpad: 8,
+  maxHeight: 240,
+  emptyHeight: 40,
+}
+
+const SLASH_MENU_DIMS: MenuDims = {
+  // SlashMenu CSS: min-width 180, max-width 240. Use the upper bound so
+  // horizontal clamp guarantees the menu never overflows the viewport.
+  width: 240,
+  itemHeight: 32,
+  // Each group renders a 20px label + 8px dashed divider (~28px). Two
+  // groups = ~48px. Reserve regardless of whether both have items, so
+  // the flip-up decision stays stable while the user types and groups
+  // appear/disappear.
+  groupOverhead: 48,
+  vpad: 8,
+  maxHeight: 480,
+  emptyHeight: 40,
+}
+
+function activeMenuDims(): MenuDims {
+  return activeQuery.value?.kind === 'slash' ? SLASH_MENU_DIMS : AGENT_MENU_DIMS
+}
+
+function estimateMenuHeight(count: number, dims: MenuDims): number {
+  if (count === 0) return dims.emptyHeight
   return Math.min(
-    count * MENTION_MENU_ITEM_HEIGHT + MENTION_MENU_VPAD,
-    MENTION_MENU_MAX_HEIGHT,
+    count * dims.itemHeight + dims.vpad + dims.groupOverhead,
+    dims.maxHeight,
   )
 }
 
@@ -387,35 +490,36 @@ function updateMentionPosition() {
     caretBottom = editorRect.bottom
   }
 
-  const menuHeight = estimateMenuHeight(filteredCandidates.value.length)
+  const dims = activeMenuDims()
+  const menuHeight = estimateMenuHeight(totalCandidates.value, dims)
   const vw = window.innerWidth
   const vh = window.innerHeight
-  const spaceBelow = vh - caretBottom - MENTION_MENU_VIEWPORT_MARGIN
-  const spaceAbove = caretTop - MENTION_MENU_VIEWPORT_MARGIN
+  const spaceBelow = vh - caretBottom - MENU_VIEWPORT_MARGIN
+  const spaceAbove = caretTop - MENU_VIEWPORT_MARGIN
 
   // Prefer below; flip above only when below is too tight AND above has
   // strictly more room. Keeps the menu in one place when both sides fit.
   const flipUp = spaceBelow < menuHeight && spaceAbove > spaceBelow
   const top = flipUp
-    ? caretTop - menuHeight - MENTION_MENU_GAP
-    : caretBottom + MENTION_MENU_GAP
+    ? caretTop - menuHeight - MENU_GAP
+    : caretBottom + MENU_GAP
 
   const left = Math.max(
-    MENTION_MENU_VIEWPORT_MARGIN,
-    Math.min(caretLeft, vw - MENTION_MENU_WIDTH - MENTION_MENU_VIEWPORT_MARGIN),
+    MENU_VIEWPORT_MARGIN,
+    Math.min(caretLeft, vw - dims.width - MENU_VIEWPORT_MARGIN),
   )
   const clampedTop = Math.max(
-    MENTION_MENU_VIEWPORT_MARGIN,
-    Math.min(top, vh - menuHeight - MENTION_MENU_VIEWPORT_MARGIN),
+    MENU_VIEWPORT_MARGIN,
+    Math.min(top, vh - menuHeight - MENU_VIEWPORT_MARGIN),
   )
   mentionPosition.value = { left, top: clampedTop }
 }
 
 function moveSelection(delta: number) {
-  const list = filteredCandidates.value
-  if (!list.length) return
-  const next = (selectedCandidateIndex.value + delta + list.length) % list.length
-  selectedCandidateIndex.value = next
+  const count = totalCandidates.value
+  if (!count) return
+  selectedCandidateIndex.value =
+    (selectedCandidateIndex.value + delta + count) % count
 }
 
 function closeMention() {
@@ -423,12 +527,53 @@ function closeMention() {
   selectedCandidateIndex.value = 0
 }
 
-function pickCandidate(candidate: MentionCandidate) {
+// pickAtIndex resolves the menu item at a given index in the flat
+// keyboard-nav sequence and routes it. Returns true when something was
+// picked (caller should preventDefault). Used by Enter/Tab.
+function pickAtIndex(index: number): boolean {
+  if (activeQuery.value?.kind === 'agent') {
+    const picked = filteredAgents.value[index]
+    if (!picked) return false
+    pickAgent(picked)
+    return true
+  }
+  if (activeQuery.value?.kind === 'slash') {
+    const picked = flatSlashItems.value[index]
+    if (!picked) return false
+    pickSlashItem(picked)
+    return true
+  }
+  return false
+}
+
+function pickAgent(candidate: MentionCandidate) {
+  insertChip('agent', candidate.id, candidate.name)
+}
+
+function pickSlashItem(item: SlashItem) {
+  if (item.kind === 'skill') {
+    insertChip('skill', item.id, item.name)
+    return
+  }
+  // Command pick. With args → auto-complete to canonical text and
+  // close so the user can type arguments. Without args → execute
+  // immediately and clear the editor.
+  if (item.hasArgs) {
+    replaceQueryWithText(`/${item.id} `)
+    closeMention()
+    updateEmpty()
+    return
+  }
+  closeMention()
+  clearEditor()
+  emit('command', { id: item.id, args: '' })
+}
+
+function insertChip(kind: TokenKind, value: string, label: string) {
   const q = activeQuery.value
   if (!q || !editorRef.value) return
-  const { kind, textNode, atIdx, caretOffset } = q
+  const { textNode, atIdx, caretOffset } = q
 
-  // Replace the trigger + query span in the text node with a chip + space.
   const range = document.createRange()
   range.setStart(textNode, atIdx)
   range.setEnd(textNode, caretOffset)
@@ -439,9 +584,9 @@ function pickCandidate(candidate: MentionCandidate) {
   span.className = `mention-chip kind-${kind}`
   span.contentEditable = 'false'
   span.dataset.kind = kind
-  span.dataset.value = candidate.id
-  span.dataset.label = candidate.name
-  span.textContent = `${triggerChar}${candidate.name}`
+  span.dataset.value = value
+  span.dataset.label = label
+  span.textContent = `${triggerChar}${label}`
 
   range.insertNode(span)
   const space = document.createTextNode(' ')
@@ -456,6 +601,30 @@ function pickCandidate(candidate: MentionCandidate) {
 
   closeMention()
   updateEmpty()
+}
+
+// replaceQueryWithText overwrites the active trigger + typed query
+// with a literal string and places the caret at the end of it. Used
+// for command auto-complete: `/comp<query>` → `/compact ` + caret.
+function replaceQueryWithText(text: string) {
+  const q = activeQuery.value
+  if (!q || !editorRef.value) return
+  const { textNode, atIdx, caretOffset } = q
+
+  const range = document.createRange()
+  range.setStart(textNode, atIdx)
+  range.setEnd(textNode, caretOffset)
+  range.deleteContents()
+
+  const node = document.createTextNode(text)
+  range.insertNode(node)
+
+  const sel = window.getSelection()
+  const caret = document.createRange()
+  caret.setStart(node, node.length)
+  caret.collapse(true)
+  sel?.removeAllRanges()
+  sel?.addRange(caret)
 }
 
 // ── Text insertion & paste ────────────────────────────────────────────────
@@ -552,6 +721,20 @@ async function submit() {
   if (props.disabled) return
   const text = extractMessage()
   if (!text && stagedImages.value.length === 0) return
+
+  // Slash commands are intercepted before the message is dispatched as
+  // user content. parseCommandLine returns null for unrecognised lines,
+  // which fall through to the regular send path.
+  if (text && stagedImages.value.length === 0) {
+    const parsed = parseCommandLine(text)
+    if (parsed) {
+      clearEditor()
+      await nextTick()
+      emit('command', { id: parsed.command.id, args: parsed.args })
+      return
+    }
+  }
+
   const files = stagedImages.value.map(img => img.file)
   clearEditor()
   clearStagedImages()

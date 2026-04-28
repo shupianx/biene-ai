@@ -5,18 +5,23 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"biene/internal/api"
+	"biene/internal/config"
 	"biene/internal/permission/webperm"
 	"biene/internal/processes"
 	"biene/internal/prompt"
 	"biene/internal/store"
 	"biene/internal/tools"
 )
+
+// sessionMetaAlias drops SessionMeta's Marshal/UnmarshalJSON methods so the
+// custom JSON helpers below can call json.{Marshal,Unmarshal} on it without
+// recursing into themselves.
+type sessionMetaAlias SessionMeta
 
 // ── Core types ────────────────────────────────────────────────────────────
 
@@ -62,10 +67,23 @@ type DisplayTool struct {
 	Result      string          `json:"result,omitempty"`
 }
 
+// DisplayCompaction marks a compaction event in the display history so
+// the UI can render a divider, expose the summary, and tell the user
+// that everything above this point was rolled into the LLM-facing
+// context. The summary is the same markdown body that was injected
+// into api_messages as the synthetic head.
+type DisplayCompaction struct {
+	Summary      string `json:"summary"`
+	TokensBefore int    `json:"tokens_before"`
+	TokensAfter  int    `json:"tokens_after"`
+	Replaced     int    `json:"replaced"`
+	Manual       bool   `json:"manual,omitempty"`
+}
+
 // DisplayMessage is the server-side render state of a single message.
 type DisplayMessage struct {
 	ID            string                  `json:"id"`
-	Role          string                  `json:"role"` // user | assistant
+	Role          string                  `json:"role"` // user | assistant | system
 	AuthorType    string                  `json:"author_type,omitempty"`
 	AuthorID      string                  `json:"author_id,omitempty"`
 	AuthorName    string                  `json:"author_name,omitempty"`
@@ -75,6 +93,7 @@ type DisplayMessage struct {
 	ToolCalls     []DisplayTool           `json:"tool_calls,omitempty"`
 	Attachments   []DisplayAttachment     `json:"attachments,omitempty"`
 	Reasoning     *DisplayReasoning       `json:"reasoning,omitempty"`
+	Compaction    *DisplayCompaction      `json:"compaction,omitempty"`
 	CreatedAt     time.Time               `json:"created_at"`
 }
 
@@ -115,10 +134,6 @@ type Session struct {
 	permissions       tools.PermissionSet
 	profile           prompt.AgentProfile
 	toolMode          ToolMode
-	// avatar is the persisted sprite index ("0".."19") chosen at creation
-	// from renderer/public/avatar_sprite.png. Empty means "not yet
-	// assigned" — the manager backfills it on the next persistence write.
-	avatar            string
 	modelID           string
 	modelName         string
 	thinkingAvailable bool
@@ -168,6 +183,12 @@ type Session struct {
 	subscribers      map[int]chan Frame
 	nextSubscriberID int
 
+	// extras carries opaque JSON fields the backend doesn't claim — see
+	// CLAUDE.md "Schema 设计准则". The renderer's `avatar` selection is
+	// the canonical example: it lands in meta.json but Go never parses
+	// or generates it, just round-trips the bytes.
+	extras store.Extras
+
 	// store persists messages and meta to disk. May be nil if persistence is unavailable.
 	store *store.SessionStore
 	// persistedCount tracks how many history entries have been written to the store.
@@ -177,22 +198,33 @@ type Session struct {
 	cancelQuery    context.CancelFunc
 	currentRunDone chan struct{}
 	closed         bool
+	// compactionInFlight is set while a summarizer LLM call is running
+	// for this session. Prevents auto + manual compactions from racing
+	// each other.
+	compactionInFlight bool
+	// configProvider returns the most recent global config snapshot.
+	// Wired by the SessionManager so runtime reads compaction settings
+	// + per-model context windows without holding stale references
+	// after UpdateConfig.
+	configProvider        func() *config.Config
 	onMetaChanged         func(SessionMeta)
 	onProcessStateChanged func(sessionID string, active bool, command string, args []string)
 	mu                    sync.Mutex
 }
 
 // SessionMeta is the public view of a Session returned by the list endpoint.
+//
+// Extras carries any JSON keys not declared as typed fields above. The
+// canonical example is `avatar`, which the renderer chooses and persists
+// purely as UI state — the backend never parses, validates, or generates
+// it, but MUST round-trip it on save (see CLAUDE.md "Schema 设计准则").
+// Any future "frontend-only" key works the same way: the renderer just
+// writes it into the meta blob and trusts the round-trip.
 type SessionMeta struct {
 	ID                string                    `json:"id"`
 	Name              string                    `json:"name"`
 	WorkDir           string                    `json:"work_dir"`
 	Status            SessionStatus             `json:"status"`
-	// Avatar is the sprite index ("0".."19") for this agent's robot icon.
-	// Persisted to meta.json so it stays stable across restarts and
-	// surfaces on every list/get response so the renderer can render the
-	// matching cell from public/avatar_sprite.png.
-	Avatar            string                    `json:"avatar,omitempty"`
 	ModelID           string                    `json:"model_id"`
 	ModelName         string                    `json:"model_name"`
 	ThinkingAvailable bool                      `json:"thinking_available,omitempty"`
@@ -209,6 +241,27 @@ type SessionMeta struct {
 	CoworksGranted    []GrantedCowork           `json:"coworks_granted,omitempty"`
 	CreatedAt         time.Time                 `json:"created_at"`
 	LastActive        time.Time                 `json:"last_active"`
+
+	Extras store.Extras `json:"-"`
+}
+
+// MarshalJSON merges Extras into the typed-field output so frontend-owned
+// keys survive every round-trip.
+func (m SessionMeta) MarshalJSON() ([]byte, error) {
+	return store.MarshalWithExtras(sessionMetaAlias(m), m.Extras)
+}
+
+// UnmarshalJSON captures any keys not claimed by typed fields into
+// Extras so the next save preserves them.
+func (m *SessionMeta) UnmarshalJSON(raw []byte) error {
+	var aux sessionMetaAlias
+	var extras store.Extras
+	if err := store.UnmarshalWithExtras(raw, &aux, &extras); err != nil {
+		return err
+	}
+	*m = SessionMeta(aux)
+	m.Extras = extras
+	return nil
 }
 
 func (s *Session) Meta() SessionMeta {
@@ -223,7 +276,6 @@ func (s *Session) metaLocked() SessionMeta {
 		Name:              s.Name,
 		WorkDir:           s.WorkDir,
 		Status:            s.Status,
-		Avatar:            s.avatar,
 		ModelID:           s.modelID,
 		ModelName:         s.modelName,
 		ThinkingAvailable: s.thinkingAvailable,
@@ -237,7 +289,21 @@ func (s *Session) metaLocked() SessionMeta {
 		CoworksGranted:    append([]GrantedCowork(nil), s.coworksGranted...),
 		CreatedAt:         s.CreatedAt,
 		LastActive:        s.LastActive,
+		Extras:            cloneExtras(s.extras),
 	}
+}
+
+// cloneExtras returns a shallow copy of e so callers don't mutate the
+// session's stored map by writing into the SessionMeta they received.
+func cloneExtras(e store.Extras) store.Extras {
+	if len(e) == 0 {
+		return nil
+	}
+	out := make(store.Extras, len(e))
+	for k, v := range e {
+		out[k] = v
+	}
+	return out
 }
 
 func (s *Session) persistentMetaLocked() SessionMeta {
@@ -279,40 +345,6 @@ func newSessionID() string {
 	b := make([]byte, 6)
 	_, _ = rand.Read(b)
 	return "sess_" + hex.EncodeToString(b)
-}
-
-// avatarSpriteCount must stay in sync with the layout of
-// renderer/public/avatar.png — 5 columns × 4 rows of 50×50 cells = 20.
-const avatarSpriteCount = 20
-
-// randomAvatar returns a sprite index (as a string) drawn uniformly at
-// random from the [0, avatarSpriteCount) range. Stored on the session so
-// every agent gets a stable robot face across restarts.
-func randomAvatar() string {
-	var b [1]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		// Reading from crypto/rand is effectively infallible on supported
-		// platforms; fall back to index 0 rather than aborting session
-		// creation if the kernel ever does refuse us.
-		return "0"
-	}
-	return strconv.Itoa(int(b[0]) % avatarSpriteCount)
-}
-
-// resolveAvatar accepts a client-supplied avatar id and returns either it
-// (when it's a valid sprite index in [0, avatarSpriteCount)) or a freshly
-// randomised one. Anything outside the range — including an empty string,
-// non-numeric input, or a stale index from a future smaller sprite — is
-// treated as "let the server choose".
-func resolveAvatar(supplied string) string {
-	if supplied == "" {
-		return randomAvatar()
-	}
-	n, err := strconv.Atoi(supplied)
-	if err != nil || n < 0 || n >= avatarSpriteCount {
-		return randomAvatar()
-	}
-	return strconv.Itoa(n)
 }
 
 func newMsgID() string {

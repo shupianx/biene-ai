@@ -2,7 +2,6 @@
   <div
     v-if="visible"
     class="mention-menu"
-    :class="`kind-${kind ?? 'agent'}`"
     :style="{ left: position.left + 'px', top: position.top + 'px' }"
   >
     <div
@@ -13,12 +12,7 @@
       @mousedown.prevent="$emit('pick', candidate)"
       @mouseenter="$emit('hover', i)"
     >
-      <MaterialSymbolsBookOutline
-        v-if="kind === 'skill'"
-        class="mention-icon"
-        aria-hidden="true"
-      />
-      <MaterialSymbolsRobot2Outline v-else class="mention-icon" aria-hidden="true" />
+      <MaterialSymbolsRobot2Outline class="mention-icon" aria-hidden="true" />
       <span class="mention-name">{{ candidate.name }}</span>
       <span class="mention-id">{{ shortId(candidate.id) }}</span>
     </div>
@@ -30,8 +24,6 @@
 
 <script setup lang="ts">
 import MaterialSymbolsRobot2Outline from '~icons/material-symbols/robot-2-outline'
-import MaterialSymbolsBookOutline from '~icons/material-symbols/book-outline'
-import type { TokenKind } from '../../utils/mentions'
 import { t } from '../../i18n'
 
 export interface MentionCandidate {
@@ -44,7 +36,6 @@ defineProps<{
   candidates: MentionCandidate[]
   selectedIndex: number
   position: { left: number; top: number }
-  kind?: TokenKind
 }>()
 
 defineEmits<{
@@ -83,13 +74,8 @@ function shortId(id: string): string {
   color: var(--ink-2);
 }
 
-.mention-menu.kind-agent .mention-item.active {
+.mention-item.active {
   background: color-mix(in srgb, var(--accent) 18%, var(--panel-2));
-  color: var(--ink);
-}
-
-.mention-menu.kind-skill .mention-item.active {
-  background: color-mix(in srgb, var(--info) 18%, var(--panel-2));
   color: var(--ink);
 }
 

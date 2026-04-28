@@ -33,7 +33,20 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 	toolDefs := toolDefinitions(cfg.Registry)
 	log.Info("turn start", "tool_count", len(toolDefs), "message_count", len(cfg.Messages))
 
+	var lastUsage api.Usage
+
 	for {
+		if cfg.BeforeIteration != nil {
+			newMsgs, hookErr := cfg.BeforeIteration(ctx, cfg.Messages, lastUsage)
+			if hookErr != nil {
+				log.Error("before-iteration hook failed", "err", hookErr)
+				return fmt.Errorf("compaction: %w", hookErr)
+			}
+			if newMsgs != nil {
+				cfg.Messages = newMsgs
+			}
+		}
+
 		stream, err := cfg.Provider.Stream(
 			ctx,
 			cfg.SystemPrompt,
@@ -58,7 +71,7 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 		lastSnapshots := map[string]writeProgressSnapshot{}
 		toolNames := map[string]string{}
 
-		assistantMsg, toolUses, err := collectStream(ctx, stream, ch, func(tu api.ToolUseBlock) {
+		assistantMsg, toolUses, usage, err := collectStream(ctx, stream, ch, func(tu api.ToolUseBlock) {
 			tool := cfg.Registry.Find(tu.Name)
 			if tool == nil || tool.PermissionKey() != tools.PermissionWrite {
 				return
@@ -104,6 +117,7 @@ func runLoop(ctx context.Context, cfg *Config, ch chan<- Event) error {
 		if err != nil {
 			return err
 		}
+		lastUsage = usage
 		cfg.Messages = append(cfg.Messages, assistantMsg)
 
 		if len(toolUses) == 0 {

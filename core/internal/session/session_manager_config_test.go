@@ -18,7 +18,7 @@ func TestCreatePinsSelectedModel(t *testing.T) {
 	}
 	mgr := NewSessionManager(t.TempDir(), cfg)
 
-	sess, err := mgr.Create("Agent", tools.PermissionSet{}, prompt.DefaultProfile(), "backup", "")
+	sess, err := mgr.Create("Agent", tools.PermissionSet{}, prompt.DefaultProfile(), "backup", nil)
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestCreateDefaultsThinkingOffWhenModelSupportsIt(t *testing.T) {
 	}
 	mgr := NewSessionManager(t.TempDir(), cfg)
 
-	sess, err := mgr.Create("Agent", tools.PermissionSet{}, prompt.DefaultProfile(), "", "")
+	sess, err := mgr.Create("Agent", tools.PermissionSet{}, prompt.DefaultProfile(), "", nil)
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
@@ -76,11 +76,11 @@ func TestUpdateConfigRefreshesPinnedModelName(t *testing.T) {
 	}
 	mgr := NewSessionManager(t.TempDir(), cfg)
 
-	mainSess, err := mgr.Create("Main Agent", tools.PermissionSet{}, prompt.DefaultProfile(), "", "")
+	mainSess, err := mgr.Create("Main Agent", tools.PermissionSet{}, prompt.DefaultProfile(), "", nil)
 	if err != nil {
 		t.Fatalf("Create main session: %v", err)
 	}
-	backupSess, err := mgr.Create("Backup Agent", tools.PermissionSet{}, prompt.DefaultProfile(), "backup", "")
+	backupSess, err := mgr.Create("Backup Agent", tools.PermissionSet{}, prompt.DefaultProfile(), "backup", nil)
 	if err != nil {
 		t.Fatalf("Create backup session: %v", err)
 	}

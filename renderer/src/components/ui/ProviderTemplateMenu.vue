@@ -58,13 +58,12 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import {
-  customTemplate,
-  providerVendors,
-  type ProviderVendor,
-} from '../../constants/providerTemplates'
+import { customTemplate, type ProviderVendor } from '../../constants/providerTemplates'
+import { useProviderTemplatesStore } from '../../stores/providerTemplates'
 
 type SelectedID = string
+
+const tplStore = useProviderTemplatesStore()
 
 const props = withDefaults(
   defineProps<{
@@ -82,7 +81,7 @@ const emit = defineEmits<{
   (e: 'open-change', open: boolean): void
 }>()
 
-const vendors = providerVendors
+const vendors = computed(() => tplStore.vendors)
 
 const rootRef = ref<HTMLElement | null>(null)
 const open = ref(false)
@@ -96,7 +95,7 @@ const hoveredVendor = computed<ProviderVendor | null>(() => {
   if (!hoveredVendorId.value || hoveredVendorId.value === customTemplate.id) {
     return null
   }
-  return vendors.find((v) => v.id === hoveredVendorId.value) ?? null
+  return vendors.value.find((v: ProviderVendor) => v.id === hoveredVendorId.value) ?? null
 })
 
 function vendorIsSelected(vendor: ProviderVendor) {
@@ -138,7 +137,7 @@ function setOpen(value: boolean) {
   if (value) {
     // When (re)opening, pre-hover the vendor that owns the current
     // selection so the submenu shows that vendor's models immediately.
-    const vendor = vendors.find((v) => vendorIsSelected(v))
+    const vendor = vendors.value.find((v: ProviderVendor) => vendorIsSelected(v))
     hoveredVendorId.value = vendor?.id ?? ''
   }
 }

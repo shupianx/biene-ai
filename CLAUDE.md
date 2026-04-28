@@ -145,3 +145,54 @@ npm run build            # vue-tsc 类型检查 + vite build
 **文件名冲突**：`send_message_to_agent` 的 `PermissionContext` 先调用 `SessionManager.DetectFileCollisions` 把目标收件箱中已有的同名文件列出给用户；用户在 `PermissionDialog` 里选择 `rename` / `overwrite` / `skip` 中的一个作为整体策略；策略通过 resolution 通道传回工具 `Execute`，由服务端在复制时落实。
 
 **会话持久化**：每轮对话后 `display_messages` 和 `api_messages` 都序列化写入 SQLite；启动时 `SessionManager.Init()` 扫描 workspace 中已有的 `meta.json` 并重建会话。
+
+## Schema 设计准则（重要）
+
+所有由后端拥有、磁盘持久化、且和前端共享的 JSON schema（`meta.json`、`config.json`、未来的模板/技能元数据等）遵循同一条规则：
+
+> **后端定义"地板"，前端可以盖"天花板"——字段不能少，但可以多。**
+
+具体含义：
+
+- **后端必须输出**所有它认领的 typed 字段（`SessionMeta` 上声明的每一个 JSON tag）。这是和前端、其他客户端的契约——少一个字段就是 breaking change。
+- **后端必须透传**它不认识的字段。前端写进文件的额外字段（典型例子：`avatar`，纯 UI 资源），后端读出 → 修改 → 写回时不能把它丢掉。
+- **后端从不解析、不验证、不生成**这些"前端独占"字段。它们对后端就是不透明的字节，只负责搬运。
+
+### 为什么需要这条准则
+
+Go 的 `encoding/json` 默认把未知字段**静默丢弃**。如果不显式做透传，前端写进 meta.json 的任何 UI 状态都会在下一次后端写回时消失——这是个无声的 bug 源头。
+
+把字段责任划分清楚（"后端拥有数据契约，前端拥有 UI 状态"）比让所有字段都进 Go struct 更扩展友好——前端加新 UI 字段不用改后端，未来其他客户端（CLI、API 用户）也清晰知道哪些字段是真理、哪些是装饰。
+
+### 实现机制：Extras 透传
+
+凡是受这条准则约束的 schema struct，都用同一种模式：
+
+```go
+type SessionMeta struct {
+    ID   string `json:"id"`
+    Name string `json:"name"`
+    // ...后端拥有的字段
+
+    // Extras 捕获所有非 typed 字段，原样在磁盘上保留。
+    // 后端从不解析/修改这部分，只在序列化时合并回最终 JSON。
+    Extras map[string]json.RawMessage `json:"-"`
+}
+```
+
+配套自定义 `UnmarshalJSON` / `MarshalJSON`：读时 typed 字段走正常解码、剩下的塞进 Extras；写时 typed 字段先 marshal、再合并 Extras 中所有未冲突的 key。
+
+具体实现见 `core/internal/store/extras.go`（待落地）。新增受准则约束的 struct 时，复用同一个 helper，不要每个 struct 自己实现一遍。
+
+### 例外：哪些字段属于"前端独占"
+
+| 字段 | 归属 | 说明 |
+|---|---|---|
+| `meta.json :: avatar` | 前端 | sprite 索引，纯 UI；后端不生成、不验证、原样透传 |
+
+新加"前端独占"字段时**必须更新本表**，否则未来 maintainer 无从知道边界。
+
+### 不受这条准则约束的范围
+
+- SQLite 表（`history.db`）—— schema 由 Go 代码定义，迁移走 ALTER TABLE，不存在"前端独占字段"的概念
+- 用户脚本/技能内部文件—— 那是用户内容，不是 schema

@@ -101,7 +101,9 @@ const SKILL_MIME = 'application/biene-skill'
 const props = defineProps<{ session: AgentSession }>()
 const emit = defineEmits<{
   (e: 'select'): void
-  (e: 'open-folder'): void
+  (e: 'open-workdir'): void
+  (e: 'open-skills-dir'): void
+  (e: 'fork'): void
   (e: 'settings'): void
   (e: 'delete'): void
 }>()
@@ -109,7 +111,9 @@ const emit = defineEmits<{
 const hover = ref(false)
 
 const menuItems = computed<PopupMenuEntry[]>(() => [
-  { key: 'open-folder', label: t('grid.openFolderMenu') },
+  { key: 'open-workdir', label: t('grid.openWorkdirMenu') },
+  { key: 'open-skills-dir', label: t('grid.openSkillsDirMenu') },
+  { key: 'fork', label: t('fork.menuLabel') },
   { key: 'settings', label: t('common.settings') },
   { separator: true },
   { key: 'delete', label: t('common.delete'), danger: true },
@@ -203,7 +207,9 @@ const styleLabel = computed(() =>
 )
 
 function onMenuSelect(key: string) {
-  if (key === 'open-folder') emit('open-folder')
+  if (key === 'open-workdir') emit('open-workdir')
+  else if (key === 'open-skills-dir') emit('open-skills-dir')
+  else if (key === 'fork') emit('fork')
   else if (key === 'settings') emit('settings')
   else if (key === 'delete') emit('delete')
 }

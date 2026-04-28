@@ -12,6 +12,9 @@ export type SessionEventType =
   | 'permission_cleared'
   | 'skill_activated'
   | 'process_state'
+  | 'compaction_start'
+  | 'compaction_done'
+  | 'compaction_failed'
   | 'error'
   | 'done'
 
@@ -127,6 +130,21 @@ export interface ProcessStateData {
 
 export interface ErrorData {
   message: string
+}
+
+export interface CompactionStartData {
+  tokens_before: number
+}
+
+export interface CompactionDoneData {
+  message_id: string
+  tokens_before: number
+  tokens_after: number
+  replaced: number
+}
+
+export interface CompactionFailedData {
+  reason: string
 }
 
 export interface SessionMetaEventData {

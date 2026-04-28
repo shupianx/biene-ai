@@ -60,7 +60,9 @@
           :key="s.meta.id"
           :session="s"
           @select="onOpenSession(s.meta.id)"
-          @open-folder="onOpenFolder(s.meta.work_dir)"
+          @open-workdir="onOpenWorkdir(s.meta.work_dir)"
+          @open-skills-dir="onOpenSkillsDir(s.meta.work_dir)"
+          @fork="forkingSessionId = s.meta.id"
           @settings="onOpenSettings(s.meta.id)"
           @delete="deletingSessionId = s.meta.id"
         />
@@ -100,6 +102,13 @@
       @cancel="deletingSessionId = null"
       @confirm="onConfirmDelete"
     />
+    <ForkAgentDialog
+      v-if="forkingSession"
+      :source-name="forkingSession.meta.name"
+      :taken-names="sessionNames"
+      @cancel="forkingSessionId = null"
+      @confirm="onConfirmFork"
+    />
     <FloatingPanel
       v-if="skillsPanelOpen"
       :title="t('skillsBrowser.title')"
@@ -116,8 +125,8 @@
         <button
           class="skills-panel-folder-btn"
           type="button"
-          :title="t('grid.openFolderMenu')"
-          :aria-label="t('grid.openFolderMenu')"
+          :title="t('grid.openSkillsDirMenu')"
+          :aria-label="t('grid.openSkillsDirMenu')"
           @click="onOpenSkillsFolder"
         >
           <FolderOpenIcon class="skills-panel-folder-icon" />
@@ -138,12 +147,14 @@ import { connectSessionListWS } from '../api/ws'
 import { t } from '../i18n'
 import { getDesktopBridge } from '../runtime'
 import { useSessionsStore } from '../stores/sessions'
+import { useProviderTemplatesStore } from '../stores/providerTemplates'
 import { useAgentNavigation } from '../composables/useAgentNavigation'
 import { nextDefaultAgentName } from '../utils/agentNames'
 import SessionCard from '../components/session/SessionCard.vue'
 import NewAgentModal from '../components/session/NewAgentModal.vue'
 import SessionSettingsModal from '../components/session/SessionSettingsModal.vue'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
+import ForkAgentDialog from '../components/session/ForkAgentDialog.vue'
 import FloatingPanel from '../components/ui/FloatingPanel.vue'
 import SkillsBrowser from '../components/skills/SkillsBrowser.vue'
 import WelcomeModal from '../components/app/WelcomeModal.vue'
@@ -161,6 +172,7 @@ const showNewModal = ref(false)
 const showWelcome = ref(false)
 const editingSessionId = ref<string | null>(null)
 const deletingSessionId = ref<string | null>(null)
+const forkingSessionId = ref<string | null>(null)
 const search = ref('')
 const refreshing = ref(false)
 let disconnectListWS: (() => void) | null = null
@@ -204,6 +216,9 @@ function onVisibilityChange() {
 
 onMounted(() => {
   void store.init(false, false)
+  // Warm the provider-templates cache so the New Agent / Settings
+  // modals don't see an empty list on first open.
+  void useProviderTemplatesStore().ensureLoaded()
   void checkWelcome()
   disconnectListWS = connectSessionListWS({
     onOpen() {
@@ -242,6 +257,10 @@ const editingSession = computed(() =>
 
 const deletingSession = computed(() =>
   deletingSessionId.value ? store.sessions[deletingSessionId.value] ?? null : null
+)
+
+const forkingSession = computed(() =>
+  forkingSessionId.value ? store.sessions[forkingSessionId.value] ?? null : null
 )
 
 const sessionNames = computed(() =>
@@ -313,14 +332,30 @@ async function onOpenSettings(id: string) {
   editingSessionId.value = id
 }
 
-async function onOpenFolder(workDir: string) {
+async function onOpenWorkdir(workDir: string) {
   const bridge = getDesktopBridge()
   if (!bridge?.openPath) return
 
   try {
     await bridge.openPath(workDir)
   } catch (error) {
-    console.error('Failed to open agent folder:', error)
+    console.error('Failed to open workspace directory:', error)
+  }
+}
+
+// Per-agent skills live under <workDir>/.biene/skills (mirrors
+// skills.WorkDirSkillsRoot in core/internal/skills/loader.go). The path
+// joining is "/" because workDir is always POSIX-style for darwin/linux
+// and Electron normalises both for openPath on win32.
+async function onOpenSkillsDir(workDir: string) {
+  const bridge = getDesktopBridge()
+  if (!bridge?.openPath) return
+
+  const skillsDir = `${workDir.replace(/[\\/]+$/, '')}/.biene/skills`
+  try {
+    await bridge.openPath(skillsDir)
+  } catch (error) {
+    console.error('Failed to open skills directory:', error)
   }
 }
 
@@ -329,6 +364,22 @@ async function onConfirmDelete() {
   const id = deletingSession.value.meta.id
   deletingSessionId.value = null
   await store.remove(id)
+}
+
+async function onConfirmFork(name: string) {
+  const source = forkingSession.value
+  if (!source) return
+  const sourceId = source.meta.id
+  forkingSessionId.value = null
+  try {
+    await store.fork(sourceId, name)
+  } catch (error) {
+    console.error('Fork failed:', error)
+    // Reopen so the user can retry / change the name. Defensive: if
+    // the source vanished mid-flight (deleted in another window), the
+    // dialog won't reopen because forkingSession resolves to null.
+    forkingSessionId.value = sourceId
+  }
 }
 </script>
 

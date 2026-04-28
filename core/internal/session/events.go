@@ -84,3 +84,26 @@ type donePayload struct{}
 type skillActivatedPayload struct {
 	SkillName string `json:"skill_name"`
 }
+
+// compactionStartPayload is broadcast right before the summarizer LLM
+// call, so the UI can show a "compressing context…" indicator.
+type compactionStartPayload struct {
+	TokensBefore int `json:"tokens_before"`
+}
+
+// compactionDonePayload is broadcast after a successful compaction.
+// MessageID points at the CompactionMarker DisplayMessage that was
+// appended; the UI reads its `compaction` block for the summary text.
+type compactionDonePayload struct {
+	MessageID    string `json:"message_id"`
+	TokensBefore int    `json:"tokens_before"`
+	TokensAfter  int    `json:"tokens_after"`
+	Replaced     int    `json:"replaced"`
+}
+
+// compactionFailedPayload signals that compaction was attempted but
+// errored out. The agent loop continues with the un-compressed history;
+// the UI surfaces the message as a non-fatal toast.
+type compactionFailedPayload struct {
+	Reason string `json:"reason"`
+}

@@ -105,6 +105,15 @@ export function updateSession(id: string, opts: UpdateSessionOptions) {
   return post<SessionMeta>(`/api/sessions/${id}/settings`, opts)
 }
 
+// HEAD-fork an agent: server clones its workspace, copies history,
+// generates a fresh ID, and returns the new agent's metadata. The new
+// agent appears in the list immediately (server also broadcasts a
+// session_created event, but the direct response is the authoritative
+// snapshot the caller should attach to).
+export function forkSession(id: string, name: string) {
+  return post<SessionMeta>(`/api/sessions/${id}/fork`, { name })
+}
+
 export function deleteSession(id: string) {
   return del<{ ok: boolean }>(`/api/sessions/${id}`)
 }
@@ -140,9 +149,29 @@ export interface DisplayAttachment {
   media_type?: string
 }
 
+export interface DisplayCompaction {
+  summary: string
+  tokens_before: number
+  tokens_after: number
+  replaced: number
+  manual?: boolean
+}
+
+/**
+ * Marker for a help card pushed by `/help`. The card always renders the
+ * current command catalogue dynamically, so this carries no payload —
+ * it just discriminates "render as HelpCard" from regular messages in
+ * AgentChatView's iteration. Renderer-only field; never persisted to
+ * the backend (the help message itself is transient state in
+ * `sess.messages`).
+ */
+export interface DisplayHelp {
+  shown: true
+}
+
 export interface DisplayMessage {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   author_type?: 'user' | 'agent' | 'system'
   author_id?: string
   author_name?: string
@@ -153,6 +182,8 @@ export interface DisplayMessage {
   tool_calls?: DisplayTool[]
   reasoning?: DisplayReasoning
   attachments?: DisplayAttachment[]
+  compaction?: DisplayCompaction
+  help?: DisplayHelp
 }
 
 export interface HistoryPage {
@@ -219,6 +250,28 @@ export function interruptSession(id: string) {
   return post<{ ok: boolean }>(`/api/sessions/${id}/interrupt`)
 }
 
+// Triggers an explicit compaction round on the session. The session
+// must be idle (no in-flight turn). Optional `instructions` are
+// appended to the summarizer prompt for steering.
+//
+// Two non-error outcomes:
+//   - status="compacted": the marker is in `message`, render it in chat
+//   - status="no_op":     conversation was already short enough; the
+//                         renderer surfaces a friendly inline notice
+export interface CompactResponse {
+  ok: boolean
+  status: 'compacted' | 'no_op'
+  message?: DisplayMessage
+  reason?: string
+}
+
+export function compactSession(id: string, instructions?: string) {
+  return post<CompactResponse>(
+    `/api/sessions/${id}/compact`,
+    instructions ? { instructions } : {},
+  )
+}
+
 export function resolvePermission(
   sessionId: string,
   requestId: string,
@@ -245,11 +298,19 @@ export interface ConfigModelEntry {
   thinking_on?: Record<string, unknown>
   thinking_off?: Record<string, unknown>
   images_available?: boolean
+  context_window?: number
+}
+
+export interface CompactionConfig {
+  enabled: boolean
+  reserve_tokens: number
+  keep_recent_tokens: number
 }
 
 export interface CoreConfig {
   default_model: string
   model_list: ConfigModelEntry[]
+  compaction?: CompactionConfig
 }
 
 export function fetchConfig() {
@@ -258,6 +319,39 @@ export function fetchConfig() {
 
 export function saveConfig(config: CoreConfig) {
   return post<CoreConfig>('/api/config', config)
+}
+
+// ── Provider templates ────────────────────────────────────────────────────
+
+// ServerProviderTemplate / ServerVendor mirror the JSON shapes returned
+// by GET /api/provider-templates. The renderer enriches each entry with
+// vendor metadata + an icon component before exposing them to UI code
+// (see providerTemplates store / constants/providerTemplateIcons.ts).
+export interface ServerProviderTemplate {
+  id: string
+  name: string
+  model: string
+  context_window?: number
+  thinking_available?: boolean
+  thinking_on?: Record<string, unknown>
+  thinking_off?: Record<string, unknown>
+  images_available?: boolean
+}
+
+export interface ServerVendor {
+  id: string
+  name: string
+  provider: string
+  base_url: string
+  models: ServerProviderTemplate[]
+}
+
+export interface ProviderTemplatesResponse {
+  vendors: ServerVendor[]
+}
+
+export function fetchProviderTemplates() {
+  return get<ProviderTemplatesResponse>('/api/provider-templates')
 }
 
 // ── Skills ────────────────────────────────────────────────────────────────

@@ -33,6 +33,43 @@ type ModelEntry struct {
 	// field) keep working. Only an explicit `false` makes the renderer
 	// hide its image attach control.
 	ImagesAvailable *bool `json:"images_available,omitempty"`
+	// ContextWindow caps the model's combined input+output token capacity.
+	// Compaction triggers when input usage gets within `reserve_tokens` of
+	// this value. 0 means "unset" — falls back to DefaultContextWindow.
+	ContextWindow int `json:"context_window,omitempty"`
+}
+
+// CompactionConfig controls automatic context compression.
+//
+// Disabled compaction lets the conversation grow until the API rejects a
+// request; users can still trigger /compact manually.
+type CompactionConfig struct {
+	Enabled          bool `json:"enabled"`
+	ReserveTokens    int  `json:"reserve_tokens"`     // headroom kept free for the model's response
+	KeepRecentTokens int  `json:"keep_recent_tokens"` // tail-of-history token budget preserved verbatim
+}
+
+// DefaultContextWindow is the conservative fallback applied when a model
+// entry leaves ContextWindow at 0. 32K covers nearly every commonly hosted
+// open-weights model; users with larger windows fill in the explicit value.
+const DefaultContextWindow = 32000
+
+// Default compaction tuning — see compaction discussion in repo notes.
+// reserveTokens = 20000 (headroom for output + tool overhead),
+// keepRecentTokens = 32000 (preserve last few turns including tool results).
+const (
+	DefaultCompactionReserve    = 20000
+	DefaultCompactionKeepRecent = 32000
+)
+
+// DefaultCompactionConfig returns the built-in compaction tuning. Used when
+// the loaded config has no `compaction` block (legacy v1 files).
+func DefaultCompactionConfig() CompactionConfig {
+	return CompactionConfig{
+		Enabled:          true,
+		ReserveTokens:    DefaultCompactionReserve,
+		KeepRecentTokens: DefaultCompactionKeepRecent,
+	}
 }
 
 // Config is the root configuration structure.
@@ -43,9 +80,19 @@ type ModelEntry struct {
 // `CurrentConfigVersion`. A missing field decodes as 0, which matches the
 // pre-versioning baseline.
 type Config struct {
-	Version      int          `json:"version,omitempty"`
-	DefaultModel string       `json:"default_model"`
-	ModelList    []ModelEntry `json:"model_list"`
+	Version      int               `json:"version,omitempty"`
+	DefaultModel string            `json:"default_model"`
+	ModelList    []ModelEntry      `json:"model_list"`
+	Compaction   *CompactionConfig `json:"compaction,omitempty"`
+}
+
+// CompactionSettings returns the active compaction tuning, falling back to
+// built-in defaults when the field is absent in the loaded config.
+func (c *Config) CompactionSettings() CompactionConfig {
+	if c == nil || c.Compaction == nil {
+		return DefaultCompactionConfig()
+	}
+	return *c.Compaction
 }
 
 // LoadResult carries the loaded config plus metadata about how it was loaded.
@@ -59,10 +106,12 @@ type LoadResult struct {
 // ModelList is intentionally empty: the onboarding flow asks the user to
 // configure their first provider before any agent can be created.
 func TemplateConfig() *Config {
+	def := DefaultCompactionConfig()
 	return &Config{
 		Version:      CurrentConfigVersion,
 		DefaultModel: "",
 		ModelList:    []ModelEntry{},
+		Compaction:   &def,
 	}
 }
 
@@ -188,6 +237,13 @@ func Normalize(cfg *Config) bool {
 			changed = true
 		}
 
+		// ContextWindow < 0 is nonsense; keep 0 as "unset" so the runtime
+		// fallback to DefaultContextWindow stays observable.
+		if entry.ContextWindow < 0 {
+			entry.ContextWindow = 0
+			changed = true
+		}
+
 		requestedID := strings.TrimSpace(entry.ID)
 		if requestedID == "" {
 			requestedID = entry.Name
@@ -228,6 +284,33 @@ func Normalize(cfg *Config) bool {
 		changed = true
 	}
 
+	if normalizeCompaction(cfg) {
+		changed = true
+	}
+
+	return changed
+}
+
+// normalizeCompaction clamps obviously broken values and fills the block
+// with defaults when absent. Returns true if anything changed.
+func normalizeCompaction(cfg *Config) bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.Compaction == nil {
+		def := DefaultCompactionConfig()
+		cfg.Compaction = &def
+		return true
+	}
+	changed := false
+	if cfg.Compaction.ReserveTokens <= 0 {
+		cfg.Compaction.ReserveTokens = DefaultCompactionReserve
+		changed = true
+	}
+	if cfg.Compaction.KeepRecentTokens <= 0 {
+		cfg.Compaction.KeepRecentTokens = DefaultCompactionKeepRecent
+		changed = true
+	}
 	return changed
 }
 

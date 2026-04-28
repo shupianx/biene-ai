@@ -79,158 +79,11 @@ func (m *SessionManager) Init() {
 			continue
 		}
 
-		st, err := store.Open(storeDir)
+		sess, err := m.loadSessionFromDisk(id, workDir)
 		if err != nil {
-			slog.Error("init: open store", "session_id", id, "err", err)
+			slog.Error("init: load session", "session_id", id, "err", err)
 			continue
 		}
-
-		var meta SessionMeta
-		if err := st.LoadMeta(&meta); err != nil {
-			slog.Error("init: load meta", "session_id", id, "err", err)
-			st.Close()
-			continue
-		}
-		if meta.PendingPermission != nil {
-			meta.PendingPermission.Expired = true
-			if err := st.SaveMeta(meta); err != nil {
-				slog.Error("init: save expired permission state", "session_id", id, "err", err)
-			}
-		}
-
-		// Load display history; clear any streaming-in-progress flags.
-		rawDisplay, err := st.LoadDisplayMessages()
-		if err != nil {
-			slog.Error("init: load display", "session_id", id, "err", err)
-			st.Close()
-			continue
-		}
-		history := make([]DisplayMessage, 0, len(rawDisplay))
-		for _, raw := range rawDisplay {
-			var msg DisplayMessage
-			if err := json.Unmarshal(raw, &msg); err != nil {
-				continue
-			}
-			msg.Streaming = false
-			history = append(history, msg)
-		}
-
-		// Load API messages.
-		rawAPI, err := st.LoadAPIMessages()
-		if err != nil {
-			slog.Error("init: load api msgs", "session_id", id, "err", err)
-			st.Close()
-			continue
-		}
-		apiMsgs := make([]api.Message, 0, len(rawAPI))
-		for _, raw := range rawAPI {
-			msg, err := unmarshalAPIMessage(raw)
-			if err != nil {
-				continue
-			}
-			apiMsgs = append(apiMsgs, msg)
-		}
-
-		perms := meta.Permissions
-		profile := normalizeProfile(meta.Profile)
-		toolMode := defaultToolModeForProfile(profile)
-
-		// Rebuild provider / registry / checker from the pinned model selection.
-		modelEntry, resolvedModelID, err := resolveModelEntry(m.cfg, meta.ModelID)
-		if err != nil {
-			slog.Error("init: get model for", "session_id", id, "err", err)
-			st.Close()
-			continue
-		}
-		if meta.ModelID != resolvedModelID || meta.ModelName != modelEntry.Name {
-			meta.ModelID = resolvedModelID
-			meta.ModelName = modelEntry.Name
-			if err := st.SaveMeta(meta); err != nil {
-				slog.Error("init: save normalized model state", "session_id", id, "err", err)
-			}
-		}
-		thinkingAvailable := modelEntry.ThinkingAvailable
-		thinkingEnabled := thinkingAvailable
-		if meta.ThinkingAvailable {
-			thinkingEnabled = thinkingAvailable && meta.ThinkingEnabled
-		}
-		if meta.ThinkingAvailable != thinkingAvailable || meta.ThinkingEnabled != thinkingEnabled {
-			meta.ThinkingAvailable = thinkingAvailable
-			meta.ThinkingEnabled = thinkingEnabled
-			if err := st.SaveMeta(meta); err != nil {
-				slog.Error("init: save thinking state", "session_id", id, "err", err)
-			}
-		}
-		if meta.Avatar == "" {
-			meta.Avatar = randomAvatar()
-			if err := st.SaveMeta(meta); err != nil {
-				slog.Error("init: save backfilled avatar", "session_id", id, "err", err)
-			}
-		}
-		provider := newProvider(modelEntry)
-		registry := builtins.RegistryForWorkDir(workDir)
-		checker := webperm.NewChecker(perms)
-		procCtl := processes.New(workDir)
-		registry.Register(builtins.NewListAgentsTool(m, id))
-		registry.Register(builtins.NewSendMessageToAgentTool(m, id))
-		registry.Register(builtins.NewCoworkWithAgentTool(m, id))
-		registry.Register(builtins.NewEndCoworkWithAgentTool(m, id))
-		registry.Register(builtins.NewListCoworksTool(m, id))
-		registry.Register(builtins.NewStartProcessTool(workDir, procCtl))
-		registry.Register(builtins.NewReadProcessOutputTool(procCtl))
-		registry.Register(builtins.NewStopProcessTool(procCtl))
-
-		installedIDs, scanErr := skills.InstalledSkillIDsForWorkDir(workDir)
-		if scanErr != nil {
-			slog.Error("scan installed skills for", "session_id", id, "err", scanErr)
-		}
-		sess := &Session{
-			ID:                id,
-			Name:              meta.Name,
-			WorkDir:           meta.WorkDir,
-			Status:            StatusIdle,
-			permissions:       perms,
-			profile:           profile,
-			toolMode:          toolMode,
-			CreatedAt:         meta.CreatedAt,
-			LastActive:        meta.LastActive,
-			provider:          provider,
-			registry:          registry,
-			checker:           checker,
-			modelID:           resolvedModelID,
-			modelName:         modelEntry.Name,
-			thinkingAvailable: thinkingAvailable,
-			thinkingEnabled:   thinkingEnabled,
-			thinkingOn:        modelEntry.ThinkingOn,
-			thinkingOff:       modelEntry.ThinkingOff,
-			imagesAvailable:   resolveImagesAvailable(modelEntry),
-			avatar:            meta.Avatar,
-			activeSkills:      append([]string(nil), meta.ActiveSkills...),
-			installedSkillIDs: installedIDs,
-			coworksGranted:    append([]GrantedCowork(nil), meta.CoworksGranted...),
-			apiMessages:       apiMsgs,
-			history:           history,
-			pendingPermission: clonePermissionPayload(meta.PendingPermission),
-			persistedCount:    len(history),
-			processes:         procCtl,
-			subscribers:       make(map[int]chan Frame),
-			store:             st,
-		}
-		registry.Register(builtins.NewUseSkillTool(sess))
-		sess.systemPrompt = prompt.Build(registry, workDir, profile, prompt.AgentIdentity{
-			ID:      id,
-			Name:    meta.Name,
-			WorkDir: workDir,
-		}, nil)
-		sess.onMetaChanged = m.emitSessionUpdated
-		sess.onProcessStateChanged = m.emitSessionProcessState
-		checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
-			payload := sess.setPendingPermission(req)
-			sess.send(makeFrame("permission_request", payload))
-		}
-		checker.OnPermissionSettled = sess.clearPendingPermission
-		checker.OnPermissionsChanged = sess.persistPermissions
-		sess.startProcessWatcher()
 
 		m.mu.Lock()
 		m.sessions[id] = sess
@@ -238,13 +91,172 @@ func (m *SessionManager) Init() {
 	}
 }
 
+// loadSessionFromDisk hydrates a Session from its on-disk meta + history.
+// Used by Init() to re-attach existing sessions on startup, and by
+// Fork() to attach the freshly-copied session that Fork wrote to disk.
+//
+// The returned Session is fully wired (provider, registry, checker,
+// process controller, callbacks) but NOT registered in m.sessions —
+// that's the caller's job, since Init runs without holding the lock
+// for each session and Fork wants to enforce its own ordering.
+func (m *SessionManager) loadSessionFromDisk(id, workDir string) (*Session, error) {
+	storeDir := filepath.Join(workDir, ".biene")
+	st, err := store.Open(storeDir)
+	if err != nil {
+		return nil, fmt.Errorf("open store: %w", err)
+	}
+
+	var meta SessionMeta
+	if err := st.LoadMeta(&meta); err != nil {
+		st.Close()
+		return nil, fmt.Errorf("load meta: %w", err)
+	}
+	if meta.PendingPermission != nil {
+		meta.PendingPermission.Expired = true
+		if err := st.SaveMeta(meta); err != nil {
+			slog.Error("save expired permission state", "session_id", id, "err", err)
+		}
+	}
+
+	// Load display history; clear any streaming-in-progress flags.
+	rawDisplay, err := st.LoadDisplayMessages()
+	if err != nil {
+		st.Close()
+		return nil, fmt.Errorf("load display: %w", err)
+	}
+	history := make([]DisplayMessage, 0, len(rawDisplay))
+	for _, raw := range rawDisplay {
+		var msg DisplayMessage
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			continue
+		}
+		msg.Streaming = false
+		history = append(history, msg)
+	}
+
+	// Load API messages.
+	rawAPI, err := st.LoadAPIMessages()
+	if err != nil {
+		st.Close()
+		return nil, fmt.Errorf("load api msgs: %w", err)
+	}
+	apiMsgs := make([]api.Message, 0, len(rawAPI))
+	for _, raw := range rawAPI {
+		msg, err := unmarshalAPIMessage(raw)
+		if err != nil {
+			continue
+		}
+		apiMsgs = append(apiMsgs, msg)
+	}
+
+	perms := meta.Permissions
+	profile := normalizeProfile(meta.Profile)
+	toolMode := defaultToolModeForProfile(profile)
+
+	// Rebuild provider / registry / checker from the pinned model selection.
+	modelEntry, resolvedModelID, err := resolveModelEntry(m.cfg, meta.ModelID)
+	if err != nil {
+		st.Close()
+		return nil, fmt.Errorf("resolve model: %w", err)
+	}
+	if meta.ModelID != resolvedModelID || meta.ModelName != modelEntry.Name {
+		meta.ModelID = resolvedModelID
+		meta.ModelName = modelEntry.Name
+		if err := st.SaveMeta(meta); err != nil {
+			slog.Error("save normalized model state", "session_id", id, "err", err)
+		}
+	}
+	thinkingAvailable := modelEntry.ThinkingAvailable
+	thinkingEnabled := thinkingAvailable
+	if meta.ThinkingAvailable {
+		thinkingEnabled = thinkingAvailable && meta.ThinkingEnabled
+	}
+	if meta.ThinkingAvailable != thinkingAvailable || meta.ThinkingEnabled != thinkingEnabled {
+		meta.ThinkingAvailable = thinkingAvailable
+		meta.ThinkingEnabled = thinkingEnabled
+		if err := st.SaveMeta(meta); err != nil {
+			slog.Error("save thinking state", "session_id", id, "err", err)
+		}
+	}
+	// avatar is now a frontend-owned key transported through
+	// SessionMeta.Extras (see CLAUDE.md "Schema 设计准则"). The
+	// backend doesn't generate it, validate it, or backfill it —
+	// the renderer takes over both choosing and persisting it.
+	provider := newProvider(modelEntry)
+	registry := builtins.RegistryForWorkDir(workDir)
+	checker := webperm.NewChecker(perms)
+	procCtl := processes.New(workDir)
+	registry.Register(builtins.NewListAgentsTool(m, id))
+	registry.Register(builtins.NewSendMessageToAgentTool(m, id))
+	registry.Register(builtins.NewCoworkWithAgentTool(m, id))
+	registry.Register(builtins.NewEndCoworkWithAgentTool(m, id))
+	registry.Register(builtins.NewListCoworksTool(m, id))
+	registry.Register(builtins.NewStartProcessTool(workDir, procCtl))
+	registry.Register(builtins.NewReadProcessOutputTool(procCtl))
+	registry.Register(builtins.NewStopProcessTool(procCtl))
+
+	installedIDs, scanErr := skills.InstalledSkillIDsForWorkDir(workDir)
+	if scanErr != nil {
+		slog.Error("scan installed skills for", "session_id", id, "err", scanErr)
+	}
+	sess := &Session{
+		ID:                id,
+		Name:              meta.Name,
+		WorkDir:           meta.WorkDir,
+		Status:            StatusIdle,
+		permissions:       perms,
+		profile:           profile,
+		toolMode:          toolMode,
+		CreatedAt:         meta.CreatedAt,
+		LastActive:        meta.LastActive,
+		provider:          provider,
+		registry:          registry,
+		checker:           checker,
+		modelID:           resolvedModelID,
+		modelName:         modelEntry.Name,
+		thinkingAvailable: thinkingAvailable,
+		thinkingEnabled:   thinkingEnabled,
+		thinkingOn:        modelEntry.ThinkingOn,
+		thinkingOff:       modelEntry.ThinkingOff,
+		imagesAvailable:   resolveImagesAvailable(modelEntry),
+		extras:            cloneExtras(meta.Extras),
+		activeSkills:      append([]string(nil), meta.ActiveSkills...),
+		installedSkillIDs: installedIDs,
+		coworksGranted:    append([]GrantedCowork(nil), meta.CoworksGranted...),
+		apiMessages:       apiMsgs,
+		history:           history,
+		pendingPermission: clonePermissionPayload(meta.PendingPermission),
+		persistedCount:    len(history),
+		processes:         procCtl,
+		subscribers:       make(map[int]chan Frame),
+		store:             st,
+	}
+	registry.Register(builtins.NewUseSkillTool(sess))
+	sess.systemPrompt = prompt.Build(registry, workDir, profile, prompt.AgentIdentity{
+		ID:      id,
+		Name:    meta.Name,
+		WorkDir: workDir,
+	}, nil)
+	sess.configProvider = m.snapshotConfig
+	sess.onMetaChanged = m.emitSessionUpdated
+	sess.onProcessStateChanged = m.emitSessionProcessState
+	checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
+		payload := sess.setPendingPermission(req)
+		sess.send(makeFrame("permission_request", payload))
+	}
+	checker.OnPermissionSettled = sess.clearPendingPermission
+	checker.OnPermissionsChanged = sess.persistPermissions
+	sess.startProcessWatcher()
+
+	return sess, nil
+}
+
 // Create allocates a new session with its own workspace directory.
 //
-// `avatar` is optional: pass a sprite index ("0".."avatarSpriteCount-1") to
-// honour an explicit pick from the renderer, or "" to let the server
-// randomise. Anything else outside the valid range falls back to random
-// rather than failing the create call.
-func (m *SessionManager) Create(name string, permissions tools.PermissionSet, profile prompt.AgentProfile, modelID, avatar string) (*Session, error) {
+// `extras` carries any frontend-owned keys (the renderer's `avatar`
+// pick is the canonical example) that should land in meta.json. The
+// backend never inspects them — see CLAUDE.md "Schema 设计准则".
+func (m *SessionManager) Create(name string, permissions tools.PermissionSet, profile prompt.AgentProfile, modelID string, extras store.Extras) (*Session, error) {
 	id := newSessionID()
 	workDir := filepath.Join(m.workspaceRoot, id)
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -301,7 +313,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		thinkingOn:        modelEntry.ThinkingOn,
 		thinkingOff:       modelEntry.ThinkingOff,
 		imagesAvailable:   resolveImagesAvailable(modelEntry),
-		avatar:            resolveAvatar(avatar),
+		extras:            cloneExtras(extras),
 		installedSkillIDs: installedIDs,
 		apiMessages:       []api.Message{},
 		history:           []DisplayMessage{},
@@ -315,6 +327,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		Name:    name,
 		WorkDir: workDir,
 	}, nil)
+	sess.configProvider = m.snapshotConfig
 	sess.onMetaChanged = m.emitSessionUpdated
 	sess.onProcessStateChanged = m.emitSessionProcessState
 	checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {

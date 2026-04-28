@@ -31,6 +31,15 @@ func resolveModelEntry(cfg *config.Config, requestedID string) (config.ModelEntr
 	return entry, entry.ID, nil
 }
 
+// snapshotConfig returns the current global config under the manager's
+// read lock. Sessions consult this through their configProvider closure
+// so reads stay race-free across UpdateConfig calls.
+func (m *SessionManager) snapshotConfig() *config.Config {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cfg
+}
+
 func (m *SessionManager) ModelUsageCounts() map[string]int {
 	m.mu.RLock()
 	sessions := make([]*Session, 0, len(m.sessions))

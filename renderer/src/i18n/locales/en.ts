@@ -55,7 +55,8 @@ const en = {
     },
     emptyFilteredTitle: 'No matching agents',
     emptyFilteredHint: 'Adjust the filters, or create a new agent.',
-    openFolderMenu: 'Open folder',
+    openWorkdirMenu: 'Open workspace directory',
+    openSkillsDirMenu: 'Open skills directory',
     openMenu: 'Open window',
   },
   statusBar: {
@@ -97,6 +98,35 @@ const en = {
     mention: {
       empty: 'No matching agents',
     },
+    slash: {
+      empty: 'No matching commands or skills',
+      commandsLabel: 'Commands',
+      skillsLabel: 'Skills',
+    },
+  },
+  command: {
+    compact: {
+      name: '/compact',
+      description: 'Summarise older context to free room',
+    },
+    help: {
+      name: '/help',
+      description: 'Show all available commands',
+    },
+  },
+  help: {
+    tag: 'AVAILABLE COMMANDS',
+    colCommand: 'Command',
+    colDescription: 'Description',
+  },
+  fork: {
+    menuLabel: 'Fork',
+    dialogTitle: 'Fork {source}',
+    nameLabel: 'New name',
+    confirmButton: 'Fork',
+    defaultNameSuffix: '(copy)',
+    errorEmpty: 'Name is required',
+    errorTaken: 'An agent with this name already exists',
   },
   process: {
     logs: 'Logs',
@@ -157,7 +187,7 @@ const en = {
     language: 'Language',
     languageHint: 'Choose the interface language for the desktop UI.',
     modelProviders: 'Model Providers',
-    modelProvidersHint: 'Manage the providers saved in ~/.biene/config.json and choose which one is the default.',
+    modelProvidersHint: 'Manage your saved providers and choose which one is the default.',
     modelLoading: 'Loading models…',
     addProvider: 'Add Provider',
     providerLoading: 'Loading model providers…',
@@ -313,6 +343,17 @@ const en = {
       load_skill_named: 'load skill {name}',
       invalid_input: '<invalid input>',
     },
+  },
+  compaction: {
+    tagAuto: 'COMPACT · AUTO',
+    tagManual: 'COMPACT · MANUAL',
+    meta: '{before} → {after} tok · {n} msg folded',
+    summaryEyebrow: 'SUMMARY',
+    inflight: 'COMPRESSING CONTEXT',
+    errorTag: 'COMPACT · FAILED',
+    errorDismiss: 'Dismiss',
+    noticeTag: 'COMPACT · NOT NEEDED',
+    noticeMsg: 'The conversation is short enough that compression would not free meaningful context.',
   },
 }
 

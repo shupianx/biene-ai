@@ -41,12 +41,19 @@
       >
         <span v-if="session.isLoadingMoreHistory" class="history-spinner" aria-hidden="true" />
       </div>
-      <MessageItem
-        v-for="msg in session.messages"
-        :key="msg.id"
-        :msg="msg"
-        :session-id="session.meta.id"
-      />
+      <template v-for="msg in session.messages" :key="msg.id">
+        <CompactionMarker
+          v-if="msg.compaction"
+          :compaction="msg.compaction"
+          :created-at="msg.created_at"
+        />
+        <HelpCard v-else-if="msg.help" />
+        <MessageItem
+          v-else
+          :msg="msg"
+          :session-id="session.meta.id"
+        />
+      </template>
       <PermissionDialog
         v-if="session.pendingPermission"
         :req="session.pendingPermission"
@@ -56,6 +63,40 @@
         <span class="typing-dot" />
         <span class="typing-dot" />
         <span class="typing-dot" />
+      </div>
+      <div v-if="session.compactionInFlight" class="compaction-status" role="status">
+        <span class="status-line" aria-hidden="true" />
+        <span class="status-tag">
+          <span class="status-dot" aria-hidden="true" />
+          {{ t('compaction.inflight') }}
+        </span>
+        <span class="status-line" aria-hidden="true" />
+      </div>
+      <div
+        v-if="session.compactionError"
+        class="compaction-error"
+        role="alert"
+      >
+        <span class="err-tag">{{ t('compaction.errorTag') }}</span>
+        <span class="err-msg">{{ session.compactionError }}</span>
+        <button
+          class="err-dismiss"
+          type="button"
+          @click="session.compactionError = null"
+        >{{ t('compaction.errorDismiss') }}</button>
+      </div>
+      <div
+        v-if="session.compactionNotice"
+        class="compaction-notice"
+        role="status"
+      >
+        <span class="notice-tag">{{ t('compaction.noticeTag') }}</span>
+        <span class="notice-msg">{{ t('compaction.noticeMsg') }}</span>
+        <button
+          class="notice-dismiss"
+          type="button"
+          @click="session.compactionNotice = null"
+        >{{ t('compaction.errorDismiss') }}</button>
       </div>
     </div>
 
@@ -95,6 +136,7 @@
         :mention-candidates="mentionCandidates"
         :skill-candidates="skillCandidates"
         @send="onSend"
+        @command="onCommand"
         @update:thinking-enabled="onThinkingEnabledChange"
         @interrupt="onInterrupt"
       />
@@ -109,6 +151,8 @@ import MynauiLightningSolid from '~icons/mynaui/lightning-solid'
 import { t } from '../../i18n'
 import { useSessionsStore } from '../../stores/sessions'
 import MessageItem from './MessageItem.vue'
+import CompactionMarker from './CompactionMarker.vue'
+import HelpCard from './HelpCard.vue'
 import InputBar from './InputBar.vue'
 import PermissionDialog from './PermissionDialog.vue'
 import ProcessCapsule from './ProcessCapsule.vue'
@@ -116,6 +160,7 @@ import IconButton from '../ui/IconButton.vue'
 import ProcessLogPanel from './ProcessLogPanel.vue'
 import { getSessionStatusLabel, getSessionStatusTone } from '../../utils/sessionStatus'
 import { listSkills, type SkillCatalogEntry } from '../../api/http'
+import { builtinCommands } from '../../commands'
 
 const props = defineProps<{ session: AgentSession }>()
 const emit = defineEmits<{
@@ -431,6 +476,22 @@ function onSend(payload: { text: string; files: File[] }) {
   pendingAutoScroll.value = false
   nextTick(() => {
     scrollToBottom()
+  })
+}
+
+// Routes a /command invocation from InputBar through the command
+// registry. The InputBar already removed the line from the editor;
+// our job is to dispatch to the matching command's execute handler.
+function onCommand(payload: { id: string; args: string }) {
+  const cmd = builtinCommands.find((c) => c.id === payload.id)
+  if (!cmd) {
+    console.warn(`[AgentChatView] unknown command: /${payload.id}`)
+    return
+  }
+  void cmd.execute({
+    sessionId: props.session.meta.id,
+    args: payload.args,
+    store,
   })
 }
 
@@ -825,5 +886,147 @@ watch(inputOverlayHeight, () => {
 
 .typing-dot:nth-child(2) { animation-delay: .15s; }
 .typing-dot:nth-child(3) { animation-delay: .30s; }
+
+.compaction-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0;
+  color: var(--ink-4);
+}
+
+.compaction-status .status-line {
+  flex: 1 1 auto;
+  height: 0;
+  border-top: 1px dashed var(--rule-soft);
+}
+
+.compaction-status .status-tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  background: var(--panel);
+  border: 1px solid var(--rule-softer);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--ink-3);
+}
+
+.compaction-status .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: bieneBlink 1.1s ease-in-out infinite;
+}
+
+.compaction-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 1px solid var(--rule-softer);
+  border-left: 2px solid var(--err);
+  border-radius: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  animation: bieneFadeIn .18s ease both;
+}
+
+.compaction-error .err-tag {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--err);
+}
+
+.compaction-error .err-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+  color: var(--ink-3);
+}
+
+.compaction-error .err-dismiss {
+  flex: 0 0 auto;
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  cursor: pointer;
+  transition: color .12s ease;
+}
+
+.compaction-error .err-dismiss:hover {
+  color: var(--ink-2);
+}
+
+.compaction-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 1px solid var(--rule-softer);
+  border-left: 2px solid var(--ink-3);
+  border-radius: 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  animation: bieneFadeIn .18s ease both;
+}
+
+.compaction-notice .notice-tag {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--ink-3);
+}
+
+.compaction-notice .notice-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+  color: var(--ink-3);
+}
+
+.compaction-notice .notice-dismiss {
+  flex: 0 0 auto;
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  cursor: pointer;
+  transition: color .12s ease;
+}
+
+.compaction-notice .notice-dismiss:hover {
+  color: var(--ink-2);
+}
 
 </style>

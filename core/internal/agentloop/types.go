@@ -19,6 +19,9 @@ const (
 	KindToolStart           EventKind = "tool_start"
 	KindToolResult          EventKind = "tool_result"
 	KindToolDenied          EventKind = "tool_denied"
+	KindCompactionStart     EventKind = "compaction_start"
+	KindCompactionDone      EventKind = "compaction_done"
+	KindCompactionFailed    EventKind = "compaction_failed"
 	KindInterrupted         EventKind = "interrupted"
 	KindDone                EventKind = "done"
 	KindError               EventKind = "error"
@@ -38,6 +41,13 @@ type Event struct {
 	// known from the streaming tool_use input JSON.
 	FilePath      string // write/edit: path whose value has fully arrived
 	FileTextBytes int    // write: approximate bytes of file_text seen so far
+
+	// Compaction payload — populated on KindCompaction* events so the
+	// session/UI can render the marker and "compressing…" status.
+	CompactionTokensBefore int
+	CompactionTokensAfter  int
+	CompactionSummary      string
+	CompactionMarkerID     string
 }
 
 // PermissionChecker decides whether a tool call is allowed to proceed.
@@ -61,4 +71,12 @@ type Config struct {
 
 	// SessionID is optional and only used for log enrichment.
 	SessionID string
+
+	// BeforeIteration, if non-nil, is invoked at the top of every model
+	// call. It receives the current message list plus the API-reported
+	// usage from the previous call (zero on the first iteration). The
+	// returned slice replaces cfg.Messages for the upcoming call. The
+	// session layer uses this to consult the compaction policy and
+	// rewrite history when the input window threshold is crossed.
+	BeforeIteration func(ctx context.Context, msgs []api.Message, lastUsage api.Usage) ([]api.Message, error)
 }

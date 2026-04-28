@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"biene/internal/prompt"
+	"biene/internal/store"
 	"biene/internal/tools"
 )
 
@@ -17,16 +18,30 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 // createSessionRequest is the body for POST /api/sessions.
+//
+// Extras carries any frontend-only keys (e.g. `avatar`) the renderer
+// wants persisted alongside the agent's metadata. The decoder routes
+// them through SessionMeta.Extras so they survive every save without
+// the backend needing a typed field. See CLAUDE.md "Schema 设计准则".
 type createSessionRequest struct {
 	Name        string               `json:"name"`
 	ModelID     string               `json:"model_id"`
 	Permissions *tools.PermissionSet `json:"permissions"`
 	Profile     *prompt.AgentProfile `json:"profile"`
-	// Avatar lets the client pick the sprite cell (string "0".."19"). Empty
-	// or out-of-range values fall back to a server-side random pick — this
-	// keeps legacy clients working and means a misconfigured renderer
-	// can't ship a session with no avatar at all.
-	Avatar string `json:"avatar"`
+
+	Extras store.Extras `json:"-"`
+}
+
+func (r *createSessionRequest) UnmarshalJSON(raw []byte) error {
+	type alias createSessionRequest
+	var aux alias
+	var extras store.Extras
+	if err := store.UnmarshalWithExtras(raw, &aux, &extras); err != nil {
+		return err
+	}
+	*r = createSessionRequest(aux)
+	r.Extras = extras
+	return nil
 }
 
 // handleCreateSession creates a new agent session with its own workspace.
@@ -52,8 +67,52 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if req.Profile != nil {
 		profile = *req.Profile
 	}
-	sess, err := s.mgr.Create(req.Name, perms, profile, req.ModelID, req.Avatar)
+	sess, err := s.mgr.Create(req.Name, perms, profile, req.ModelID, req.Extras)
 	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, sess.Meta())
+}
+
+// forkSessionRequest is the body for POST /api/sessions/{id}/fork.
+//
+// `name` is required and must not collide with an existing agent's
+// name (the manager enforces this server-side; the renderer pre-fills
+// a collision-free default like "<source> 复制体").
+type forkSessionRequest struct {
+	Name string `json:"name"`
+}
+
+// handleForkSession creates a new session by HEAD-cloning the source
+// agent's workspace + history.
+// POST /api/sessions/{id}/fork
+func (s *Server) handleForkSession(w http.ResponseWriter, r *http.Request) {
+	source := s.lookupSession(w, r)
+	if source == nil {
+		return
+	}
+
+	var req forkSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	sess, err := s.mgr.Fork(source.ID, req.Name)
+	if err != nil {
+		// "name in use" is a conflict; everything else surfaces as 500
+		// since the operation is non-trivial (workspace copy etc.).
+		if strings.Contains(err.Error(), "already in use") {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

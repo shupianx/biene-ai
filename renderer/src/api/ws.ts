@@ -15,6 +15,9 @@ import type {
   ProcessStateData,
   SessionProcessStateData,
   ToolComposeProgressData,
+  CompactionStartData,
+  CompactionDoneData,
+  CompactionFailedData,
   ErrorData,
   SessionEventType,
 } from '../types/events'
@@ -34,6 +37,9 @@ export interface WSHandlers {
   onPermissionCleared: (data: PermissionClearedData) => void
   onSkillActivated: (data: SkillActivatedData) => void
   onProcessState: (data: ProcessStateData) => void
+  onCompactionStart?: (data: CompactionStartData) => void
+  onCompactionDone?: (data: CompactionDoneData) => void
+  onCompactionFailed?: (data: CompactionFailedData) => void
   onError: (data: ErrorData) => void
   onDone: () => void
   onReconnect?: () => void
@@ -98,6 +104,15 @@ export function connectWS(sessionId: string, handlers: WSHandlers): () => void {
         break
       case 'process_state':
         handlers.onProcessState(message.data as ProcessStateData)
+        break
+      case 'compaction_start':
+        handlers.onCompactionStart?.(message.data as CompactionStartData)
+        break
+      case 'compaction_done':
+        handlers.onCompactionDone?.(message.data as CompactionDoneData)
+        break
+      case 'compaction_failed':
+        handlers.onCompactionFailed?.(message.data as CompactionFailedData)
         break
       case 'error':
         handlers.onError(message.data as ErrorData)

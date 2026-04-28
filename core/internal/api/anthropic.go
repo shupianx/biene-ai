@@ -79,10 +79,31 @@ func (p *AnthropicProvider) Stream(
 
 		var currentToolID, currentToolName string
 		var toolInputBuf []byte
+		var usage Usage
+		var usageSeen bool
 
 		for stream.Next() {
 			ev := stream.Current()
 			switch ev.AsAny().(type) {
+			case anthropic.BetaRawMessageStartEvent:
+				// message_start carries the initial usage snapshot. The
+				// SDK reports cumulative tokens, so subsequent message_delta
+				// events overwrite this.
+				ms := ev.AsMessageStart()
+				usage = Usage{
+					InputTokens:  int(ms.Message.Usage.InputTokens),
+					OutputTokens: int(ms.Message.Usage.OutputTokens),
+				}
+				usageSeen = true
+
+			case anthropic.BetaRawMessageDeltaEvent:
+				md := ev.AsMessageDelta()
+				usage = Usage{
+					InputTokens:  int(md.Usage.InputTokens),
+					OutputTokens: int(md.Usage.OutputTokens),
+				}
+				usageSeen = true
+
 			case anthropic.BetaRawContentBlockStartEvent:
 				startEv := ev.AsContentBlockStart()
 				// Check if it's a tool_use block by inspecting the Type field
@@ -146,6 +167,9 @@ func (p *AnthropicProvider) Stream(
 		if err := stream.Err(); err != nil {
 			ch <- StreamEvent{Type: EventError, Err: err}
 			return
+		}
+		if usageSeen {
+			ch <- StreamEvent{Type: EventUsage, Usage: usage}
 		}
 		ch <- StreamEvent{Type: EventDone}
 	}()

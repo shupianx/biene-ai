@@ -1,8 +1,10 @@
 package config
 
+import "biene/internal/templates"
+
 // CurrentConfigVersion is the schema version this build of core writes.
 // Bump this whenever a new entry is appended to `configMigrations`.
-const CurrentConfigVersion = 1
+const CurrentConfigVersion = 3
 
 // configMigration is one step that brings a config file from
 // (TargetVersion - 1) up to TargetVersion. Migrations run in ascending
@@ -22,6 +24,16 @@ var configMigrations = []configMigration{
 		TargetVersion: 1,
 		Description:   "Backfill images_available=false for known vision-incapable models",
 		Apply:         migrateBackfillImagesAvailable,
+	},
+	{
+		TargetVersion: 2,
+		Description:   "Seed compaction block with built-in defaults",
+		Apply:         migrateSeedCompaction,
+	},
+	{
+		TargetVersion: 3,
+		Description:   "Backfill context_window on model entries from the builtin template registry",
+		Apply:         migrateBackfillContextWindow,
 	},
 }
 
@@ -59,6 +71,49 @@ func Migrate(cfg *Config) bool {
 // entry that hasn't already declared a value. Keep the model list in sync
 // with the `images_available: false` markers in
 // renderer/src/constants/providerTemplates.ts.
+// migrateSeedCompaction: v1 had no compaction block. Seed the default one
+// so existing installs auto-enable context compression on first launch.
+// Already-set blocks are kept as-is.
+func migrateSeedCompaction(cfg *Config) bool {
+	if cfg.Compaction != nil {
+		return false
+	}
+	def := DefaultCompactionConfig()
+	cfg.Compaction = &def
+	return true
+}
+
+// migrateBackfillContextWindow: v2 added the context_window field but did
+// nothing to populate it on entries that pre-dated the change. Without
+// this fill-in, those entries fall back to DefaultContextWindow (32K) at
+// runtime, which silently breaks compaction's math on models that
+// actually have 128K/200K windows. Walk model_list and copy the
+// authoritative window from the builtin template registry whenever
+//
+//   - the entry has no explicit context_window (== 0), AND
+//   - (provider, model, base_url) matches a known template that
+//     declares a window.
+//
+// Entries that don't match any template (truly custom user models) are
+// left at 0 — the runtime fallback handles them, and overwriting with
+// a guess would do more harm than good.
+func migrateBackfillContextWindow(cfg *Config) bool {
+	changed := false
+	for i := range cfg.ModelList {
+		entry := &cfg.ModelList[i]
+		if entry.ContextWindow > 0 {
+			continue
+		}
+		window, ok := templates.LookupContextWindow(entry.Provider, entry.Model, entry.BaseURL)
+		if !ok {
+			continue
+		}
+		entry.ContextWindow = window
+		changed = true
+	}
+	return changed
+}
+
 func migrateBackfillImagesAvailable(cfg *Config) bool {
 	blocked := map[string]struct{}{
 		"deepseek-v4-pro":   {},

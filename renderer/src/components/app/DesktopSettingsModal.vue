@@ -192,6 +192,19 @@
                 autocomplete="off"
               />
             </label>
+
+            <label class="provider-field provider-field-wide">
+              <span class="provider-field-label">Context window (tokens)</span>
+              <input
+                v-model.number="providerDraft.context_window"
+                class="provider-input mono"
+                type="number"
+                min="0"
+                step="1000"
+                placeholder="leave blank for default (32000)"
+                autocomplete="off"
+              />
+            </label>
           </div>
 
           <div class="provider-editor-actions">
@@ -218,9 +231,9 @@ import { fetchConfig, listSessions, saveConfig, type ConfigModelEntry, type Core
 import {
   customTemplate,
   defaultTemplateID,
-  providerTemplates,
-  providerVendors,
+  type ProviderVendor,
 } from '../../constants/providerTemplates'
+import { useProviderTemplatesStore } from '../../stores/providerTemplates'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
 import AppButton from '../ui/AppButton.vue'
 import BaseModal from '../ui/BaseModal.vue'
@@ -262,6 +275,8 @@ const providerTemplate = ref<ProviderTemplateID>(defaultTemplateID)
 const providerDraft = reactive<ConfigModelEntry>(emptyProviderDraft())
 const sessionMetas = ref<SessionMeta[]>([])
 const editorRef = ref<HTMLElement | null>(null)
+const tplStore = useProviderTemplatesStore()
+void tplStore.ensureLoaded()
 
 const localeOptions = computed<{ value: AppLocale; label: string }[]>(() => [
   { value: 'en', label: t('language.english') },
@@ -281,7 +296,7 @@ const isProviderTemplateLocked = computed(
   () =>
     providerTemplate.value !== customTemplate.id &&
     !providerTemplate.value.startsWith('vendor:') &&
-    Boolean(providerTemplates[providerTemplate.value]),
+    Boolean(tplStore.byId[providerTemplate.value]),
 )
 
 const currentTemplateLabel = computed(() => {
@@ -289,10 +304,10 @@ const currentTemplateLabel = computed(() => {
   if (id === customTemplate.id) return t('modal.customProvider')
   if (id.startsWith('vendor:')) {
     const vendorId = id.slice('vendor:'.length)
-    const vendor = providerVendors.find((v) => v.id === vendorId)
+    const vendor = tplStore.vendors.find((v: ProviderVendor) => v.id === vendorId)
     return vendor?.name ?? t('modal.customProvider')
   }
-  const template = providerTemplates[id]
+  const template = tplStore.byId[id]
   if (!template) return t('modal.customProvider')
   return `${template.vendorName} · ${template.name}`
 })
@@ -336,6 +351,7 @@ function emptyProviderDraft(): ConfigModelEntry {
     thinking_on: undefined,
     thinking_off: undefined,
     images_available: true,
+    context_window: undefined,
   }
 }
 
@@ -351,6 +367,7 @@ function cloneProvider(entry: ConfigModelEntry): ConfigModelEntry {
     thinking_on: entry.thinking_on,
     thinking_off: entry.thinking_off,
     images_available: entry.images_available !== false,
+    context_window: entry.context_window,
   }
 }
 
@@ -358,6 +375,7 @@ function cloneConfig(config: CoreConfig): CoreConfig {
   return {
     default_model: config.default_model,
     model_list: config.model_list.map(cloneProvider),
+    compaction: config.compaction,
   }
 }
 
@@ -405,7 +423,7 @@ function providerDeleteDisabledReason(id: string) {
 }
 
 function detectProviderTemplate(entry: ConfigModelEntry): ProviderTemplateID {
-  for (const [id, template] of Object.entries(providerTemplates)) {
+  for (const [id, template] of Object.entries(tplStore.byId)) {
     if (
       entry.provider === template.provider &&
       entry.model === template.model &&
@@ -426,6 +444,7 @@ function applyProviderTemplate(templateID: ProviderTemplateID) {
     providerDraft.thinking_on = undefined
     providerDraft.thinking_off = undefined
     providerDraft.images_available = true
+    providerDraft.context_window = undefined
     return
   }
 
@@ -434,7 +453,7 @@ function applyProviderTemplate(templateID: ProviderTemplateID) {
     // and model blank for the user to enter. Useful for vendors we know
     // about but haven't shipped a concrete model preset for.
     const vendorId = templateID.slice('vendor:'.length)
-    const vendor = providerVendors.find((v) => v.id === vendorId)
+    const vendor = tplStore.vendors.find((v: ProviderVendor) => v.id === vendorId)
     if (!vendor) return
     providerDraft.name = ''
     providerDraft.provider = vendor.provider
@@ -444,10 +463,11 @@ function applyProviderTemplate(templateID: ProviderTemplateID) {
     providerDraft.thinking_on = undefined
     providerDraft.thinking_off = undefined
     providerDraft.images_available = true
+    providerDraft.context_window = undefined
     return
   }
 
-  const template = providerTemplates[templateID]
+  const template = tplStore.byId[templateID]
   if (!template) return
   providerDraft.name = `${template.vendorName} ${template.name}`
   providerDraft.provider = template.provider
@@ -457,6 +477,7 @@ function applyProviderTemplate(templateID: ProviderTemplateID) {
   providerDraft.thinking_on = template.thinking_on
   providerDraft.thinking_off = template.thinking_off
   providerDraft.images_available = template.images_available !== false
+  providerDraft.context_window = template.context_window
 }
 
 async function loadCoreConfig() {
@@ -515,6 +536,9 @@ function openEditProvider(entry: ConfigModelEntry) {
   editorError.value = ''
   providerTemplate.value = detectProviderTemplate(entry)
   Object.assign(providerDraft, cloneProvider(entry))
+  nextTick(() => {
+    editorRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
 }
 
 function cancelProviderEditor() {
@@ -542,6 +566,10 @@ async function saveProviderDraft() {
     thinking_on: providerDraft.thinking_on,
     thinking_off: providerDraft.thinking_off,
     images_available: providerDraft.images_available !== false,
+    context_window:
+      providerDraft.context_window && providerDraft.context_window > 0
+        ? providerDraft.context_window
+        : undefined,
   }
 
   if (!nextEntry.name) {
@@ -831,7 +859,8 @@ onMounted(() => {
   margin: 0;
   font-size: 11px;
   line-height: 1.4;
-  color: var(--ink-4);
+  color: var(--ok);
+  font-weight: 500;
 }
 
 .provider-actions {

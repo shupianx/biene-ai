@@ -27,6 +27,10 @@
   --err:          oklch(58% 0.18 25);
   --info:         oklch(58% 0.16 245);
   --info-ink:     #FFFFFF;
+  /* Used to mark "command-class" items distinct from data items
+   * (skills, agents). Currently only the slash menu's command rows;
+   * may extend to other command-like surfaces in the future. */
+  --violet:       oklch(58% 0.18 305);
 
   /* Selection / interaction tints */
   --sel-bg:       rgba(196, 134, 72, 0.28);
@@ -75,6 +79,7 @@
   --err:          #e06c75;
   --info:         #56b6c2;
   --info-ink:     #07141b;
+  --violet:       #c678dd;
 
   --sel-bg:       rgba(82, 139, 255, 0.28);
   --overlay:      rgba(0, 0, 0, 0.62);

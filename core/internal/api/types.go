@@ -93,9 +93,19 @@ const (
 	EventToolUseStart    EventType = "tool_use_start"
 	EventInputJSONDelta  EventType = "input_json_delta" // partial JSON chunk for an in-flight tool_use
 	EventToolUse         EventType = "tool_use"         // complete tool_use block ready
+	EventUsage           EventType = "usage"            // accumulated token usage reported by provider
 	EventDone            EventType = "done"
 	EventError           EventType = "error"
 )
+
+// Usage reports token consumption for one provider call. InputTokens is
+// the count the API charged for inputs (system + messages + tools schema)
+// and is what compaction triggers compare against the model's
+// context window. OutputTokens covers everything the model produced.
+type Usage struct {
+	InputTokens  int
+	OutputTokens int
+}
 
 // StreamEvent is emitted by Provider.Stream for each incremental update.
 type StreamEvent struct {
@@ -104,6 +114,7 @@ type StreamEvent struct {
 	ToolUseID string        // EventInputJSONDelta — identifies which in-flight tool_use
 	InputJSON string        // EventInputJSONDelta — partial JSON chunk
 	ToolUse   *ToolUseBlock // EventToolUseStart / EventToolUse
+	Usage     Usage         // EventUsage
 	Err       error         // EventError
 }
 

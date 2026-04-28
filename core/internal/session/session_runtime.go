@@ -222,6 +222,11 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 		},
 		SessionID: s.ID,
 	}
+	if s.configProvider != nil {
+		if globalCfg := s.configProvider(); globalCfg != nil {
+			cfg.BeforeIteration = s.beforeIteration(ctx, globalCfg)
+		}
+	}
 	return ctx, cfg, &meta, runDone
 }
 

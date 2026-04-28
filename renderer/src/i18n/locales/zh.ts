@@ -57,7 +57,8 @@ const zh: Messages = {
     },
     emptyFilteredTitle: '没有匹配的智能体',
     emptyFilteredHint: '调整筛选条件，或创建新智能体。',
-    openFolderMenu: '打开文件夹',
+    openWorkdirMenu: '打开工作目录',
+    openSkillsDirMenu: '打开技能目录',
     openMenu: '打开窗口',
   },
   statusBar: {
@@ -99,6 +100,35 @@ const zh: Messages = {
     mention: {
       empty: '没有匹配的智能体',
     },
+    slash: {
+      empty: '没有匹配的命令或技能',
+      commandsLabel: '命令',
+      skillsLabel: '技能',
+    },
+  },
+  command: {
+    compact: {
+      name: '/compact',
+      description: '把早期上下文压成摘要，腾出窗口空间',
+    },
+    help: {
+      name: '/help',
+      description: '查看所有可用命令',
+    },
+  },
+  help: {
+    tag: '可用命令',
+    colCommand: '命令',
+    colDescription: '说明',
+  },
+  fork: {
+    menuLabel: '复制',
+    dialogTitle: '复制 {source}',
+    nameLabel: '新名字',
+    confirmButton: '复制',
+    defaultNameSuffix: '复制体',
+    errorEmpty: '请输入名字',
+    errorTaken: '已存在同名智能体',
   },
   process: {
     logs: '日志',
@@ -159,7 +189,7 @@ const zh: Messages = {
     language: '语言',
     languageHint: '选择桌面界面的显示语言。',
     modelProviders: '模型服务商',
-    modelProvidersHint: '管理保存在 ~/.biene/config.json 中的模型服务商，并选择默认使用哪一个。',
+    modelProvidersHint: '管理已保存的模型服务商，并选择默认使用哪一个。',
     modelLoading: '正在加载模型…',
     addProvider: '新增服务商',
     providerLoading: '正在加载模型服务商…',
@@ -315,6 +345,17 @@ const zh: Messages = {
       load_skill_named: '加载技能 {name}',
       invalid_input: '<无效输入>',
     },
+  },
+  compaction: {
+    tagAuto: '自动压缩',
+    tagManual: '手动压缩',
+    meta: '{before} → {after} tok · 折叠 {n} 条',
+    summaryEyebrow: '摘要',
+    inflight: '正在压缩上下文',
+    errorTag: '压缩失败',
+    errorDismiss: '关闭',
+    noticeTag: '无需压缩',
+    noticeMsg: '当前对话还比较短，压缩之后也省不出多少上下文。',
   },
 }
 

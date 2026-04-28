@@ -2,8 +2,10 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
   listSessions, createSession, updateSession, deleteSession,
+  forkSession as apiFork,
   getSessionHistory, sendMessage as apiSend,
   interruptSession as apiInterrupt,
+  compactSession as apiCompact,
   resolvePermission as apiResolve,
   setThinkingEnabled as apiSetThinking,
   getProcessState as apiGetProcess,
@@ -27,6 +29,16 @@ export interface AgentSession {
   pendingPermission: PermissionRequest | null
   activeSkills: string[]
   processState: ProcessStateData | null
+  // True between compaction_start and compaction_done/failed events.
+  // Drives the "compressing context…" indicator.
+  compactionInFlight: boolean
+  // Last compaction failure reason, surfaced as a toast and cleared
+  // by the next compaction_start.
+  compactionError: string | null
+  // Friendly "no compaction needed" notice — set when manual /compact
+  // bails because the conversation is short. Distinct from
+  // compactionError because it's not a failure, just a no-op result.
+  compactionNotice: string | null
   _historyLoaded: boolean
   hasMoreHistory: boolean
   isLoadingMoreHistory: boolean
@@ -199,6 +211,14 @@ export const useSessionsStore = defineStore('sessions', () => {
     await deleteSession(id)
   }
 
+  // HEAD-fork a session. The server returns the new agent's meta;
+  // we attach it (loads history + opens WS) just like `create` does.
+  async function fork(sourceId: string, name: string, options: AttachOptions = {}) {
+    const meta = await apiFork(sourceId, name)
+    await _attach(meta, options)
+    return meta
+  }
+
   // ── Messaging ─────────────────────────────────────────────────────────────
 
   async function sendMessage(sessionId: string, text: string, files: File[] = []) {
@@ -261,6 +281,56 @@ export const useSessionsStore = defineStore('sessions', () => {
     } catch {
       sess.isInterrupting = false
     }
+  }
+
+  // Triggers a manual compaction round.
+  //
+  // Three possible outcomes:
+  //   - "compacted": marker streamed in via message_added; we just hand
+  //     it back to the caller.
+  //   - "no_op":     history was already short. We set
+  //     compactionNotice with a friendly, dismissable message and
+  //     return null. NOT a failure — compactionError stays clear.
+  //   - thrown:      real failure (session busy, summarizer crashed).
+  //     compactionError is set so the error toast renders.
+  async function compact(sessionId: string, instructions?: string) {
+    const sess = sessions.value[sessionId]
+    if (!sess || sess.compactionInFlight || sess.isStreaming) return null
+    sess.compactionInFlight = true
+    sess.compactionError = null
+    sess.compactionNotice = null
+    try {
+      const res = await apiCompact(sessionId, instructions)
+      if (res.status === 'no_op') {
+        sess.compactionInFlight = false
+        sess.compactionNotice = res.reason ?? 'no compaction needed'
+        return null
+      }
+      return res.message ?? null
+    } catch (err) {
+      sess.compactionInFlight = false
+      sess.compactionError = err instanceof Error ? err.message : String(err)
+      throw err
+    }
+  }
+
+  // Pushes a transient "help card" message into the session's display
+  // history. The card is renderer-only — it lives in pinia state, never
+  // hits the backend, and disappears on session refresh / reattach.
+  // Multiple invocations append separate cards (mirroring how a terminal
+  // reprints `--help` each time you ask).
+  function showHelp(sessionId: string) {
+    const sess = sessions.value[sessionId]
+    if (!sess) return
+    sess.messages.push({
+      id: `help_${crypto.randomUUID()}`,
+      role: 'system',
+      author_type: 'system',
+      author_name: 'Help',
+      text: '',
+      created_at: new Date().toISOString(),
+      help: { shown: true },
+    })
   }
 
   async function _refreshProcessState(sessionId: string) {
@@ -336,6 +406,9 @@ export const useSessionsStore = defineStore('sessions', () => {
         pendingPermission: meta.pending_permission ?? null,
         activeSkills: [...(meta.active_skills ?? [])],
         processState: null,
+        compactionInFlight: false,
+        compactionError: null,
+        compactionNotice: null,
         _historyLoaded: false,
         hasMoreHistory: false,
         isLoadingMoreHistory: false,
@@ -512,6 +585,25 @@ export const useSessionsStore = defineStore('sessions', () => {
         const msg = _ensureAssistantTextSegment(s)
         msg.text += `\n\n**${t('common.errorLabel')}:** ${message}`
       },
+      onCompactionStart() {
+        const s = sessions.value[id]
+        if (!s) return
+        s.compactionInFlight = true
+        s.compactionNotice = null
+      },
+      onCompactionDone() {
+        const s = sessions.value[id]
+        if (!s) return
+        s.compactionInFlight = false
+        // The accompanying message_added event delivers the marker
+        // itself; nothing else to do here.
+      },
+      onCompactionFailed({ reason }) {
+        const s = sessions.value[id]
+        if (!s) return
+        s.compactionInFlight = false
+        s.compactionError = reason
+      },
       onDone() {
         const s = sessions.value[id]
         if (!s) return
@@ -532,8 +624,8 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   return {
     sessions, sessionList,
-    init, refresh, syncSession, upsertSessionMeta, removeSessionLocal, ensureSession, ensureHistory, loadMoreHistory, create, update, remove,
-    sendMessage, setThinkingEnabled, interrupt, resolvePermission,
+    init, refresh, syncSession, upsertSessionMeta, removeSessionLocal, ensureSession, ensureHistory, loadMoreHistory, create, update, remove, fork,
+    sendMessage, setThinkingEnabled, interrupt, resolvePermission, compact, showHelp,
     stopProcess, applyListProcessState,
   }
 })

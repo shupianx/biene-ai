@@ -60,9 +60,10 @@ func (p *OpenAIProvider) Stream(
 	}
 
 	req := openAIChatCompletionRequest{
-		Model:    p.model,
-		Messages: apiMessages,
-		Stream:   true,
+		Model:         p.model,
+		Messages:      apiMessages,
+		Stream:        true,
+		StreamOptions: &openAIStreamOptions{IncludeUsage: true},
 	}
 	if len(tools) > 0 {
 		req.Tools = convertToolsToOpenAI(tools)
@@ -85,6 +86,8 @@ func (p *OpenAIProvider) Stream(
 			started bool
 		}
 		toolAccums := map[int]*toolAccum{}
+		var usage Usage
+		var usageSeen bool
 
 		for {
 			resp, err := stream.Recv()
@@ -94,6 +97,13 @@ func (p *OpenAIProvider) Stream(
 				}
 				ch <- StreamEvent{Type: EventError, Err: err}
 				return
+			}
+			if resp.Usage != nil {
+				usage = Usage{
+					InputTokens:  resp.Usage.PromptTokens,
+					OutputTokens: resp.Usage.CompletionTokens,
+				}
+				usageSeen = true
 			}
 			if len(resp.Choices) == 0 {
 				continue
@@ -183,6 +193,9 @@ func (p *OpenAIProvider) Stream(
 			}
 		}
 
+		if usageSeen {
+			ch <- StreamEvent{Type: EventUsage, Usage: usage}
+		}
 		ch <- StreamEvent{Type: EventDone}
 	}()
 
@@ -275,10 +288,28 @@ func (s *manualChatCompletionStream) Recv() (openAIChatCompletionStreamResponse,
 }
 
 type openAIChatCompletionRequest struct {
-	Model    string                        `json:"model"`
-	Messages []openAIChatCompletionMessage `json:"messages"`
-	Stream   bool                          `json:"stream,omitempty"`
-	Tools    []openAIChatCompletionTool    `json:"tools,omitempty"`
+	Model         string                        `json:"model"`
+	Messages      []openAIChatCompletionMessage `json:"messages"`
+	Stream        bool                          `json:"stream,omitempty"`
+	StreamOptions *openAIStreamOptions          `json:"stream_options,omitempty"`
+	Tools         []openAIChatCompletionTool    `json:"tools,omitempty"`
+}
+
+// openAIStreamOptions enables the final-chunk usage report. Without
+// `include_usage: true` the OpenAI streaming protocol omits token counts
+// entirely, leaving compaction without its trigger signal. Compatible
+// upstreams (DeepSeek, Qwen, Kimi, vLLM, ...) honour the same flag.
+type openAIStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
+}
+
+// openAIUsage matches the `usage` object on OpenAI-compatible
+// completion / final-chunk responses. Token counts are integers;
+// providers occasionally include extra fields we don't decode.
+type openAIUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
 }
 
 type openAIChatCompletionMessage struct {
@@ -330,6 +361,9 @@ type openAIChatCompletionFunctionCall struct {
 
 type openAIChatCompletionStreamResponse struct {
 	Choices []openAIChatCompletionStreamChoice `json:"choices"`
+	// Usage is populated only on the final SSE chunk when
+	// `stream_options.include_usage` was set. Earlier chunks omit it.
+	Usage *openAIUsage `json:"usage,omitempty"`
 }
 
 type openAIChatCompletionStreamChoice struct {

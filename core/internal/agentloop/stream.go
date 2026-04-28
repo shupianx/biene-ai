@@ -14,18 +14,19 @@ func collectStream(
 	ch chan<- Event,
 	onToolUseStart func(api.ToolUseBlock),
 	onInputDelta func(toolID, chunk string),
-) (api.Message, []api.ToolUseBlock, error) {
+) (api.Message, []api.ToolUseBlock, api.Usage, error) {
 	var content []api.ContentBlock
 	var text strings.Builder
 	var reasoning strings.Builder
 	var signature strings.Builder
 	var toolUses []api.ToolUseBlock
+	var usage api.Usage
 
 done:
 	for {
 		select {
 		case <-ctx.Done():
-			return api.Message{}, nil, ctx.Err()
+			return api.Message{}, nil, usage, ctx.Err()
 		case ev, ok := <-stream:
 			if !ok {
 				break done
@@ -56,13 +57,15 @@ done:
 					content = append(content, *ev.ToolUse)
 					toolUses = append(toolUses, *ev.ToolUse)
 				}
+			case api.EventUsage:
+				usage = ev.Usage
 			case api.EventDone:
 				break done
 			case api.EventError:
 				if ev.Err != nil {
-					return api.Message{}, nil, ev.Err
+					return api.Message{}, nil, usage, ev.Err
 				}
-				return api.Message{}, nil, errors.New("stream error")
+				return api.Message{}, nil, usage, errors.New("stream error")
 			}
 		}
 	}
@@ -83,7 +86,7 @@ done:
 	return api.Message{
 		Role:    api.RoleAssistant,
 		Content: content,
-	}, toolUses, nil
+	}, toolUses, usage, nil
 }
 
 func earlyToolSummary(name string) string {

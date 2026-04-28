@@ -17,7 +17,7 @@ func TestCollectStreamPutsReasoningAtHead(t *testing.T) {
 	stream <- api.StreamEvent{Type: api.EventDone}
 	close(stream)
 
-	msg, _, err := collectStream(context.Background(), stream, events, nil, nil)
+	msg, _, _, err := collectStream(context.Background(), stream, events, nil, nil)
 	if err != nil {
 		t.Fatalf("collectStream returned error: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestCollectStreamOmitsReasoningWhenEmpty(t *testing.T) {
 	stream <- api.StreamEvent{Type: api.EventDone}
 	close(stream)
 
-	msg, _, err := collectStream(context.Background(), stream, events, nil, nil)
+	msg, _, _, err := collectStream(context.Background(), stream, events, nil, nil)
 	if err != nil {
 		t.Fatalf("collectStream returned error: %v", err)
 	}
