@@ -1,7 +1,7 @@
 {
   "name": "biene-desktop",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0-alpha",
   "description": "Desktop shell for the Biene local AI coding assistant",
   "author": "yu",
   "main": "electron/main.cjs",
