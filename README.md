@@ -10,7 +10,7 @@
 
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-0.3.2-blue" />
-  <img alt="status" src="https://img.shields.io/badge/status-alpha-orange" />
+  <img alt="status" src="https://img.shields.io/badge/status-early%20testing-orange" />
   <img alt="platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey" />
 </p>
 
@@ -34,18 +34,18 @@ Biene 是一个桌面端的多智能体 AI 编程助手。它把"和模型对话
 
 ## 截图
 
-> 截图待补 (`docs/screenshots/`)。开发中可在 `npm run dev` 打开应用直接看。
+<p align="center">
+  <img src="build/screenshot.png" alt="Biene workspace" width="720" />
+</p>
 
 ## 下载
 
-当前为 alpha 阶段，仓库为私有，发布产物仅 collaborator 可见：
+当前为早期测试阶段，仓库为私有，发布产物仅 collaborator 可见：
 
-- macOS: `Biene-<version>.dmg` / `.zip`
-- Windows: `Biene Setup <version>.exe`
+- macOS: `Biene-<version>.dmg`
+- Windows: `Biene-<version>.zip`
 
 [Releases →](https://github.com/shupianx/biene-ai/releases)
-
-签名/公证状态：macOS 已通过 Apple Developer ID 签名 + 公证；Windows 暂未签名（首次启动会触发 SmartScreen 提示）。
 
 ## 系统要求
 
@@ -93,7 +93,7 @@ biene-ai/
 ├── electron/       # Electron 主进程 + preload 桥接
 ├── renderer/       # Vue 3 前端（聊天界面 / 网格 / 设置）
 ├── scripts/        # 构建 / 打包 / 发布脚本
-├── build/          # 应用图标 + 公证配置
+├── build/          # 应用图标 + 截图等静态资源
 └── AGENTS.md       # 给 AI 编程助手 + 人类贡献者读的项目指南
 ```
 
@@ -102,11 +102,9 @@ biene-ai/
 ```bash
 npm run build:core       # Go → core/dist/
 npm run build:renderer   # vue-tsc + vite → renderer/dist/
-npm run build:mac        # 完整 mac 包（签名 + 公证 + dmg/zip）
-npm run build:win        # 完整 win 包
+npm run build:mac        # 完整 mac 包（dmg）
+npm run build:win        # 完整 win 包（zip）
 ```
-
-签名密钥与公证凭据通过环境变量注入；详见 `scripts/release.cjs`。
 
 ## 发布
 
