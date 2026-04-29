@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"biene/internal/auth"
 	"biene/internal/config"
 	"biene/internal/logging"
 	"biene/internal/prompt"
@@ -29,6 +30,14 @@ type Server struct {
 	authToken    string
 	httpServer   *http.Server
 	shutdownOnce sync.Once
+
+	// chatgptAuth holds the OAuth credential manager; nil if the user
+	// has never logged in or the load failed at startup. The manager
+	// itself is concurrency-safe.
+	chatgptAuth *auth.ChatGPTManager
+	// chatgptOAuth coordinates in-flight login flows (PKCE pairs +
+	// callback listener). Created lazily alongside chatgptAuth.
+	chatgptOAuth *chatgptOAuthCoordinator
 }
 
 // Options configures the server on creation.
@@ -54,16 +63,35 @@ func New(opts Options) (*Server, error) {
 
 	_ = prompt.CurrentCatalog()
 
+	chatgptAuth, err := auth.NewChatGPTManager()
+	if err != nil {
+		// Persisted credentials are corrupt or unreadable — log and
+		// continue without OAuth. The user can still use manually
+		// configured providers; logging in again rewrites the file.
+		logging.Lifecycle().Warn("load chatgpt credentials", "err", err)
+	}
+
 	mgr := session.NewSessionManager(workspaceRoot, opts.Config)
+	mgr.SetChatGPTAuth(chatgptAuth)
 	mgr.Init()
 
-	return &Server{
-		cfg:       opts.Config,
-		mgr:       mgr,
-		host:      host,
-		port:      opts.Port,
-		authToken: strings.TrimSpace(opts.AuthToken),
-	}, nil
+	srv := &Server{
+		cfg:          opts.Config,
+		mgr:          mgr,
+		host:         host,
+		port:         opts.Port,
+		authToken:    strings.TrimSpace(opts.AuthToken),
+		chatgptAuth:  chatgptAuth,
+		chatgptOAuth: newChatGPTCoordinator(chatgptAuth),
+	}
+	// Wire the login-side broadcast: SetFromCode lands inside a
+	// callback goroutine that doesn't have a Server reference, so we
+	// inject the closure here. Logout fires its own broadcast directly
+	// from handleChatGPTLogout.
+	srv.chatgptOAuth.onAuthChanged = func() {
+		srv.mgr.BroadcastChatGPTAuthChanged()
+	}
+	return srv, nil
 }
 
 // ListenAndServe starts the HTTP server.
@@ -106,6 +134,17 @@ func (s *Server) ListenAndServe() error {
 	mux.HandleFunc("GET /api/config", s.handleConfig)
 	mux.HandleFunc("POST /api/config", s.handleUpdateConfig)
 	mux.HandleFunc("GET /api/provider-templates", s.handleProviderTemplates)
+	mux.HandleFunc("GET /api/models/available", s.handleAvailableModels)
+
+	// ChatGPT OAuth (binds a one-shot listener on localhost:1455;
+	// falls back to manual paste via /manual-callback when the port
+	// is occupied, e.g. by Codex CLI running in parallel).
+	mux.HandleFunc("GET /api/auth/chatgpt/status", s.handleChatGPTStatus)
+	mux.HandleFunc("GET /api/auth/chatgpt/usage", s.handleChatGPTUsage)
+	mux.HandleFunc("POST /api/auth/chatgpt/start", s.handleChatGPTStart)
+	mux.HandleFunc("POST /api/auth/chatgpt/manual-callback", s.handleChatGPTManualCallback)
+	mux.HandleFunc("POST /api/auth/chatgpt/cancel", s.handleChatGPTCancel)
+	mux.HandleFunc("POST /api/auth/chatgpt/logout", s.handleChatGPTLogout)
 	mux.HandleFunc("GET /api/skills", s.handleListSkills)
 	mux.HandleFunc("POST /api/skills/config", s.handleUpdateSkillsConfig)
 	mux.HandleFunc("POST /api/skills/import", s.handleImportSkills)

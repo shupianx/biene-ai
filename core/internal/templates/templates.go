@@ -88,8 +88,8 @@ var Builtin = []Vendor{
 		Provider: "openai_compatible",
 		BaseURL:  "https://api.openai.com/v1",
 		Models: []ProviderTemplate{
-			{ID: "gpt-5-5", Name: "GPT-5.5", Model: "gpt-5.5", ContextWindow: 200000},
-			{ID: "gpt-5-4", Name: "GPT-5.4", Model: "gpt-5.4", ContextWindow: 200000},
+			{ID: "gpt-5-5", Name: "GPT-5.5", Model: "gpt-5.5", ContextWindow: 400000},
+			{ID: "gpt-5-4", Name: "GPT-5.4", Model: "gpt-5.4", ContextWindow: 400000},
 		},
 	},
 	{

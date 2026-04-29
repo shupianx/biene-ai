@@ -55,8 +55,8 @@
             type="button"
             class="select select-trigger"
             :class="{ open }"
-            :disabled="configLoading || modelOptions.length === 0"
-            @click="toggle"
+            :disabled="configLoading || modelMenuItems.length === 0"
+            @click="onModelTriggerClick(open, toggle)"
           >
             <span class="select-label">{{ currentModelLabel }}</span>
             <ArrowDropDownIcon class="chevron" aria-hidden="true" />
@@ -162,7 +162,14 @@
 
 <script setup lang="ts">
 import { computed, ref, onBeforeUnmount, onMounted } from 'vue'
-import { fetchConfig, type AgentProfile, type ConfigModelEntry, type SessionPermissions } from '../../api/http'
+import {
+  fetchAvailableModels,
+  type AgentProfile,
+  type AvailableModelEntry,
+  type AvailableModelGroup,
+  type AvailableModelsResponse,
+  type SessionPermissions,
+} from '../../api/http'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
 import AgentAvatar from '../ui/AgentAvatar.vue'
 import AppButton from '../ui/AppButton.vue'
@@ -199,14 +206,20 @@ function randomAvatarIndex() {
 }
 
 const name = ref('')
-const selectedModelID = ref('')
 const permissions = ref<SessionPermissions>(defaultPermissions())
 const profile = ref<AgentProfile>(defaultProfile())
 const advancedOpen = ref(false)
 const nameInput = ref<HTMLInputElement | null>(null)
 const configLoading = ref(false)
 const configError = ref('')
-const modelOptions = ref<ConfigModelEntry[]>([])
+
+// Flat picker state: a single dropdown lists every available model
+// across user configs and ChatGPT-OAuth-derived synthetic providers.
+// selectedModelID stores the resolved id ready to send to the backend
+// (e.g. "my-claude" for a user config, "chatgpt_official:gpt-5.5"
+// for a ChatGPT entry).
+const availableGroups = ref<AvailableModelGroup[]>([])
+const selectedModelID = ref('')
 // Pre-roll a random avatar so the modal opens with a concrete face — the
 // user only has to interact with the picker if they want to change it.
 const selectedAvatar = ref(randomAvatarIndex())
@@ -313,46 +326,104 @@ const nameConflict = computed(() =>
   isAgentNameTaken(effectiveName.value, props.existingNames)
 )
 
-const selectedModel = computed(() =>
-  modelOptions.value.find((entry) => entry.id === selectedModelID.value) ?? null
-)
+// flatEntries unrolls every group's models into a single ordered list
+// the dropdown can iterate without caring about provenance. User
+// configs come first (matching the old behavior); ChatGPT-OAuth models
+// follow whenever the user is signed in.
+const flatEntries = computed<AvailableModelEntry[]>(() => {
+  const out: AvailableModelEntry[] = []
+  for (const group of availableGroups.value) {
+    for (const entry of group.models) {
+      out.push(entry)
+    }
+  }
+  return out
+})
 
 const modelMenuItems = computed<PopupMenuEntry[]>(() =>
-  modelOptions.value.map((entry) => ({
+  flatEntries.value.map((entry) => ({
     key: entry.id,
-    label: entry.name,
+    label: entry.label,
     selected: entry.id === selectedModelID.value,
+    // Mark ChatGPT-OAuth-derived entries so the dropdown renders them
+    // with the animated blue gradient — visually separates them from
+    // user-managed configs without needing a sub-menu.
+    accent: entry.provider === 'chatgpt_official',
   }))
+)
+
+const selectedEntry = computed<AvailableModelEntry | null>(
+  () => flatEntries.value.find((e) => e.id === selectedModelID.value) ?? null,
 )
 
 const currentModelLabel = computed(() => {
   if (configLoading.value) return t('modal.modelLoading')
-  return selectedModel.value?.name ?? ''
+  return selectedEntry.value?.label ?? ''
 })
+
+const selectedModelSummary = computed(() => {
+  const entry = selectedEntry.value
+  if (!entry) return ''
+  let providerLabel: string
+  switch (entry.provider) {
+    case 'chatgpt_official':
+      providerLabel = t('modal.providerTypes.chatgptOfficial')
+      break
+    case 'openai_compatible':
+      providerLabel = t('modal.providerTypes.openaiCompatible')
+      break
+    default:
+      providerLabel = t('modal.providerTypes.anthropic')
+  }
+  return `${entry.model} · ${providerLabel}`
+})
+
+// resolvedModelID is the canonical id sent to the backend on create.
+// User configs use their own id; ChatGPT entries use the
+// "chatgpt_official:<model>" form set by the backend.
+const resolvedModelID = computed(() => selectedModelID.value)
 
 function onModelSelect(key: string) {
   selectedModelID.value = key
 }
 
-const selectedModelSummary = computed(() => {
-  if (!selectedModel.value) return ''
-  const providerType = selectedModel.value.provider === 'openai_compatible'
-    ? t('modal.providerTypes.openaiCompatible')
-    : t('modal.providerTypes.anthropic')
-  return `${selectedModel.value.model} · ${providerType}`
-})
+// Opening the dropdown is the natural moment to re-poll: the user has
+// just expressed intent to pick something, so it's worth a quick HTTP
+// round-trip to absorb any change to the available set (most often:
+// the user finished ChatGPT OAuth in the Settings modal between mount
+// and now). We refresh in-place — preserving the current selection
+// when it's still valid — so the dropdown doesn't flicker.
+function onModelTriggerClick(open: boolean, toggle: () => void) {
+  if (!open && !configLoading.value) {
+    void loadModelOptions({ preserveSelection: true })
+  }
+  toggle()
+}
 
 const submitDisabled = computed(() =>
-  nameConflict.value || configLoading.value || !selectedModelID.value || Boolean(configError.value)
+  nameConflict.value || configLoading.value || !resolvedModelID.value || Boolean(configError.value)
 )
 
-async function loadModelOptions() {
+async function loadModelOptions(opts: { preserveSelection?: boolean } = {}) {
   configLoading.value = true
   configError.value = ''
+  const previousID = selectedModelID.value
   try {
-    const config = await fetchConfig()
-    modelOptions.value = config.model_list
-    selectedModelID.value = config.default_model || config.model_list[0]?.id || ''
+    const resp: AvailableModelsResponse = await fetchAvailableModels()
+    availableGroups.value = resp.groups
+    const entries = flatEntries.value
+    if (opts.preserveSelection && previousID && entries.some((e) => e.id === previousID)) {
+      // Refresh path: user already picked something that still exists.
+      // Leave it alone so the dropdown opens with their current choice.
+      selectedModelID.value = previousID
+    } else if (resp.default_model_id && entries.some((e) => e.id === resp.default_model_id)) {
+      // Initial load (or selection went away): prefer the configured default.
+      selectedModelID.value = resp.default_model_id
+    } else if (entries.length > 0) {
+      selectedModelID.value = entries[0].id
+    } else {
+      selectedModelID.value = ''
+    }
   } catch (error) {
     configError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -383,7 +454,7 @@ function submit() {
   emit(
     'create',
     effectiveName.value,
-    selectedModelID.value,
+    resolvedModelID.value,
     { ...permissions.value },
     { ...profile.value, custom_instructions: (profile.value.custom_instructions ?? '').trim() },
     String(selectedAvatar.value),
@@ -415,6 +486,7 @@ function submit() {
   text-transform: uppercase;
   color: var(--ink-4);
 }
+
 
 .input,
 .select,

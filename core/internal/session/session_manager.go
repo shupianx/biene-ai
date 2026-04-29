@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"biene/internal/api"
+	"biene/internal/auth"
 	"biene/internal/config"
 	"biene/internal/permission/webperm"
 	"biene/internal/processes"
@@ -29,6 +30,7 @@ type SessionManager struct {
 	sessions      map[string]*Session
 	workspaceRoot string // absolute path of the workspace directory
 	cfg           *config.Config
+	chatgptAuth   *auth.ChatGPTManager
 	subscribers   map[int]chan ManagerFrame
 
 	subscribersMu    sync.RWMutex
@@ -49,8 +51,54 @@ func NewSessionManager(workspaceRoot string, cfg *config.Config) *SessionManager
 	}
 }
 
+// SetChatGPTAuth wires the ChatGPT OAuth manager into session creation.
+// Called by the server during startup; nil disables the synthetic
+// "ChatGPT (official)" provider entirely.
+//
+// In practice this is set exactly once at startup (server.New) and
+// never reassigned afterwards. We still go through the mutex so a
+// future feature ("switch ChatGPT account at runtime") doesn't
+// quietly become a data race.
+func (m *SessionManager) SetChatGPTAuth(mgr *auth.ChatGPTManager) {
+	m.mu.Lock()
+	m.chatgptAuth = mgr
+	m.mu.Unlock()
+}
+
+// ChatGPTAuth returns the OAuth manager wired into this session manager,
+// or nil if the server hasn't installed one. **All reads of
+// m.chatgptAuth must go through this accessor** — direct field reads
+// from helper methods (newProvider, modelAvailabilityChecker,
+// BroadcastChatGPTAuthChanged, …) historically slipped past the lock.
+func (m *SessionManager) ChatGPTAuth() *auth.ChatGPTManager {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.chatgptAuth
+}
+
 // newProvider creates an api.Provider from a model config entry.
-func newProvider(entry config.ModelEntry) api.Provider {
+func (m *SessionManager) newProvider(entry config.ModelEntry) api.Provider {
+	if entry.Provider == "chatgpt_official" {
+		// Routes through the Codex backend (chatgpt.com/backend-api),
+		// the same path Codex CLI uses. The auth manager handles
+		// access_token refresh and account_id extraction; the provider
+		// re-asks per Stream() so rotated tokens take effect without
+		// recreating the session.
+		if mgr := m.ChatGPTAuth(); mgr != nil {
+			return api.NewChatGPTCodexProvider(mgr, entry.Model)
+		}
+		// Fallback only triggers if a stale persisted session names
+		// chatgpt_official after the OAuth manager failed to load
+		// (corrupt tokens file, etc.). Returning an ErrorProvider
+		// surfaces "not signed in to ChatGPT" verbatim rather than a
+		// generic OpenAI 401, which is what an empty-key OpenAI
+		// provider used to produce. resolveModelEntry usually catches
+		// this earlier; this is the belt to its suspenders.
+		return api.NewErrorProvider(
+			"chatgpt-official/"+entry.Model,
+			auth.ErrChatGPTNotAuthenticated,
+		)
+	}
 	switch entry.Provider {
 	case "openai_compatible", "openai":
 		return api.NewOpenAIProvider(entry.APIKey, entry.Model, entry.BaseURL)
@@ -154,7 +202,7 @@ func (m *SessionManager) loadSessionFromDisk(id, workDir string) (*Session, erro
 	toolMode := defaultToolModeForProfile(profile)
 
 	// Rebuild provider / registry / checker from the pinned model selection.
-	modelEntry, resolvedModelID, err := resolveModelEntry(m.cfg, meta.ModelID)
+	modelEntry, resolvedModelID, err := m.resolveModelEntry(m.cfg, meta.ModelID)
 	if err != nil {
 		st.Close()
 		return nil, fmt.Errorf("resolve model: %w", err)
@@ -182,7 +230,7 @@ func (m *SessionManager) loadSessionFromDisk(id, workDir string) (*Session, erro
 	// SessionMeta.Extras (see CLAUDE.md "Schema 设计准则"). The
 	// backend doesn't generate it, validate it, or backfill it —
 	// the renderer takes over both choosing and persisting it.
-	provider := newProvider(modelEntry)
+	provider := m.newProvider(modelEntry)
 	registry := builtins.RegistryForWorkDir(workDir)
 	checker := webperm.NewChecker(perms)
 	procCtl := processes.New(workDir)
@@ -219,6 +267,8 @@ func (m *SessionManager) loadSessionFromDisk(id, workDir string) (*Session, erro
 		thinkingOn:        modelEntry.ThinkingOn,
 		thinkingOff:       modelEntry.ThinkingOff,
 		imagesAvailable:   resolveImagesAvailable(modelEntry),
+		contextWindow:     modelEntry.ContextWindow,
+		serviceTier:       modelEntry.ServiceTier,
 		extras:            cloneExtras(meta.Extras),
 		activeSkills:      append([]string(nil), meta.ActiveSkills...),
 		installedSkillIDs: installedIDs,
@@ -238,6 +288,7 @@ func (m *SessionManager) loadSessionFromDisk(id, workDir string) (*Session, erro
 		WorkDir: workDir,
 	}, nil)
 	sess.configProvider = m.snapshotConfig
+	sess.modelAvailableProvider = m.modelAvailabilityChecker(sess)
 	sess.onMetaChanged = m.emitSessionUpdated
 	sess.onProcessStateChanged = m.emitSessionProcessState
 	checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {
@@ -268,12 +319,12 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 	profile = normalizeProfile(profile)
 	toolMode := defaultToolModeForProfile(profile)
 
-	modelEntry, resolvedModelID, err := resolveModelEntry(m.cfg, modelID)
+	modelEntry, resolvedModelID, err := m.resolveModelEntry(m.cfg, modelID)
 	if err != nil {
 		return nil, err
 	}
 
-	provider := newProvider(modelEntry)
+	provider := m.newProvider(modelEntry)
 	registry := builtins.RegistryForWorkDir(workDir)
 	checker := webperm.NewChecker(permissions)
 	procCtl := processes.New(workDir)
@@ -313,6 +364,8 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		thinkingOn:        modelEntry.ThinkingOn,
 		thinkingOff:       modelEntry.ThinkingOff,
 		imagesAvailable:   resolveImagesAvailable(modelEntry),
+		contextWindow:     modelEntry.ContextWindow,
+		serviceTier:       modelEntry.ServiceTier,
 		extras:            cloneExtras(extras),
 		installedSkillIDs: installedIDs,
 		apiMessages:       []api.Message{},
@@ -328,6 +381,7 @@ func (m *SessionManager) Create(name string, permissions tools.PermissionSet, pr
 		WorkDir: workDir,
 	}, nil)
 	sess.configProvider = m.snapshotConfig
+	sess.modelAvailableProvider = m.modelAvailabilityChecker(sess)
 	sess.onMetaChanged = m.emitSessionUpdated
 	sess.onProcessStateChanged = m.emitSessionProcessState
 	checker.OnPermissionNeeded = func(req webperm.PermissionRequest) {

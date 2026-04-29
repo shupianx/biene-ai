@@ -219,6 +219,8 @@ func (s *Session) prepareRunLocked(shouldStart bool) (context.Context, *agentloo
 		Messages:     messages,
 		RequestOpts: api.RequestOptions{
 			ThinkingExtra: thinkingExtra(s.thinkingAvailable, s.thinkingEnabled, s.thinkingOn, s.thinkingOff),
+			SessionID:     s.ID,
+			ServiceTier:   s.serviceTier,
 		},
 		SessionID: s.ID,
 	}

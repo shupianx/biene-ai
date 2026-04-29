@@ -39,6 +39,19 @@ func (s *Server) handleChatSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Hard gate: an agent pinned to chatgpt_official can't start a turn
+	// after the user revokes OAuth. Returning a structured error code
+	// here lets the renderer keep the chat history visible while
+	// disabling the composer with a friendly banner instead of
+	// surfacing a streaming failure mid-turn.
+	if !sess.Meta().ModelAvailable {
+		writeJSON(w, http.StatusForbidden, map[string]string{
+			"error": "model_unavailable",
+			"code":  "chatgpt_unauthorized",
+		})
+		return
+	}
+
 	input, err := parseIncomingInput(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())

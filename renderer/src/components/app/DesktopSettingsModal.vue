@@ -35,6 +35,136 @@
         />
       </div>
 
+      <section class="chatgpt-auth-section">
+        <div class="section-head">
+          <div class="setting-copy">
+            <span class="setting-label chatgpt-auth-label">
+              <span class="chatgpt-auth-label-text">{{ t('chatgptAuth.title') }}</span>
+              <!--
+                Star sits right after the title text (not at the row's
+                far edge) — matches the New Agent dropdown's accent
+                marker so OAuth-derived options read as the same kind
+                of "premium / managed" affordance everywhere it appears.
+              -->
+              <StarShineIcon class="chatgpt-auth-accent-icon" aria-hidden="true" />
+            </span>
+            <span class="setting-hint">{{ t('chatgptAuth.description') }}</span>
+            <span v-if="chatgptAuthError" class="config-error">{{ chatgptAuthError }}</span>
+          </div>
+          <div class="chatgpt-auth-trailing">
+            <span class="chatgpt-auth-status" :class="{ muted: !chatgptAuth.authenticated }">
+              {{ chatgptStatusLabel }}
+            </span>
+            <AppButton
+              v-if="!chatgptAuth.authenticated"
+              variant="neutral"
+              :disabled="chatgptLoginPending"
+              @click="onChatGPTLogin"
+            >
+              {{ t('chatgptAuth.loginButton') }}
+            </AppButton>
+            <AppButton
+              v-else
+              variant="neutral"
+              :disabled="chatgptLogoutPending"
+              @click="onChatGPTLogout"
+            >
+              {{ t('chatgptAuth.logoutButton') }}
+            </AppButton>
+          </div>
+        </div>
+
+        <!--
+          Quota / rate-limit panel. Shown only when authenticated; we
+          surface both the primary (short window, soaks bursts) and
+          secondary (long window, plan total) buckets the upstream
+          returns. On error we keep the prior values visible so a
+          flaky network doesn't make the panel disappear.
+        -->
+        <div v-if="chatgptAuth.authenticated" class="chatgpt-usage">
+          <div class="chatgpt-usage-head">
+            <span class="setting-hint">{{ t('chatgptAuth.usageTitle') }}</span>
+            <button
+              type="button"
+              class="chatgpt-usage-refresh"
+              :disabled="chatgptUsageLoading"
+              @click="loadChatGPTUsage"
+            >
+              {{ chatgptUsageLoading ? t('chatgptAuth.usageLoading') : t('chatgptAuth.usageRefresh') }}
+            </button>
+          </div>
+
+          <p v-if="chatgptUsageError && !chatgptUsage" class="config-error">
+            {{ chatgptUsageError }}
+          </p>
+
+          <p v-else-if="!hasUsageSnapshot && !chatgptUsageLoading" class="setting-hint">
+            {{ t('chatgptAuth.usageNotAvailable') }}
+          </p>
+
+          <template v-if="hasUsageSnapshot">
+            <div
+              v-for="row in usageWindows"
+              :key="row.label"
+              class="chatgpt-usage-row"
+            >
+              <div class="chatgpt-usage-row-head">
+                <span class="chatgpt-usage-label">{{ row.label }}</span>
+                <span class="chatgpt-usage-numeric">
+                  {{ row.win.used_percent.toFixed(0) }}%
+                  <template v-if="row.win.reset_at">
+                    · {{ formatResetDelta(row.win.reset_at) }}
+                  </template>
+                </span>
+              </div>
+              <div class="chatgpt-usage-bar" :class="{ exhausted: row.win.used_percent >= 100 }">
+                <div
+                  class="chatgpt-usage-bar-fill"
+                  :style="{ width: usageBarFill(row.win.used_percent) }"
+                />
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!--
+          Manual-paste fallback. Shown only when /start signalled that
+          the local 1455 listener couldn't bind (typically because the
+          Codex CLI is already running on this machine). The browser
+          still finishes the redirect, but the user has to copy the
+          resulting URL back into Biene.
+        -->
+        <div v-if="chatgptManualPaste.required" class="chatgpt-manual-paste">
+          <p class="setting-hint">{{ t('chatgptAuth.manualPasteHint') }}</p>
+          <p v-if="chatgptManualPaste.bindError" class="config-error">
+            {{ t('chatgptAuth.manualPasteBindError', { err: chatgptManualPaste.bindError }) }}
+          </p>
+          <textarea
+            v-model="chatgptManualPaste.pasted"
+            class="chatgpt-manual-paste-input"
+            rows="3"
+            :placeholder="t('chatgptAuth.manualPastePlaceholder')"
+            :disabled="chatgptManualPaste.submitting"
+          ></textarea>
+          <div class="chatgpt-manual-paste-actions">
+            <AppButton
+              variant="neutral"
+              :disabled="chatgptManualPaste.submitting"
+              @click="onChatGPTManualPasteCancel"
+            >
+              {{ t('common.cancel') }}
+            </AppButton>
+            <AppButton
+              variant="primary"
+              :disabled="chatgptManualPaste.submitting || !chatgptManualPaste.pasted.trim()"
+              @click="onChatGPTManualPasteSubmit"
+            >
+              {{ t('chatgptAuth.manualPasteSubmit') }}
+            </AppButton>
+          </div>
+        </div>
+      </section>
+
       <section class="providers-section">
         <div class="section-head">
           <div class="setting-copy">
@@ -227,7 +357,23 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
-import { fetchConfig, listSessions, saveConfig, type ConfigModelEntry, type CoreConfig, type SessionMeta } from '../../api/http'
+import {
+  cancelChatGPTOAuth,
+  fetchChatGPTAuthStatus,
+  fetchChatGPTUsage,
+  fetchConfig,
+  finishChatGPTOAuthManually,
+  listSessions,
+  logoutChatGPT,
+  saveConfig,
+  startChatGPTOAuth,
+  type ChatGPTAuthStatus,
+  type ChatGPTUsageResponse,
+  type RateLimitWindow,
+  type ConfigModelEntry,
+  type CoreConfig,
+  type SessionMeta,
+} from '../../api/http'
 import {
   customTemplate,
   defaultTemplateID,
@@ -235,6 +381,7 @@ import {
 } from '../../constants/providerTemplates'
 import { useProviderTemplatesStore } from '../../stores/providerTemplates'
 import ArrowDropDownIcon from '~icons/material-symbols/arrow-drop-down'
+import StarShineIcon from '~icons/material-symbols/star-shine'
 import AppButton from '../ui/AppButton.vue'
 import BaseModal from '../ui/BaseModal.vue'
 import PopupMenu, { type PopupMenuEntry } from '../ui/PopupMenu.vue'
@@ -268,6 +415,120 @@ const coreConfig = ref<CoreConfig | null>(null)
 const configLoading = ref(false)
 const configSaving = ref(false)
 const configError = ref('')
+
+// ChatGPT OAuth state — independent from coreConfig because the tokens
+// live in a separate file (~/.biene/chatgpt_tokens.json) and the
+// "logged in" status is what gates the synthetic provider in the New
+// Agent picker.
+const chatgptAuth = ref<ChatGPTAuthStatus>({ authenticated: false })
+const chatgptLoginPending = ref(false)
+const chatgptLogoutPending = ref(false)
+const chatgptAuthError = ref('')
+
+// Manual-paste fallback state. Populated when the /start response sets
+// `manual_paste_required` (port 1455 already in use). The textarea
+// accepts the full redirect URL the browser ends up on, just the query
+// fragment, or the bare `code` value — the server parses all three.
+const chatgptManualPaste = reactive({
+  required: false,
+  state: '',
+  authUrl: '',
+  pasted: '',
+  submitting: false,
+  bindError: '',
+})
+
+function resetChatGPTManualPaste() {
+  chatgptManualPaste.required = false
+  chatgptManualPaste.state = ''
+  chatgptManualPaste.authUrl = ''
+  chatgptManualPaste.pasted = ''
+  chatgptManualPaste.submitting = false
+  chatgptManualPaste.bindError = ''
+}
+
+// Quota / rate-limit panel state. The snapshot is populated as a
+// side-effect of normal Codex turns (read off `x-codex-*` response
+// headers in the backend), not by an active fetch — we just pull
+// the cached value on demand. Empty until the user has sent at
+// least one Codex message; the empty-state copy explains that.
+const chatgptUsage = ref<ChatGPTUsageResponse | null>(null)
+const chatgptUsageLoading = ref(false)
+const chatgptUsageError = ref('')
+
+async function loadChatGPTUsage() {
+  if (!chatgptAuth.value.authenticated) {
+    chatgptUsage.value = null
+    chatgptUsageError.value = ''
+    return
+  }
+  chatgptUsageLoading.value = true
+  chatgptUsageError.value = ''
+  try {
+    chatgptUsage.value = await fetchChatGPTUsage()
+  } catch (err) {
+    chatgptUsageError.value = err instanceof Error ? err.message : String(err)
+    // Keep the prior snapshot rather than wiping it on transient
+    // errors — a flaky network shouldn't make the user think their
+    // quota disappeared.
+  } finally {
+    chatgptUsageLoading.value = false
+  }
+}
+
+// formatResetDelta turns the unix-seconds reset_at into a "resets in
+// X min" / "X h" / "X d" string. Negative deltas (clock skew, stale
+// snapshot crossing the boundary) clamp to 0 — the user shouldn't
+// see "resets in -3 min".
+function formatResetDelta(resetAt: number): string {
+  const delta = Math.max(0, resetAt - Math.floor(Date.now() / 1000))
+  if (delta < 60) return t('chatgptAuth.usageResetSec', { sec: delta })
+  if (delta < 3600) return t('chatgptAuth.usageResetMin', { min: Math.round(delta / 60) })
+  if (delta < 86400) return t('chatgptAuth.usageResetHr', { hr: Math.round(delta / 3600) })
+  return t('chatgptAuth.usageResetDay', { day: Math.round(delta / 86400) })
+}
+
+// usageWindows assembles the (label, window) pairs the template
+// renders as progress bars. Filters out empty windows so an upstream
+// that only reports one tier doesn't show a phantom "Long-term" row.
+const usageWindows = computed<Array<{ label: string; win: RateLimitWindow }>>(() => {
+  const snap = chatgptUsage.value?.snapshot
+  if (!snap) return []
+  const out: Array<{ label: string; win: RateLimitWindow }> = []
+  if (snap.primary) {
+    out.push({ label: t('chatgptAuth.usagePrimary'), win: snap.primary })
+  }
+  if (snap.secondary) {
+    out.push({ label: t('chatgptAuth.usageSecondary'), win: snap.secondary })
+  }
+  return out
+})
+
+// hasUsageSnapshot is the gate the template uses to decide between
+// the empty-state copy and the populated rows. Pulled into a
+// computed so both Vue blocks reference the same predicate.
+const hasUsageSnapshot = computed(
+  () => chatgptUsage.value?.available === true && !!chatgptUsage.value.snapshot,
+)
+
+// usageBarFill clamps used_percent into [0, 100] for the CSS width —
+// the upstream occasionally reports >100 right after a burst because
+// of rounding, and a 105% bar fill is visually broken.
+function usageBarFill(percent: number): string {
+  return Math.max(0, Math.min(100, percent)).toFixed(0) + '%'
+}
+
+// Inline status label rendered next to the action button. Pending state
+// takes precedence so the user sees "等待浏览器…" while the OAuth flow
+// is in flight; otherwise it reflects the persisted authenticated state.
+const chatgptStatusLabel = computed(() => {
+  if (chatgptLoginPending.value) return t('chatgptAuth.loginPending')
+  if (!chatgptAuth.value.authenticated) return t('chatgptAuth.statusSignedOut')
+  if (chatgptAuth.value.email) {
+    return t('chatgptAuth.statusSignedInAs', { email: chatgptAuth.value.email })
+  }
+  return t('chatgptAuth.statusSignedIn')
+})
 const editorError = ref('')
 const editorMode = ref<ProviderEditorMode>(null)
 const editingProviderID = ref('')
@@ -638,7 +899,169 @@ async function deleteProvider(id: string) {
 
 onMounted(() => {
   void loadCoreConfig()
+  void refreshChatGPTAuth()
 })
+
+async function refreshChatGPTAuth() {
+  try {
+    chatgptAuth.value = await fetchChatGPTAuthStatus()
+  } catch (err) {
+    // Status reads are best-effort — a transient core blip shouldn't
+    // block the rest of the settings UI.
+    chatgptAuth.value = { authenticated: false }
+  }
+  // Whenever auth flips (initial load, login completion, logout), the
+  // usage panel needs to follow: re-fetch when authenticated, clear
+  // otherwise. loadChatGPTUsage handles both cases.
+  void loadChatGPTUsage()
+}
+
+// Login flow: kick the server's start endpoint, open the auth URL in
+// the user's browser, then poll for status changes until the listener
+// completes the token exchange. The server-side listener resolves on
+// the OAuth callback, so this loop just watches for the persisted
+// state to flip to authenticated.
+async function onChatGPTLogin() {
+  if (chatgptLoginPending.value) return
+  chatgptLoginPending.value = true
+  chatgptAuthError.value = ''
+  resetChatGPTManualPaste()
+  let started: Awaited<ReturnType<typeof startChatGPTOAuth>> | null = null
+  try {
+    started = await startChatGPTOAuth()
+    const desktop = (window as unknown as { bieneDesktop?: { openExternal: (url: string) => void } }).bieneDesktop
+    if (desktop?.openExternal) {
+      desktop.openExternal(started.auth_url)
+    } else {
+      window.open(started.auth_url, '_blank', 'noopener,noreferrer')
+    }
+    if (started.manual_paste_required) {
+      // The local listener couldn't bind (typically Codex CLI
+      // running on the same machine). Show the paste box; the
+      // login pending flag stays true so the action button is
+      // disabled until the user finishes (or the auth section
+      // resets after success/failure).
+      chatgptManualPaste.required = true
+      chatgptManualPaste.state = started.state
+      chatgptManualPaste.authUrl = started.auth_url
+      chatgptManualPaste.bindError = started.port_bind_error ?? ''
+      // We deliberately do NOT call waitForChatGPTAuth here: nothing
+      // is going to flip status to authenticated until the user
+      // submits via onChatGPTManualPasteSubmit. The login button
+      // re-enables only after that submit (or cancel).
+      return
+    }
+    await waitForChatGPTAuth(started.expires_in_seconds)
+  } catch (err) {
+    chatgptAuthError.value = parseChatGPTAuthError(err)
+    if (started?.state) {
+      try { await cancelChatGPTOAuth(started.state) } catch { /* noop */ }
+    }
+  } finally {
+    // Manual-paste flow keeps the pending flag on so the button
+    // stays disabled while the user is in the paste step.
+    if (!chatgptManualPaste.required) {
+      chatgptLoginPending.value = false
+    }
+  }
+}
+
+async function onChatGPTManualPasteSubmit() {
+  if (chatgptManualPaste.submitting) return
+  const code = chatgptManualPaste.pasted.trim()
+  if (!code) return
+  chatgptManualPaste.submitting = true
+  chatgptAuthError.value = ''
+  try {
+    await finishChatGPTOAuthManually(chatgptManualPaste.state, code)
+    // Re-fetch status rather than trusting the {ok:true} response —
+    // matches the listener path's behavior, where waitForChatGPTAuth
+    // pulls a fresh snapshot before flipping the UI to authenticated.
+    chatgptAuth.value = await fetchChatGPTAuthStatus()
+    resetChatGPTManualPaste()
+    chatgptLoginPending.value = false
+    // Authenticated for the first time — pull the quota panel in.
+    void loadChatGPTUsage()
+  } catch (err) {
+    chatgptAuthError.value = parseChatGPTAuthError(err)
+  } finally {
+    chatgptManualPaste.submitting = false
+  }
+}
+
+async function onChatGPTManualPasteCancel() {
+  if (chatgptManualPaste.state) {
+    try { await cancelChatGPTOAuth(chatgptManualPaste.state) } catch { /* noop */ }
+  }
+  resetChatGPTManualPaste()
+  chatgptLoginPending.value = false
+}
+
+async function waitForChatGPTAuth(expiresInSeconds: number) {
+  const deadline = Date.now() + expiresInSeconds * 1000
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1500))
+    try {
+      const status = await fetchChatGPTAuthStatus()
+      if (status.authenticated) {
+        chatgptAuth.value = status
+        // First successful auth — pull the quota panel in. Same hook
+        // the manual-paste path uses; keeps both login routes
+        // visually consistent on completion.
+        void loadChatGPTUsage()
+        return
+      }
+      // Backend recorded a token-exchange / state-mismatch failure —
+      // bail out immediately instead of timing out, and pass the
+      // server-side message through verbatim so the user sees what
+      // actually broke.
+      if (status.last_error) {
+        throw new Error(status.last_error)
+      }
+    } catch (err) {
+      // Network blips are fine — keep polling. But propagate errors
+      // we threw ourselves above (carrying the server's last_error).
+      if (err instanceof Error && err.message && !err.message.includes('fetch')) {
+        throw err
+      }
+    }
+  }
+  // Time-out: surface a friendly error and let the user retry. The
+  // server's pending-flow TTL (5 min) matches expiresInSeconds, so the
+  // server will have already expired the codeVerifier on its side.
+  throw new Error(t('chatgptAuth.cancelled'))
+}
+
+function parseChatGPTAuthError(err: unknown): string {
+  if (err instanceof Error) {
+    if (err.message.includes('callback port unavailable')) {
+      return t('chatgptAuth.portInUse')
+    }
+    if (err.message === t('chatgptAuth.cancelled')) {
+      return t('chatgptAuth.cancelled')
+    }
+    // Server-side last_error already carries a useful message
+    // (state-mismatch text, OAuth provider error description, etc.).
+    if (err.message) {
+      return err.message
+    }
+  }
+  return t('chatgptAuth.failed')
+}
+
+async function onChatGPTLogout() {
+  if (chatgptLogoutPending.value) return
+  chatgptLogoutPending.value = true
+  chatgptAuthError.value = ''
+  try {
+    await logoutChatGPT()
+    await refreshChatGPTAuth()
+  } catch (err) {
+    chatgptAuthError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    chatgptLogoutPending.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -652,10 +1075,147 @@ onMounted(() => {
 }
 
 .setting-row,
-.providers-section {
+.providers-section,
+.chatgpt-auth-section {
   padding: 12px 14px;
   border: 1px solid var(--rule-softer);
   background: var(--panel);
+}
+
+.chatgpt-auth-trailing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.chatgpt-auth-status {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.chatgpt-auth-status.muted {
+  color: var(--ink-4);
+}
+
+/*
+ * Title + accent star, paired side-by-side. The label container is
+ * inline-flex so the star tracks the text's right edge regardless of
+ * the surrounding row's available width — same visual contract as the
+ * New Agent dropdown's `.menu-item-accent-icon`.
+ */
+.chatgpt-auth-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chatgpt-auth-accent-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  /* Tone matches PopupMenu's hover/selected accent depth — section
+   * headings sit at higher visual hierarchy than dropdown rows, so
+   * the star tracks the dropdown's *active* state rather than its
+   * resting one to read consistently strong here. */
+  color: var(--ink-3);
+  opacity: 0.8;
+}
+
+.chatgpt-usage {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chatgpt-usage-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chatgpt-usage-refresh {
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.chatgpt-usage-refresh:hover:not(:disabled) {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.chatgpt-usage-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.chatgpt-usage-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chatgpt-usage-row-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.chatgpt-usage-numeric {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.chatgpt-usage-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-2);
+  overflow: hidden;
+}
+
+.chatgpt-usage-bar-fill {
+  height: 100%;
+  background: var(--accent, var(--ink-3));
+  transition: width 200ms ease;
+}
+
+/* Exhausted bucket gets a warning-tinted fill so the user notices
+ * the cause without having to read the percentage. */
+.chatgpt-usage-bar.exhausted .chatgpt-usage-bar-fill {
+  background: var(--err, #d94343);
+}
+
+.chatgpt-manual-paste {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chatgpt-manual-paste-input {
+  width: 100%;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  background: var(--bg-1);
+  color: var(--ink-1);
+  resize: vertical;
+}
+
+.chatgpt-manual-paste-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .setting-row {

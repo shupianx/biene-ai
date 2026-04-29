@@ -37,6 +37,13 @@ type ModelEntry struct {
 	// Compaction triggers when input usage gets within `reserve_tokens` of
 	// this value. 0 means "unset" — falls back to DefaultContextWindow.
 	ContextWindow int `json:"context_window,omitempty"`
+	// ServiceTier is the OpenAI Codex `service_tier` knob (empty =
+	// upstream default). Recognised values are "default" | "flex" |
+	// "priority" | "scale" | "auto". Only the chatgpt_official provider
+	// currently consumes it — every other provider ignores it. Set on
+	// the synthetic ChatGPT entry via env var BIENE_CHATGPT_SERVICE_TIER
+	// or hand-edit the relevant ModelEntry.
+	ServiceTier string `json:"service_tier,omitempty"`
 }
 
 // CompactionConfig controls automatic context compression.

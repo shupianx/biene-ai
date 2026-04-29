@@ -21,13 +21,23 @@ type compactionState struct {
 // resolveCompactionSettings folds the global config defaults and the
 // per-session model entry's context window into the local Settings
 // shape used by the compaction package.
+//
+// We read the window from `s.contextWindow` rather than re-querying
+// cfg.GetModel: synthetic providers (chatgpt_official) aren't in
+// cfg.ModelList, so a cfg lookup would miss and silently fall back to
+// the 32K default — triggering compaction every turn against models
+// that actually have ~400K of headroom. The session manager populates
+// this field at create/load/UpdateConfig time using its richer
+// resolveModelEntry path.
 func (s *Session) resolveCompactionSettings(cfg *config.Config) compaction.Settings {
 	base := cfg.CompactionSettings()
-	contextWindow := DefaultContextWindow
-	if cfg != nil {
-		if entry, err := cfg.GetModel(s.modelID); err == nil && entry.ContextWindow > 0 {
-			contextWindow = entry.ContextWindow
-		}
+
+	s.mu.Lock()
+	contextWindow := s.contextWindow
+	s.mu.Unlock()
+
+	if contextWindow <= 0 {
+		contextWindow = DefaultContextWindow
 	}
 	return compaction.Settings{
 		Enabled:          base.Enabled,

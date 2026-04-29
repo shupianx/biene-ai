@@ -102,9 +102,20 @@ const (
 // the count the API charged for inputs (system + messages + tools schema)
 // and is what compaction triggers compare against the model's
 // context window. OutputTokens covers everything the model produced.
+//
+// CacheReadTokens / CacheWriteTokens are the prompt-cache-hit / write
+// portions in the same dimension as InputTokens. Providers that expose
+// prompt caching (Anthropic native, OpenAI Codex via prompt_cache_key)
+// fill them in; others leave them at zero. They are *informational only*
+// — compaction still keys off InputTokens, which is already the
+// non-cached portion (see chatgpt_codex.go for the subtraction). Surface
+// these fields in the UI to show the user how much of their context is
+// served from cache.
 type Usage struct {
-	InputTokens  int
-	OutputTokens int
+	InputTokens      int
+	OutputTokens     int
+	CacheReadTokens  int
+	CacheWriteTokens int
 }
 
 // StreamEvent is emitted by Provider.Stream for each incremental update.
@@ -126,8 +137,22 @@ type StreamEvent struct {
 // by the provider (Qwen: {"enable_thinking": true}; Kimi: {"thinking":
 // {"type": "enabled"}}) and supplied by config, so the core doesn't need
 // to know dialect specifics.
+//
+// SessionID is the stable identifier of the originating Biene session.
+// Providers that support prompt-cache affinity (Codex backend's
+// `prompt_cache_key` + `session_id` header) use it to keep consecutive
+// turns of one conversation on the same cache shard. Empty string means
+// "don't use cache affinity" — the request still works, just colder.
+//
+// ServiceTier is the OpenAI Codex `service_tier` knob. Empty string =
+// upstream default; recognised values are "default", "flex" (≈0.5×
+// pricing, slower), "priority" (≈2×–2.5×, faster), "scale", "auto".
+// Only the ChatGPTCodex provider currently consumes it; other providers
+// ignore the field.
 type RequestOptions struct {
 	ThinkingExtra map[string]any
+	SessionID     string
+	ServiceTier   string
 }
 
 // ─── Provider interface ───────────────────────────────────────────────────

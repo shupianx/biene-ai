@@ -39,3 +39,31 @@ func providersEqual(a, b string) bool {
 func urlsEqual(a, b string) bool {
 	return strings.TrimRight(strings.TrimSpace(a), "/") == strings.TrimRight(strings.TrimSpace(b), "/")
 }
+
+// ModelsForVendor returns the model strings declared under the given
+// (provider, baseURL) vendor pair. Used by callers that need to
+// enumerate "what models does this vendor expose?" — e.g. the ChatGPT
+// OAuth path, which only routes to models OpenAI ships behind its
+// account, but which we'd otherwise have to maintain in a second
+// hardcoded list.
+//
+// Returns an empty slice when no vendor matches; never nil so callers
+// can range over the result without a guard.
+func ModelsForVendor(provider, baseURL string) []string {
+	for _, vendor := range Builtin {
+		if !providersEqual(vendor.Provider, provider) {
+			continue
+		}
+		if !urlsEqual(vendor.BaseURL, baseURL) {
+			continue
+		}
+		out := make([]string, 0, len(vendor.Models))
+		for _, t := range vendor.Models {
+			if t.Model != "" {
+				out = append(out, t.Model)
+			}
+		}
+		return out
+	}
+	return []string{}
+}

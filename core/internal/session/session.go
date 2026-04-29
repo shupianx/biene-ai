@@ -141,6 +141,19 @@ type Session struct {
 	thinkingOn        map[string]any
 	thinkingOff       map[string]any
 	imagesAvailable   bool
+	// contextWindow caches the active model entry's input-token cap so
+	// compaction can compute its trigger threshold without round-tripping
+	// through cfg.GetModel — synthetic providers (chatgpt_official) live
+	// outside cfg.ModelList and would otherwise silently fall back to
+	// the conservative 32K default.
+	contextWindow int
+
+	// serviceTier is the per-model OpenAI Codex `service_tier` value
+	// (empty = upstream default). Cached here so the agentloop can
+	// pass it through RequestOptions without re-reading the config on
+	// every iteration. Only chatgpt_official sessions ever set a
+	// non-empty value today.
+	serviceTier string
 
 	// activeSkills tracks skills that have been loaded via use_skill during
 	// this session. Names are unique and kept in activation order.
@@ -206,10 +219,28 @@ type Session struct {
 	// Wired by the SessionManager so runtime reads compaction settings
 	// + per-model context windows without holding stale references
 	// after UpdateConfig.
-	configProvider        func() *config.Config
-	onMetaChanged         func(SessionMeta)
-	onProcessStateChanged func(sessionID string, active bool, command string, args []string)
-	mu                    sync.Mutex
+	configProvider func() *config.Config
+	// modelAvailableProvider reports whether this session's pinned
+	// model can be used right now. Wired by the SessionManager so
+	// the answer reflects current auth state (e.g. chatgpt_official
+	// flips to false when the user revokes OAuth) without the
+	// session itself having to know about the auth package.
+	// nil means "always available" — used as a defensive default for
+	// sessions hydrated outside the manager.
+	modelAvailableProvider func() bool
+	onMetaChanged          func(SessionMeta)
+	onProcessStateChanged  func(sessionID string, active bool, command string, args []string)
+	mu                     sync.Mutex
+}
+
+// modelAvailableLocked is the meta-builder hook. The session itself
+// has no auth package dependency; we delegate to the closure the
+// SessionManager wired in at create/load time.
+func (s *Session) modelAvailableLocked() bool {
+	if s.modelAvailableProvider == nil {
+		return true
+	}
+	return s.modelAvailableProvider()
 }
 
 // SessionMeta is the public view of a Session returned by the list endpoint.
@@ -233,6 +264,13 @@ type SessionMeta struct {
 	// to gate the composer's image attach control. Always emitted so the
 	// frontend can rely on `=== false` checks.
 	ImagesAvailable   bool                      `json:"images_available"`
+	// ModelAvailable reports whether the session's pinned model can
+	// actually be used to start a turn right now. Currently only
+	// chatgpt_official models can flip this to false (when the user
+	// has revoked OAuth). The grid renders unavailable agents
+	// semi-transparent and the chat view disables the composer.
+	// Always emitted so renderer code can rely on `=== false`.
+	ModelAvailable bool `json:"model_available"`
 	Permissions       tools.PermissionSet       `json:"permissions"`
 	Profile           prompt.AgentProfile       `json:"profile"`
 	PendingPermission *PermissionRequestPayload `json:"pending_permission,omitempty"`
@@ -281,6 +319,7 @@ func (s *Session) metaLocked() SessionMeta {
 		ThinkingAvailable: s.thinkingAvailable,
 		ThinkingEnabled:   s.thinkingEnabled,
 		ImagesAvailable:   s.imagesAvailable,
+		ModelAvailable:    s.modelAvailableLocked(),
 		Permissions:       s.permissions,
 		Profile:           s.profile,
 		PendingPermission: clonePermissionPayload(s.pendingPermission),

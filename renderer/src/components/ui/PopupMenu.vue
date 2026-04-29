@@ -17,11 +17,12 @@
         <button
           v-else
           class="menu-item"
-          :class="{ danger: item.danger, selected: item.selected }"
+          :class="{ danger: item.danger, selected: item.selected, accent: item.accent }"
           :disabled="item.disabled"
           @click="onSelect(item)"
         >
-          {{ item.label }}
+          <span class="menu-item-label">{{ item.label }}</span>
+          <StarShineIcon v-if="item.accent" class="menu-item-accent-icon" aria-hidden="true" />
         </button>
       </template>
     </div>
@@ -30,6 +31,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useSlots } from 'vue'
+import StarShineIcon from '~icons/material-symbols/star-shine'
 import { t } from '../../i18n'
 
 export type PopupMenuItem = {
@@ -38,6 +40,11 @@ export type PopupMenuItem = {
   danger?: boolean
   disabled?: boolean
   selected?: boolean
+  // accent appends a star-shine icon after the label so "premium" /
+  // OAuth-derived options read as a distinct class without disturbing
+  // the dropdown's typography. Currently used for ChatGPT-OAuth
+  // models in the New Agent picker.
+  accent?: boolean
 }
 
 export type PopupMenuSeparator = { separator: true }
@@ -175,6 +182,9 @@ defineExpose({ close: () => setOpen(false), toggle })
 }
 
 .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   border: none;
   background: transparent;
   text-align: left;
@@ -183,6 +193,21 @@ defineExpose({ close: () => setOpen(false), toggle })
   font-size: 12px;
   color: var(--ink-2);
   cursor: pointer;
+}
+
+.menu-item-label {
+  /*
+   * `flex: 0 1 auto` keeps the label at its natural width but lets it
+   * shrink (with ellipsis) when the menu hits its max width. Crucially
+   * it does NOT grow — without this the label would eat all available
+   * row width and push trailing decorations (the .accent star) to the
+   * far right edge, far away from the text it's meant to annotate.
+   */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .menu-item:hover:not(:disabled) {
@@ -207,6 +232,35 @@ defineExpose({ close: () => setOpen(false), toggle })
 .menu-item.danger:hover:not(:disabled) {
   background: var(--err);
   color: var(--panel-2);
+}
+
+/*
+ * Accent items (currently: ChatGPT-OAuth-derived models) keep the
+ * regular text color and hover/selected backgrounds — the only visual
+ * cue is a small star-shine icon sitting right after the label. This
+ * separates "premium" / OAuth-derived options from regular configs
+ * without fighting the theme (the previous gradient was unreadable in
+ * dark mode and against hovered backgrounds).
+ *
+ * Tone is intentionally muted: the star is a *secondary* signal
+ * trailing the label, not a primary affordance. Bright accent color
+ * pulled the eye away from the model name itself.
+ */
+.menu-item-accent-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-4);
+  opacity: 0.55;
+}
+
+.menu-item.accent:hover:not(:disabled) .menu-item-accent-icon,
+.menu-item.accent.selected .menu-item-accent-icon {
+  /* Lift slightly on hover/selected so the user gets feedback that
+   * the row is interactive, but still well short of the label's
+   * full ink contrast. */
+  color: var(--ink-3);
+  opacity: 0.8;
 }
 
 .menu-sep {

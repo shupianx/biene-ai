@@ -126,7 +126,18 @@
           />
         </Transition>
       </div>
+      <!--
+        modelAvailable === false means the agent's pinned model is
+        unreachable right now (today only fires for chatgpt_official
+        after OAuth revocation). Replace the composer with a banner
+        so the user keeps history access but can't accidentally try
+        to send into a dead provider.
+      -->
+      <div v-if="!modelAvailable" class="model-unavailable-banner">
+        {{ t('chatgptAuth.agentUnavailable') }}
+      </div>
       <InputBar
+        v-else
         :disabled="session.isStreaming"
         :interruptible="session.isStreaming"
         :interrupting="session.isInterrupting"
@@ -166,6 +177,14 @@ const props = defineProps<{ session: AgentSession }>()
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
+
+// Mirror SessionCard's tri-state read: backend emits explicit
+// `model_available: false` when an agent is stranded (chatgpt_official
+// after OAuth revocation). Older payloads without the field are
+// treated as available so unrelated sessions aren't blocked.
+const modelAvailable = computed(
+  () => props.session.meta.model_available !== false,
+)
 
 const closeIconBody = '<path fill="currentColor" d="m12 13.4l-4.9 4.9q-.275.275-.7.275t-.7-.275t-.275-.7t.275-.7l4.9-4.9l-4.9-4.9q-.275-.275-.275-.7t.275-.7t.7-.275t.7.275l4.9 4.9l4.9-4.9q.275-.275.7-.275t.7.275t.275.7t-.275.7L13.4 12l4.9 4.9q.275.275.275.7t-.275.7t-.7.275t-.7-.275z"/>'
 const AUTO_SCROLL_THRESHOLD = 50
@@ -617,6 +636,21 @@ watch(inputOverlayHeight, () => {
 </script>
 
 <style scoped>
+/*
+ * Banner shown in place of the composer when the session's model is
+ * unavailable (chatgpt_official + OAuth revoked). Purely informational;
+ * the agent's chat history is still scrollable above.
+ */
+.model-unavailable-banner {
+  padding: 14px 16px;
+  background: var(--panel-2);
+  border-top: 1px solid var(--rule-softer);
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+  font-style: italic;
+}
+
 .chat-shell {
   --input-overlay-height: 112px;
   height: 100%;

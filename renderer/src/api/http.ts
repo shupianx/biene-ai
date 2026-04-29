@@ -68,6 +68,16 @@ export interface SessionMeta {
   // Defaults to true when unset. Only `false` disables the composer's
   // image attachment control.
   images_available?: boolean
+  // Reports whether the session's pinned model is currently usable.
+  // Today only chatgpt_official models can flip this to false (when
+  // OAuth has been revoked). When false the renderer should:
+  //   • render the agent's grid card semi-transparent
+  //   • allow opening the chat (history is still readable)
+  //   • disable the composer with a "ChatGPT 无授权" banner
+  // Always emitted by the backend so renderer code can rely on
+  // `=== false` checks; older payloads that omit it are treated as
+  // available by default.
+  model_available?: boolean
   permissions: SessionPermissions
   profile: AgentProfile
   pending_permission?: import('../types/events').PermissionRequestData
@@ -352,6 +362,141 @@ export interface ProviderTemplatesResponse {
 
 export function fetchProviderTemplates() {
   return get<ProviderTemplatesResponse>('/api/provider-templates')
+}
+
+// ── Available models (config + synthetic OAuth entries) ──────────────────
+
+// AvailableModelEntry is a single picker option. The id is what gets
+// persisted on a session as `model_id`; for OAuth-backed entries it is
+// the synthetic form `chatgpt_official:<openai-model-name>`.
+export interface AvailableModelEntry {
+  id: string
+  label: string
+  provider: string
+  model: string
+  summary?: string
+}
+
+// AvailableModelGroup buckets entries under a header in the picker.
+// `kind === 'chatgpt_official'` marks the OAuth virtual provider so the
+// renderer can render its sub-selector differently from user configs.
+export interface AvailableModelGroup {
+  id: string
+  label: string
+  kind: 'user' | 'chatgpt_official'
+  description?: string
+  models: AvailableModelEntry[]
+}
+
+export interface AvailableModelsResponse {
+  default_model_id: string
+  groups: AvailableModelGroup[]
+}
+
+export function fetchAvailableModels() {
+  return get<AvailableModelsResponse>('/api/models/available')
+}
+
+// ── ChatGPT OAuth ─────────────────────────────────────────────────────────
+
+export interface ChatGPTAuthStatus {
+  authenticated: boolean
+  email?: string
+  account_id?: string
+  expires_at?: number
+  // Populated when the most recent OAuth attempt failed (e.g. token
+  // exchange returned 4xx). The renderer's poll loop watches this so
+  // it can stop spinning the moment the backend gives up.
+  last_error?: string
+}
+
+export interface ChatGPTStartResponse {
+  auth_url: string
+  state: string
+  flow_id: string
+  port: number
+  expires_in_seconds: number
+  // Set when localhost:1455 couldn't be bound (typically because the
+  // Codex CLI is running in parallel and already holds the port). The
+  // browser will still complete the redirect, but it lands on
+  // *something other than us* — the user has to copy the redirected
+  // URL back into Biene and POST it through finishChatGPTOAuthManually.
+  manual_paste_required?: boolean
+  // Underlying bind error so the UI can explain why the manual
+  // fallback kicked in. Empty when the listener bound normally.
+  port_bind_error?: string
+}
+
+export function fetchChatGPTAuthStatus() {
+  return get<ChatGPTAuthStatus>('/api/auth/chatgpt/status')
+}
+
+export function startChatGPTOAuth() {
+  return post<ChatGPTStartResponse>('/api/auth/chatgpt/start')
+}
+
+export function cancelChatGPTOAuth(state: string) {
+  return post<{ ok: boolean }>('/api/auth/chatgpt/cancel', { state })
+}
+
+// ── ChatGPT usage / quota ────────────────────────────────────────────────
+//
+// Surfaced from the `x-codex-*` rate-limit headers on /responses
+// turns rather than from a separate active fetch (the upstream's
+// /api/codex/usage sits behind Cloudflare and reliably 403s any
+// non-browser client). Consequence: the panel is empty until the
+// user has sent at least one Codex turn — the `available` flag on
+// the response distinguishes that empty state from a populated one.
+
+export interface RateLimitWindow {
+  used_percent: number
+  // Length of the rolling window in minutes; absent on snapshots
+  // that don't expose it.
+  window_minutes?: number
+  // Unix seconds. Clients render as a relative "resets in X min"
+  // rather than show the raw timestamp.
+  reset_at?: number
+}
+
+export interface RateLimitSnapshot {
+  // Unix seconds when the snapshot was captured. Used by the UI to
+  // hint "data is X minutes old" if the user hasn't sent anything
+  // recently.
+  updated_at: number
+  // Bucket id ("codex" for the default chat budget). Omitted when
+  // the upstream doesn't echo a name back.
+  limit_name?: string
+  primary?: RateLimitWindow
+  secondary?: RateLimitWindow
+}
+
+export interface ChatGPTUsageResponse {
+  // false = no Codex turn has happened since core started, so we
+  // have no data to show. Renderer should display a "send a message
+  // first" empty state in this case.
+  available: boolean
+  snapshot?: RateLimitSnapshot
+}
+
+// fetchChatGPTUsage returns the cached rate-limit snapshot, or an
+// `available: false` payload when no snapshot has been captured yet.
+// Cheap (no upstream RTT), so safe to call on every Settings open.
+export function fetchChatGPTUsage() {
+  return get<ChatGPTUsageResponse>('/api/auth/chatgpt/usage')
+}
+
+// finishChatGPTOAuthManually completes a flow that started with
+// `manual_paste_required: true`. The `code` field accepts the full
+// pasted redirect URL ("http://localhost:1455/auth/callback?code=…"),
+// the bare query fragment, or just the code value; the server parses
+// all three. Pass the `state` value returned from startChatGPTOAuth so
+// the server can match the pasted code back to the right pending flow.
+export function finishChatGPTOAuthManually(state: string, code: string) {
+  return post<{ ok: boolean }>('/api/auth/chatgpt/manual-callback', { state, code })
+}
+
+export function logoutChatGPT() {
+  return post<{ ok: boolean }>('/api/auth/chatgpt/logout')
 }
 
 // ── Skills ────────────────────────────────────────────────────────────────

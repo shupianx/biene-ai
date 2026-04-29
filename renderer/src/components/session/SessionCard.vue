@@ -1,7 +1,8 @@
 <template>
   <div
     class="card"
-    :class="[statusTone, { 'drop-target': isDropTarget, installing: installingSkill }]"
+    :class="[statusTone, { 'drop-target': isDropTarget, installing: installingSkill, unavailable: !modelAvailable }]"
+    :title="!modelAvailable ? t('chatgptAuth.agentUnavailable') : undefined"
     @mouseenter="hover = true"
     @mouseleave="hover = false"
     @click="emit('select')"
@@ -121,6 +122,14 @@ const menuItems = computed<PopupMenuEntry[]>(() => [
 
 const statusTone = computed(() => getSessionStatusTone(props.session))
 const statusLabel = computed(() => getSessionStatusLabel(statusTone.value))
+
+// Backend emits model_available=false when an agent is pinned to a
+// model the user has just lost access to (today: chatgpt_official
+// after OAuth revocation). Older payloads omit the field entirely;
+// treat that as available so we don't grey out unrelated agents.
+const modelAvailable = computed(
+  () => props.session.meta.model_available !== false,
+)
 
 const shortDir = computed(() => {
   const trimmed = props.session.meta.work_dir.replace(/[\\/]+$/, '')
@@ -328,6 +337,17 @@ async function onConflictConfirm() {
   user-select: none;
   transition: transform 180ms cubic-bezier(.2,.7,.2,1),
               box-shadow 180ms cubic-bezier(.2,.7,.2,1);
+}
+
+/*
+ * Unavailable: the agent's pinned model can't be reached right now
+ * (e.g. ChatGPT OAuth revoked). Card stays clickable so the user can
+ * open the chat and read history; the visual cue + chat-side banner
+ * communicate the "frozen" state.
+ */
+.card.unavailable {
+  opacity: 0.5;
+  filter: saturate(0.6);
 }
 
 .card:hover {
