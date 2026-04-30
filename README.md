@@ -20,17 +20,17 @@ Biene 是一个桌面端的多智能体 AI 编程助手。它把"和模型对话
 
 ## 主要特性
 
-- 🤖 **多智能体网格** — 同时运行多个 agent，每个有独立工作区、独立上下文、独立头像。
-- 🔁 **Agent 间协作** — 两种语义清晰区分：`send_message_to_agent`（邮件式快照）与 `cowork_with_agent`（协作邀请式 symlink）。
+- 🤖 **多智能体网格** — 同时运行多个 agent，每个有独立工作区、独立上下文，甚至独立的技能。
+- 🔁 **Agent 间协作** — agent之间可进行交流或者发起协作，共同完成任务。
 - 🔌 **多模型来源** —
   - Anthropic API（Claude）
   - 任何 OpenAI 兼容端点（DeepSeek、Qwen、Kimi、自部署 …）
-  - **ChatGPT 官方账号**（OAuth 登录，无需 API Key，走 Codex 后端）
+  - ChatGPT OAuth
 - 🖼️ **图片输入** — 截屏、贴图直接进对话，所有 provider 通用。
 - 🛡️ **写操作权限审批** — 每次文件写入 / Bash 命令 / agent 间投递都先弹确认，附带冲突上下文（重名文件列表、影响范围）。
 - 🧠 **思考模式** — 支持 Anthropic thinking 与 OpenAI 推理 token 的可视化和透传。
-- 📚 **技能（Skills）** — 安装可复用的提示模板，按需激活。
-- 💾 **本地持久化** — 每个 agent 一个独立目录，含 `meta.json` + SQLite 历史，删除即彻底删除。
+- 📚 **技能（Skills）** — 拒绝一股脑塞入，从技能仓库灵活组装你的agent
+- 💾 **本地持久化** — 每个 agent 一个独立目录，自由发挥。
 
 ## 截图
 
@@ -58,8 +58,8 @@ Biene 是一个桌面端的多智能体 AI 编程助手。它把"和模型对话
 
 - 多个命名模型配置（`provider` 取值：`anthropic` / `openai_compatible` / `chatgpt_official`）
 - 默认模型
+- Chatgpt Oauth
 - 主题、语言（中 / 英 / 德）
-- ChatGPT 账号登录（撤销授权直接走 Settings 的"撤销"按钮）
 
 ChatGPT OAuth 凭据单独存于 `~/.biene/chatgpt_tokens.json`（0600）。
 
@@ -83,8 +83,6 @@ cd core && go run . --host 127.0.0.1 --port 8080 --workspace ../workspace
 VITE_CORE_URL=http://127.0.0.1:8080 npm --prefix renderer run dev
 ```
 
-更详细的命令、架构说明、设计准则见 **[AGENTS.md](./AGENTS.md)**——它也是 Codex CLI / Cursor / Aider / Claude Code 等 AI 编程助手的项目上下文文件。
-
 ## 项目结构
 
 ```
@@ -97,24 +95,6 @@ biene-ai/
 └── AGENTS.md       # 给 AI 编程助手 + 人类贡献者读的项目指南
 ```
 
-## 构建
-
-```bash
-npm run build:core       # Go → core/dist/
-npm run build:renderer   # vue-tsc + vite → renderer/dist/
-npm run build:mac        # 完整 mac 包（dmg）
-npm run build:win        # 完整 win 包（zip）
-```
-
-## 发布
-
-```bash
-git push origin main --follow-tags
-npm run build:mac
-npm run release:mac      # 创建 GitHub draft release + 上传产物
-```
-
-`-alpha` / `-beta` / `-rc` 后缀的 tag 自动标记为 GitHub pre-release。
 
 ## 数据存放位置
 
@@ -126,13 +106,8 @@ npm run release:mac      # 创建 GitHub draft release + 上传产物
 | 工作区（打包后） | Electron `userData` 下的 `workspace/` |
 | 每个 agent | `<workspace>/<agent-id>/`（含 `meta.json` + `history.db` + agent 工作目录） |
 
-## 协议
-
-仓库当前未公开授权（private，所有权 © yu）。如需在团队外使用或派生，请先联系作者。
-
 ## 致谢
 
 - [Anthropic](https://www.anthropic.com/) / [OpenAI](https://openai.com/) — 模型供应方
 - [Electron](https://www.electronjs.org/) / [Vue](https://vuejs.org/) / [Vite](https://vitejs.dev/)
 - [openai-go](https://github.com/openai/openai-go) v3 SDK
-- Codex CLI 的公开 OAuth client 配置（用于 ChatGPT 账号登录路径）
