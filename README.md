@@ -90,17 +90,6 @@ biene-ai/
 └── AGENTS.md       # 给 AI 编程助手 + 人类贡献者读的项目指南
 ```
 
-
-## 数据存放位置
-
-| 内容 | 位置 |
-|---|---|
-| 用户配置 | `~/.biene/config.json` |
-| ChatGPT OAuth 凭据 | `~/.biene/chatgpt_tokens.json`（0600）|
-| 工作区（开发） | 仓库根目录 `workspace/` |
-| 工作区（打包后） | Electron `userData` 下的 `workspace/` |
-| 每个 agent | `<workspace>/<agent-id>/`（含 `meta.json` + `history.db` + agent 工作目录） |
-
 ## 致谢
 
 - [Anthropic](https://www.anthropic.com/) / [OpenAI](https://openai.com/) — 模型供应方
