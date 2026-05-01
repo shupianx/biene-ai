@@ -16,7 +16,7 @@
 
 ---
 
-Biene 是一个桌面端的多智能体 AI 编程助手。它把"和模型对话"、"在工作区改代码"、"批准/拒绝写操作"、"在多个 agent 之间分发任务"等环节做成一体的本地体验——没有云端会话，所有历史和配置都留在你机器上。
+Biene 是一个桌面端的多智能体 AI 编程助手。把"和模型对话"、"在工作区改代码"、"灵活组装搭配多智能体"、"在多个 agent 之间分发任务"等环节做成一体的本地体验——没有云端会话，所有历史和配置都留在你机器上。
 
 ## 主要特性
 
@@ -26,8 +26,8 @@ Biene 是一个桌面端的多智能体 AI 编程助手。它把"和模型对话
   - Anthropic API（Claude）
   - 任何 OpenAI 兼容端点（DeepSeek、Qwen、Kimi、自部署 …）
   - ChatGPT OAuth
-- 🖼️ **图片输入** — 截屏、贴图直接进对话，所有 provider 通用。
-- 🛡️ **写操作权限审批** — 每次文件写入 / Bash 命令 / agent 间投递都先弹确认，附带冲突上下文（重名文件列表、影响范围）。
+- 🖼️ **多工具支持** — 支持基本工具调用以及cowork和process等特殊工具。
+- 🛡️ **权限审批** — 文件写入 / Bash 命令 / agent 协作都会申请权限。
 - 🧠 **思考模式** — 支持 Anthropic thinking 与 OpenAI 推理 token 的可视化和透传。
 - 📚 **技能（Skills）** — 拒绝一股脑塞入，从技能仓库灵活组装你的agent
 - 💾 **本地持久化** — 每个 agent 一个独立目录，自由发挥。
@@ -40,10 +40,7 @@ Biene 是一个桌面端的多智能体 AI 编程助手。它把"和模型对话
 
 ## 下载
 
-当前为早期测试阶段，仓库为私有，发布产物仅 collaborator 可见：
-
-- macOS: `Biene-<version>.dmg`
-- Windows: `Biene-<version>.zip`
+当前为早期测试阶段，请前往release仓库查看细节
 
 [Releases →](https://github.com/shupianx/biene-ai/releases)
 
@@ -60,8 +57,6 @@ Biene 是一个桌面端的多智能体 AI 编程助手。它把"和模型对话
 - 默认模型
 - Chatgpt Oauth
 - 主题、语言（中 / 英 / 德）
-
-ChatGPT OAuth 凭据单独存于 `~/.biene/chatgpt_tokens.json`（0600）。
 
 ## 开发起步
 
