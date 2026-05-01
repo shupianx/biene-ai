@@ -56,7 +56,7 @@ export interface SessionMeta {
   name: string
   work_dir: string
   status: 'idle' | 'running' | 'error'
-  // Sprite index ("0".."19") into renderer/public/avatar_sprite.png. The
+  // Sprite index ("0".."19") into renderer/src/assets/avatar.png. The
   // server picks one at session creation and backfills any legacy session
   // missing this field, so it should always be present on a fresh load —
   // but the type stays optional for safety against transient mismatches.

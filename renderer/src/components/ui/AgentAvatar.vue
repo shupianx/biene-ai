@@ -17,7 +17,7 @@ import { AVATAR_SCREEN_RECTS } from '../../constants/avatarScreens'
 import { ensureAvatarSprite, getAvatarSprite } from '../../utils/avatarSprite'
 import type { SessionStatusTone } from '../../utils/sessionStatus'
 
-// public/avatar.png is a 250×200 sheet laid out 5 cols × 4 rows = 20
+// src/assets/avatar.png is a 250×200 sheet laid out 5 cols × 4 rows = 20
 // cells, native 50×50. Indices go left-to-right, top-to-bottom; keep in
 // sync with avatarSpriteCount in core/internal/session/session.go.
 const SPRITE_COLS = 5

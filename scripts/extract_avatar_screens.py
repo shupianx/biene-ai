@@ -1,4 +1,4 @@
-"""Detect each robot's "screen" rect inside renderer/public/avatar.png.
+"""Detect each robot's "screen" rect inside renderer/src/assets/avatar.png.
 
 The sprite is a 250×200 sheet laid out 5 cols × 4 rows of 50×50 cells. We
 infer the screen rectangle in each cell by:
@@ -25,7 +25,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-SPRITE_PATH = Path(__file__).resolve().parent.parent / "renderer" / "public" / "avatar.png"
+SPRITE_PATH = Path(__file__).resolve().parent.parent / "renderer" / "src" / "assets" / "avatar.png"
 COLS, ROWS, CELL = 5, 4, 50
 TOTAL = COLS * ROWS
 

@@ -722,6 +722,9 @@ function createAppWindow(options) {
     center: options.center ?? true,
     title: options.title,
     autoHideMenuBar: true,
+    icon: process.platform === 'win32'
+      ? path.join(ROOT_DIR, 'build', 'icon-win.png')
+      : undefined,
     ...windowOptions,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

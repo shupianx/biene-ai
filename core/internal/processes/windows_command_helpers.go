@@ -62,10 +62,14 @@ func resolveWindowsExecutablePath(command string, cwd string, exts []string) (st
 }
 
 func findWindowsExecutable(path string, exts []string) (string, bool) {
-	if windowsFileExists(path) {
-		return path, true
-	}
+	// If the caller provided an explicit extension, respect it: that's the
+	// literal file they asked for. Only fall back to PATHEXT-augmented
+	// candidates if the extension doesn't match a real file (rare edge case
+	// where a user wrote, e.g., "myscript.foo" expecting PATHEXT lookup).
 	if windowsPathHasExt(path) {
+		if windowsFileExists(path) {
+			return path, true
+		}
 		for _, ext := range exts {
 			candidate := path + ext
 			if windowsFileExists(candidate) {
@@ -74,11 +78,19 @@ func findWindowsExecutable(path string, exts []string) (string, bool) {
 		}
 		return "", false
 	}
+	// Extensionless command: prefer PATHEXT candidates over a bare file of
+	// the same name. Node.js et al. ship Unix shell shims (e.g.
+	// `C:\Program Files\nodejs\npm`) alongside their `.cmd` wrapper, and
+	// CreateProcess can't run those — it'd fail with ERROR_BAD_EXE_FORMAT
+	// (193: "%1 is not a valid Win32 application").
 	for _, ext := range exts {
 		candidate := path + ext
 		if windowsFileExists(candidate) {
 			return candidate, true
 		}
+	}
+	if windowsFileExists(path) {
+		return path, true
 	}
 	return "", false
 }

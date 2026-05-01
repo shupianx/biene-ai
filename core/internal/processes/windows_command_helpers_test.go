@@ -105,6 +105,32 @@ func TestResolveWindowsExecutableHonorsNoDefaultCurrentDirectory(t *testing.T) {
 	}
 }
 
+// Regression: extensionless `npm` must resolve to `npm.cmd`, not the
+// extensionless Unix-shell shim Node.js ships alongside it. CreateProcess
+// can't launch the latter and returns "%1 is not a valid Win32 application".
+func TestResolveWindowsExecutablePrefersPathextOverBareFile(t *testing.T) {
+	bin := t.TempDir()
+	shim := filepath.Join(bin, "npm")
+	cmd := filepath.Join(bin, "npm.cmd")
+	if err := os.WriteFile(shim, []byte("#!/bin/sh\n"), 0o644); err != nil {
+		t.Fatalf("write shim: %v", err)
+	}
+	if err := os.WriteFile(cmd, []byte("@echo off\r\n"), 0o644); err != nil {
+		t.Fatalf("write cmd: %v", err)
+	}
+
+	resolved, err := resolveWindowsExecutable("npm", "", []string{
+		"PATH=" + bin,
+		"PATHEXT=.EXE;.CMD",
+	})
+	if err != nil {
+		t.Fatalf("resolveWindowsExecutable: %v", err)
+	}
+	if resolved != cmd {
+		t.Fatalf("resolved = %q, want %q (PATHEXT match must win over bare file)", resolved, cmd)
+	}
+}
+
 func TestBuildWindowsBatchCommandLineEscapesCmdMetaCharacters(t *testing.T) {
 	cmdLine := buildWindowsBatchCommandLine(`C:\Program Files\nodejs\npm.cmd`, []string{`a&b`, `100%`, `say "hi"`}, nil)
 

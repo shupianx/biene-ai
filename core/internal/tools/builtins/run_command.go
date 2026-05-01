@@ -135,6 +135,7 @@ func (t *RunCommandTool) Execute(ctx context.Context, raw json.RawMessage) (stri
 	if workDir != "" {
 		cmd.Dir = workDir
 	}
+	applyPlatformSysProcAttr(cmd)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

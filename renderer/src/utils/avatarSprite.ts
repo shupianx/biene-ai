@@ -1,10 +1,12 @@
-// Singleton loader for the avatar sprite atlas (public/avatar.png).
+// Singleton loader for the avatar sprite atlas (src/assets/avatar.png).
 //
 // Every AgentAvatar instance shares the same Image. The browser caches
 // the underlying texture, so even though hundreds of canvases call
 // drawImage on it per frame, there's exactly one decode + one upload.
 
-const SPRITE_URL = '/avatar.png'
+import spriteUrl from '../assets/avatar.png'
+
+const SPRITE_URL = spriteUrl
 
 let cached: HTMLImageElement | null = null
 let pending: Promise<HTMLImageElement> | null = null

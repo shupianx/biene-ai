@@ -7,6 +7,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "node scripts/dev.cjs",
+    "dev:win": "node scripts/dev-win.cjs",
     "start": "electron .",
     "build:renderer": "npm --prefix renderer run build",
     "build:core": "node scripts/build-core.cjs",
@@ -15,7 +16,7 @@
     "build": "node scripts/release.cjs all",
     "build:mac": "node scripts/release.cjs mac",
     "build:mac:sign-only": "node scripts/release.cjs mac --sign-only",
-    "build:win": "node scripts/release.cjs win",
+    "build:win": "node scripts/release-win.cjs",
     "release:mac": "node scripts/publish-github.cjs mac",
     "release:win": "node scripts/publish-github.cjs win",
     "release:all": "node scripts/publish-github.cjs mac win"

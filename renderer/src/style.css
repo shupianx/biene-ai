@@ -44,8 +44,16 @@
   --switch-track-on: var(--ink);
   --switch-knob-on: var(--panel-2);
 
-  /* Typography */
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Typography
+   *
+   * Per-character font fallback iterates the family list in order; for each
+   * char, the browser uses the first font that has the glyph. So in --mono,
+   * Latin chars hit JetBrains Mono and stop; CJK chars skip every Latin-only
+   * mono and land on Noto Sans SC. We must place Noto Sans SC *before* the
+   * generic `monospace` fallback — otherwise Chromium on Windows treats
+   * `monospace` as matched for Han and falls back to NSimSun (a serif
+   * bitmap font that looks jarring against the surrounding chrome). */
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, 'Noto Sans SC', 'PingFang SC', monospace;
   --sans: 'Inter', 'Noto Sans SC', 'HarmonyOS Sans SC', 'PingFang SC', system-ui, sans-serif;
 
   /* App-level */
@@ -212,7 +220,11 @@ body {
   margin: 0;
   font-family: var(--sans);
   font-synthesis: none;
-  -webkit-font-smoothing: antialiased;
+  /* No -webkit-font-smoothing: antialiased — that hint is tuned for macOS
+     (where it gives the lighter look designers expect). On Windows /
+     Chromium it disables DirectWrite subpixel AA (ClearType), which
+     makes Han glyphs look blurry and undersized. Let each platform's
+     default text rendering pick the right pipeline. */
   color: var(--ink);
   background: var(--bg);
   overflow: hidden;

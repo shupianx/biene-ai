@@ -1,4 +1,4 @@
-const { existsSync, mkdirSync, copyFileSync, rmSync } = require('fs')
+const { existsSync, mkdirSync, copyFileSync, readFileSync, writeFileSync, rmSync } = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { appBuilderPath } = require('app-builder-bin')
@@ -77,6 +77,106 @@ function packIcns(sourcePath, icnsPath) {
   copyFileSync(path.join(outDir, 'icon.icns'), icnsPath)
 }
 
+// Standard Windows icon sizes. Explorer picks per view: 16/32 for tree view,
+// 48 for medium icons, 256 for "extra large". An ICO with only one size at
+// the high end falls back to the default Electron icon in tree/list views.
+const WIN_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256]
+
+// Windows uses a full-bleed square icon — Windows applies its own visual
+// treatment in the taskbar, so the macOS-style padded + rounded mask would
+// look undersized. Pack from the raw 1024×1024 source instead of the masked
+// version that goes into icon.icns / icon.png.
+//
+// Pre-resize the source PNG to each standard Windows size with .NET's
+// System.Drawing (via PowerShell) and feed all of them to app-builder so
+// the resulting ICO contains every entry. Single-size ICOs render as the
+// default icon in Explorer's small/list views.
+function packIco(sourcePath, icoPath) {
+  const resizedDir = path.join(stagingDir, 'ico-sizes')
+  mkdirSync(resizedDir, { recursive: true })
+
+  resizePngForIco(sourcePath, resizedDir, WIN_ICON_SIZES)
+
+  const pngs = WIN_ICON_SIZES.map((size) => ({
+    size,
+    data: readFileSync(path.join(resizedDir, `${size}x${size}.png`)),
+  }))
+  writeFileSync(icoPath, packPngsAsIco(pngs))
+}
+
+// Pack PNG buffers into a multi-size ICO container. Vista+ supports PNG
+// entries directly, so we don't need to convert to BMP — just write the
+// 6-byte ICONDIR header, one 16-byte ICONDIRENTRY per image, then the raw
+// PNG bytes. Sizes 0 in the entry mean 256.
+function packPngsAsIco(entries) {
+  const headerSize = 6
+  const dirEntrySize = 16
+  const dirSize = headerSize + dirEntrySize * entries.length
+  const totalSize = dirSize + entries.reduce((acc, e) => acc + e.data.length, 0)
+
+  const buf = Buffer.alloc(totalSize)
+  buf.writeUInt16LE(0, 0)              // reserved
+  buf.writeUInt16LE(1, 2)              // type = 1 (icon)
+  buf.writeUInt16LE(entries.length, 4) // image count
+
+  let imageOffset = dirSize
+  entries.forEach((entry, idx) => {
+    const off = headerSize + idx * dirEntrySize
+    const dim = entry.size >= 256 ? 0 : entry.size
+    buf.writeUInt8(dim, off)            // width
+    buf.writeUInt8(dim, off + 1)        // height
+    buf.writeUInt8(0, off + 2)          // color palette count
+    buf.writeUInt8(0, off + 3)          // reserved
+    buf.writeUInt16LE(1, off + 4)       // color planes
+    buf.writeUInt16LE(32, off + 6)      // bits per pixel
+    buf.writeUInt32LE(entry.data.length, off + 8)  // image bytes
+    buf.writeUInt32LE(imageOffset, off + 12)       // image offset
+    entry.data.copy(buf, imageOffset)
+    imageOffset += entry.data.length
+  })
+
+  return buf
+}
+
+function resizePngForIco(sourcePath, outDir, sizes) {
+  if (process.platform !== 'win32') {
+    // Mac/Linux usually have ImageMagick or the Python path; the existing
+    // Pillow flow can be extended later if we need ICO from those hosts.
+    // For now, callers on non-Windows produce a single-size ICO via the
+    // legacy single-input path.
+    throw new Error('resizePngForIco currently runs only on Windows.')
+  }
+
+  // PowerShell + System.Drawing handles PNG resize cleanly with no extra
+  // dependencies. HighQualityBicubic gives crisp small icons.
+  const script = `
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+$src = [System.Drawing.Image]::FromFile([string]'${sourcePath.replace(/\\/g, '\\\\')}')
+foreach ($size in ${sizes.join(',')}) {
+  $bmp = New-Object System.Drawing.Bitmap $size, $size
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.InterpolationMode = 'HighQualityBicubic'
+  $g.PixelOffsetMode = 'HighQuality'
+  $g.SmoothingMode = 'HighQuality'
+  $g.DrawImage($src, 0, 0, $size, $size)
+  $out = Join-Path '${outDir.replace(/\\/g, '\\\\')}' ("$size" + 'x' + "$size" + '.png')
+  $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
+  $g.Dispose(); $bmp.Dispose()
+}
+$src.Dispose()
+`
+  run('powershell', ['-NoProfile', '-NonInteractive', '-Command', script])
+}
+
+// Pillow only matters for the macOS mask. Probe python3 once so we can
+// skip the mac assets cleanly on Windows where python3 typically isn't
+// present (or resolves to the Microsoft Store stub that exits 9009).
+function hasPython3() {
+  const result = spawnSync('python3', ['--version'], { stdio: 'ignore' })
+  return result.status === 0
+}
+
 function main() {
   ensureSource()
   rmSync(stagingDir, { force: true, recursive: true })
@@ -86,7 +186,19 @@ function main() {
   // app-builder's icon converter detects size from the filename.
   const maskedPath = path.join(stagingDir, '1024x1024.png')
   const icnsPath = path.join(buildDir, 'icon.icns')
+  const icoPath = path.join(buildDir, 'icon.ico')
   const pngPath = path.join(buildDir, 'icon.png')
+
+  // ICO first: doesn't depend on Pillow, so this works on Windows too.
+  console.log('[icon] packing ico...')
+  packIco(sourcePng, icoPath)
+  console.log(`[icon] wrote ${path.relative(rootDir, icoPath)}`)
+
+  if (!hasPython3()) {
+    console.warn('[icon] python3 / Pillow not available — skipping icon.icns + icon.png (mac assets). Run on macOS to refresh those.')
+    rmSync(stagingDir, { force: true, recursive: true })
+    return
+  }
 
   console.log('[icon] applying macOS icon mask...')
   applyMacIconMask(maskedPath)

@@ -6,10 +6,12 @@
     "buildResources": "build"
   },
   "forceCodeSigning": true,
+  "afterPack": "scripts/win-rcedit.cjs",
   "afterSign": "scripts/notarize.cjs",
   "files": [
     "electron/**/*",
     "renderer/dist/**/*",
+    "build/icon-win.png",
     "package.json"
   ],
   "extraResources": [
