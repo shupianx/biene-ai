@@ -46,8 +46,14 @@ jobs:
       # latest.yml for electron-updater. The .exe is the user-facing
       # installer; the other two are only needed if we wire up auto-update
       # later (and they're tiny anyway, so include them in the artifact).
+      #
+      # --publish never: in CI (GitHub Actions sets CI=true), electron-
+      # builder otherwise auto-enters its GitHub publish flow and demands
+      # a GH_TOKEN. We only want the build artifacts, not an automatic
+      # upload — uploading happens out-of-band via `gh release upload`
+      # after the maintainer downloads the workflow artifact.
       - name: Package electron app
-        run: npx electron-builder --config electron-builder.json --win nsis --x64 --config.directories.output=release/win-x64
+        run: npx electron-builder --config electron-builder.json --win nsis --x64 --publish never --config.directories.output=release/win-x64
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
