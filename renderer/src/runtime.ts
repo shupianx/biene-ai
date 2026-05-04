@@ -37,9 +37,7 @@ export interface DesktopBridge {
   showCoreMenu: (labels: CoreMenuLabels) => Promise<void>
   showSettingsMenu: (labels: SettingsMenuLabels) => Promise<void>
   windowMinimize: () => Promise<void>
-  windowToggleMaximize: () => Promise<boolean>
   windowClose: () => Promise<void>
-  windowIsMaximized: () => Promise<boolean>
 }
 
 declare global {

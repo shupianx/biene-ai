@@ -12,13 +12,9 @@
     "build:core": "node scripts/build-core.cjs",
     "build:icon": "node scripts/build-icon.cjs",
     "package:desktop": "electron-builder --config electron-builder.json",
-    "build": "node scripts/release.cjs all",
-    "build:mac": "node scripts/release.cjs mac",
-    "build:mac:sign-only": "node scripts/release.cjs mac --sign-only",
-    "build:win": "node scripts/release.cjs win",
-    "release:mac": "node scripts/publish-github.cjs mac",
-    "release:win": "node scripts/publish-github.cjs win",
-    "release:all": "node scripts/publish-github.cjs mac win"
+    "build:mac": "node scripts/release.cjs",
+    "build:mac:sign-only": "node scripts/release.cjs --sign-only",
+    "release:mac": "node scripts/publish-github.cjs"
   },
   "devDependencies": {
     "@electron/notarize": "^3.1.1",

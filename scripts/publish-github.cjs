@@ -1,20 +1,12 @@
+// Uploads the local Mac build artifacts to a draft GitHub release.
+// Windows artifacts come from CI (.github/workflows/build-win.yml) and
+// are attached to the release out-of-band — see AGENTS.md.
 const { existsSync, readdirSync, readFileSync, copyFileSync, mkdirSync, rmSync } = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 
 const rootDir = path.resolve(__dirname, '..')
 const releaseDir = path.join(rootDir, 'release')
-
-const platforms = process.argv.slice(2).filter(Boolean)
-if (platforms.length === 0) platforms.push('mac')
-
-const validPlatforms = new Set(['mac', 'win'])
-for (const p of platforms) {
-  if (!validPlatforms.has(p)) {
-    console.error(`Unknown platform: ${p}. Use one or more of: mac, win`)
-    process.exit(1)
-  }
-}
 
 function readVersion() {
   const pkg = JSON.parse(readFileSync(path.join(rootDir, 'package.json'), 'utf8'))
@@ -74,15 +66,6 @@ function collectMacAssets(stagingDir) {
   copyFileSync(dmgPath, stableDmg)
 
   return [stableDmg, zipPath, blockmapPath, ymlPath]
-}
-
-function collectWinAssets(stagingDir) {
-  const platformDir = path.join(releaseDir, 'win-x64')
-  const zipPath = findOne(platformDir, (n) => n.endsWith('.zip'), 'Windows ZIP')
-
-  const stableZip = path.join(stagingDir, 'Biene-x64-win.zip')
-  copyFileSync(zipPath, stableZip)
-  return [stableZip]
 }
 
 function releaseExists(tag) {
@@ -150,11 +133,7 @@ function main() {
   rmSync(stagingDir, { force: true, recursive: true })
   mkdirSync(stagingDir, { recursive: true })
 
-  const assets = []
-  for (const platform of platforms) {
-    if (platform === 'mac') assets.push(...collectMacAssets(stagingDir))
-    if (platform === 'win') assets.push(...collectWinAssets(stagingDir))
-  }
+  const assets = collectMacAssets(stagingDir)
 
   console.log('[publish] Assets to upload:')
   for (const a of assets) console.log(`  - ${path.relative(rootDir, a)}`)

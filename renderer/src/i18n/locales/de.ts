@@ -38,8 +38,6 @@ const de: Messages = {
     openSettingsMenu: 'Einstellungsmenü öffnen',
     runCore: 'Kern starten',
     minimize: 'Minimieren',
-    maximize: 'Maximieren',
-    restore: 'Wiederherstellen',
     close: 'Schließen',
   },
   grid: {

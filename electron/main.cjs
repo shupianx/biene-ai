@@ -661,15 +661,6 @@ function configureAppWindow(win) {
       shell.openExternal(url)
     }
   })
-
-  // Forward maximize/unmaximize so the renderer's caption button can
-  // swap its glyph between maximize and restore.
-  const sendMaximizedState = () => {
-    if (win.isDestroyed()) return
-    win.webContents.send('desktop:windowMaximizedChange', win.isMaximized())
-  }
-  win.on('maximize', sendMaximizedState)
-  win.on('unmaximize', sendMaximizedState)
 }
 
 function loadRendererRoute(win, route) {
@@ -805,18 +796,8 @@ function registerDesktopHandlers() {
   ipcMain.handle('desktop:windowMinimize', (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize()
   })
-  ipcMain.handle('desktop:windowToggleMaximize', (event) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win) return false
-    if (win.isMaximized()) win.unmaximize()
-    else win.maximize()
-    return win.isMaximized()
-  })
   ipcMain.handle('desktop:windowClose', (event) => {
     BrowserWindow.fromWebContents(event.sender)?.close()
-  })
-  ipcMain.handle('desktop:windowIsMaximized', (event) => {
-    return Boolean(BrowserWindow.fromWebContents(event.sender)?.isMaximized())
   })
 }
 

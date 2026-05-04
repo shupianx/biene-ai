@@ -13,10 +13,6 @@ ipcRenderer.on('desktop:settingsMenuAction', (_event, detail) => {
   window.dispatchEvent(new CustomEvent('biene:settings-menu-action', { detail }))
 })
 
-ipcRenderer.on('desktop:windowMaximizedChange', (_event, maximized) => {
-  window.dispatchEvent(new CustomEvent('biene:window-maximized-change', { detail: Boolean(maximized) }))
-})
-
 const desktopBridge = Object.freeze({
   isElectron: true,
   initialLocale: (() => {
@@ -57,14 +53,8 @@ const desktopBridge = Object.freeze({
   windowMinimize() {
     return ipcRenderer.invoke('desktop:windowMinimize')
   },
-  windowToggleMaximize() {
-    return ipcRenderer.invoke('desktop:windowToggleMaximize')
-  },
   windowClose() {
     return ipcRenderer.invoke('desktop:windowClose')
-  },
-  windowIsMaximized() {
-    return ipcRenderer.invoke('desktop:windowIsMaximized')
   },
 })
 

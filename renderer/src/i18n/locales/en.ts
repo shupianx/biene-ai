@@ -36,8 +36,6 @@ const en = {
     openSettingsMenu: 'Open settings menu',
     runCore: 'Run core',
     minimize: 'Minimize',
-    maximize: 'Maximize',
-    restore: 'Restore',
     close: 'Close',
   },
   grid: {

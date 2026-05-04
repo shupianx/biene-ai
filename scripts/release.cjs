@@ -8,24 +8,18 @@ const releaseDir = path.join(rootDir, 'release')
 const tempDir = path.join(releaseDir, '.tmp')
 const builderCacheDir = path.join(rootDir, '.cache', 'electron-builder')
 
-const cliArgs = process.argv.slice(2)
-const flags = new Set(cliArgs.filter((arg) => arg.startsWith('--')))
-const mode = cliArgs.find((arg) => !arg.startsWith('--')) || 'all'
-const validModes = new Set(['mac', 'win', 'all'])
-let macSigningEnv = null
-
-// Default keeps the historical behaviour: build:mac and build (all) sign
-// + notarize + staple + verify before producing artifacts that publish
-// directly to GitHub. --sign-only opts into the fast local path that
-// signs the .app for testing on the developer's machines but skips
-// notarization (which takes 5–15 minutes against Apple's servers) and
-// the Gatekeeper-staple verification that depends on it.
+// Mac-only build pipeline. Windows builds run in GitHub Actions
+// (.github/workflows/build-win.yml) on a real Windows runner — no wine
+// or Rosetta required.
+//
+// Default flow signs + notarizes + staples + verifies before producing
+// artifacts ready to publish to GitHub. --sign-only is the fast local
+// iteration path: signs the .app for testing on the developer's machine
+// but skips notarization (5–15 minutes against Apple's servers) and the
+// Gatekeeper-staple verification that depends on it.
+const flags = new Set(process.argv.slice(2).filter((arg) => arg.startsWith('--')))
 const macSignOnly = flags.has('--sign-only')
-
-if (!validModes.has(mode)) {
-  console.error(`Unknown release mode: ${mode}`)
-  process.exit(1)
-}
+let macSigningEnv = null
 
 function run(command, args, extraEnv = {}) {
   const result = spawnSync(command, args, {
@@ -312,53 +306,13 @@ function packageMac() {
   console.log('[release] mac build complete: .app signed + notarized + ticket stapled in place.')
 }
 
-function packageWin() {
-  const platformDir = path.join(releaseDir, 'win-x64')
-  const outputDir = path.join(tempDir, 'win-x64')
-
-  cleanPath(platformDir)
-  cleanPath(outputDir)
-  ensureDir(platformDir)
-
-  buildCore('windows', 'amd64', 'core/dist/biene-core.exe')
-
-  // No --config.win.signAndEditExecutable=false here: that flag was a
-  // Windows-host workaround for the winCodeSign archive's macOS dylib
-  // symlinks failing to extract without admin / Developer Mode. On a Mac
-  // host the archive extracts cleanly, so we let electron-builder embed
-  // build/icon.ico into Biene.exe natively. Without a Windows code-signing
-  // identity, electron-builder logs a warning and skips signing — the
-  // resulting zip is unsigned but carries the branded icon.
-  run('npm', [
-    'run',
-    'package:desktop',
-    '--',
-    '--win',
-    'zip',
-    '--x64',
-    `--config.directories.output=${outputDir}`,
-  ])
-
-  moveFiles(outputDir, platformDir, (name) => name.endsWith('.zip'))
-}
-
 ensureDir(builderCacheDir)
 ensureDir(releaseDir)
 ensureDir(tempDir)
 removeLegacyReleaseArtifacts()
 
-if (mode === 'mac' || mode === 'all') {
-  getMacSigningEnv()
-}
-
+getMacSigningEnv()
 buildRenderer()
-
-if (mode === 'mac' || mode === 'all') {
-  packageMac()
-}
-
-if (mode === 'win' || mode === 'all') {
-  packageWin()
-}
+packageMac()
 
 cleanPath(tempDir)

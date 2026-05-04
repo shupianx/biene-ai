@@ -45,23 +45,30 @@ VITE_CORE_URL=http://127.0.0.1:8080 npm --prefix renderer run dev
 
 ### 构建
 
-```bash
-npm run build:core       # 将 Go 编译为二进制，输出到 core/dist/
-npm run build:renderer   # 类型检查 + vite build，输出到 renderer/dist/
-npm run package:desktop  # electron-builder 打包，产物在 release/
+本地只构建 mac，win 完全在 GitHub Actions 上跑。
 
-# 端到端构建（含签名 + 公证 + 平台分发包）
-npm run build            # mac + win，调 scripts/release.cjs
-npm run build:mac        # 只 mac
-npm run build:win        # 只 win
+```bash
+npm run build:core             # 将 Go 编译为二进制，输出到 core/dist/
+npm run build:renderer         # 类型检查 + vite build，输出到 renderer/dist/
+npm run package:desktop        # electron-builder 打包，产物在 release/
+
+# 端到端 mac 构建（含签名 + 公证 + staple + 校验）
+npm run build:mac              # 调 scripts/release.cjs
+npm run build:mac:sign-only    # 签名但不公证，本机快速测试
 ```
+
+Win 产物：在 GitHub Actions 页面手动触发
+`.github/workflows/build-win.yml`，跑完从 run 页面底部 Artifacts
+区下载 `biene-win-x64.zip`（外层 GitHub 包装 + 内层是 electron-builder
+产的 zip，解两次）。
 
 ### 发布到 GitHub
 
 源码 + 二进制都发到 `shupianx/biene-ai`（当前是私有仓库 ——
 release assets 仅 collaborator 能下载）。`scripts/publish-github.cjs`
-通过 `gh release create` 在当前 origin 创建 draft release 并上传
-electron-builder 的产物。
+通过 `gh release create` 在当前 origin 创建 draft release 并上传 mac
+产物。Win 产物需要手动从 CI artifact 下载后用 `gh release upload`
+追加到同一 draft release。
 
 ```bash
 # 一次性安装 + 登录
@@ -70,10 +77,13 @@ gh auth login
 
 # 发布流程（基于当前 package.json 的 version → tag v<version>）
 git push origin main --follow-tags    # 把 tag 推到 origin
-npm run build:mac                      # 构建 mac (.dmg + .zip + latest-mac.yml)
-npm run release:mac                    # 创建 draft release + 上传
+npm run build:mac                      # 本地构建 mac (.dmg + .zip + latest-mac.yml)
+npm run release:mac                    # 创建 draft release + 上传 mac 产物
 
-# 然后浏览器打开返回的 URL，编辑 release notes，点 "Publish release"
+# 在 GitHub Actions 页面手动触发 Build Windows，跑完下载 artifact
+gh release upload v<version> path/to/Biene-<version>-win.zip --clobber
+
+# 然后浏览器打开 release，编辑 notes，点 "Publish release"
 ```
 
 带 `-alpha` / `-beta` / `-rc` 后缀的 tag 会被自动标记为 GitHub

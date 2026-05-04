@@ -35,23 +35,7 @@
           :title="t('titleBar.minimize')"
           @click="onMinimize"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-            <path d="M0 5h10" stroke="currentColor" stroke-width="1" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          class="caption-btn"
-          :aria-label="isMaximized ? t('titleBar.restore') : t('titleBar.maximize')"
-          :title="isMaximized ? t('titleBar.restore') : t('titleBar.maximize')"
-          @click="onToggleMaximize"
-        >
-          <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-            <rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1" />
-          </svg>
-          <svg v-else width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-            <path d="M2.5 0.5h7v7h-2M0.5 2.5h7v7h-7z" fill="none" stroke="currentColor" stroke-width="1" />
-          </svg>
+          <MaterialSymbolsMinimize class="caption-icon" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -60,9 +44,7 @@
           :title="t('titleBar.close')"
           @click="onClose"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
-            <path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1" />
-          </svg>
+          <MaterialSymbolsCloseSmall class="caption-icon" aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -74,6 +56,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import RiSettings3Line from '~icons/ri/settings-3-line'
+import MaterialSymbolsMinimize from '~icons/material-symbols/minimize'
+import MaterialSymbolsCloseSmall from '~icons/material-symbols/close-small'
 import bieneLogo from '../../assets/biene-logo.png'
 import { getDesktopBridge } from '../../runtime'
 import DesktopSettingsModal from './DesktopSettingsModal.vue'
@@ -93,24 +77,16 @@ const contextLabel = computed(() => t('titleBar.context'))
 // macOS keeps the native traffic lights (titleBarStyle 'hiddenInset' in
 // the main process). On Windows/Linux Electron we render the caption
 // buttons ourselves since titleBarStyle 'hidden' removes the native chrome.
+// Maximize/restore intentionally has no button — double-clicking the drag
+// region toggles maximize natively, which is enough.
 const showCaptionButtons = computed(() => isElectron && platform !== 'darwin')
-const isMaximized = ref(false)
 
 function onMinimize() {
   void bridge?.windowMinimize?.()
 }
 
-async function onToggleMaximize() {
-  if (!bridge?.windowToggleMaximize) return
-  isMaximized.value = await bridge.windowToggleMaximize()
-}
-
 function onClose() {
   void bridge?.windowClose?.()
-}
-
-function onMaximizedChange(event: Event) {
-  isMaximized.value = Boolean((event as CustomEvent<boolean>).detail)
 }
 
 function onSettingsMenu() {
@@ -138,17 +114,8 @@ function onSettingsMenuAction(event: Event) {
   }
 }
 
-onMounted(async () => {
-  window.addEventListener('biene:settings-menu-action', onSettingsMenuAction as EventListener)
-  window.addEventListener('biene:window-maximized-change', onMaximizedChange as EventListener)
-  if (showCaptionButtons.value && bridge?.windowIsMaximized) {
-    isMaximized.value = await bridge.windowIsMaximized()
-  }
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('biene:settings-menu-action', onSettingsMenuAction as EventListener)
-  window.removeEventListener('biene:window-maximized-change', onMaximizedChange as EventListener)
-})
+onMounted(() => window.addEventListener('biene:settings-menu-action', onSettingsMenuAction as EventListener))
+onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', onSettingsMenuAction as EventListener))
 </script>
 
 <style scoped>
@@ -243,9 +210,9 @@ onBeforeUnmount(() => {
   transition: transform .5s cubic-bezier(.4, .0, .2, 1);
 }
 
-/* Win11-style caption buttons: 46×40 hit targets, full title-bar height,
-   subtle hover, close turns red on hover. The 1px-stroke SVG glyphs
-   match Segoe Fluent Icons proportions. */
+/* Caption buttons: narrower than Win11's native 46×40 spec because we only
+   ship two (no maximize), so a tighter footprint reads as a deliberate
+   trim rather than a missing button. Close stays red on hover. */
 .caption-buttons {
   display: flex;
   align-items: stretch;
@@ -253,7 +220,7 @@ onBeforeUnmount(() => {
 }
 
 .caption-btn {
-  width: 46px;
+  width: 36px;
   height: 100%;
   display: inline-flex;
   align-items: center;
@@ -265,6 +232,11 @@ onBeforeUnmount(() => {
   color: var(--ink);
   cursor: pointer;
   transition: background-color .12s ease, color .12s ease;
+}
+
+.caption-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .caption-btn:hover {
