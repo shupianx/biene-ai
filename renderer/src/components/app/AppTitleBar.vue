@@ -35,7 +35,7 @@
           :title="t('titleBar.minimize')"
           @click="onMinimize"
         >
-          <MdiWindowMinimize class="caption-icon" aria-hidden="true" />
+          <MaterialSymbolsCheckIndeterminateSmall class="caption-icon" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -44,7 +44,7 @@
           :title="t('titleBar.close')"
           @click="onClose"
         >
-          <MdiWindowClose class="caption-icon" aria-hidden="true" />
+          <MaterialSymbolsCloseSmall class="caption-icon" aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -56,8 +56,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import RiSettings3Line from '~icons/ri/settings-3-line'
-import MdiWindowMinimize from '~icons/mdi/window-minimize'
-import MdiWindowClose from '~icons/mdi/window-close'
+import MaterialSymbolsCheckIndeterminateSmall from '~icons/material-symbols/check-indeterminate-small'
+import MaterialSymbolsCloseSmall from '~icons/material-symbols/close-small'
 import bieneLogo from '../../assets/biene-logo.png'
 import { getDesktopBridge } from '../../runtime'
 import DesktopSettingsModal from './DesktopSettingsModal.vue'
@@ -231,7 +231,7 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
   border: 0;
   padding: 0;
   margin: 0;
-  color: var(--ink);
+  color: #333;
   cursor: pointer;
   transition: background-color .12s ease, color .12s ease;
 }
@@ -257,5 +257,13 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
 .caption-close:active {
   background: #b4271a;
   color: #ffffff;
+}
+
+/* Dark-theme override: #333 on the dark titlebar reads as muddy. #bbb
+   is the symmetric light counterpart (mirror lightness across 50%).
+   Hover backgrounds are var(--rule-soft) / var(--rule) — already
+   theme-aware, so they don't need their own override. */
+:root[data-theme='dark'] .caption-btn {
+  color: #bbb;
 }
 </style>
