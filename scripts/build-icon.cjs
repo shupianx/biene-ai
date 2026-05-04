@@ -82,15 +82,14 @@ function packIcns(sourcePath, icnsPath) {
 // the high end falls back to the default Electron icon in tree/list views.
 const WIN_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256]
 
-// Windows uses a full-bleed square icon — Windows applies its own visual
-// treatment in the taskbar, so the macOS-style padded + rounded mask would
-// look undersized. Pack from the raw 1024×1024 source instead of the masked
-// version that goes into icon.icns / icon.png.
+// Pack a multi-size ICO from the masked 1024×1024 PNG so Biene.exe and
+// Explorer show the same rounded-corner square as the macOS icon. Windows
+// 11 doesn't apply any rounded mask to taskbar/Explorer icons, so the
+// rounded corners must be baked in here.
 //
-// Pre-resize the source PNG to each standard Windows size with .NET's
-// System.Drawing (via PowerShell) and feed all of them to app-builder so
-// the resulting ICO contains every entry. Single-size ICOs render as the
-// default icon in Explorer's small/list views.
+// Pre-resize the masked source to each standard Windows size and feed
+// every size to packPngsAsIco — single-size ICOs render as the default
+// icon in Explorer's small/list views.
 function packIco(sourcePath, icoPath) {
   const resizedDir = path.join(stagingDir, 'ico-sizes')
   mkdirSync(resizedDir, { recursive: true })
@@ -139,78 +138,85 @@ function packPngsAsIco(entries) {
 }
 
 function resizePngForIco(sourcePath, outDir, sizes) {
-  if (process.platform !== 'win32') {
-    // Mac/Linux usually have ImageMagick or the Python path; the existing
-    // Pillow flow can be extended later if we need ICO from those hosts.
-    // For now, callers on non-Windows produce a single-size ICO via the
-    // legacy single-input path.
-    throw new Error('resizePngForIco currently runs only on Windows.')
-  }
-
-  // PowerShell + System.Drawing handles PNG resize cleanly with no extra
-  // dependencies. HighQualityBicubic gives crisp small icons.
+  // Pillow is already a dependency of the macOS mask path; reusing it for
+  // the ICO resizes keeps the script Mac-runnable end-to-end and avoids
+  // pulling in ImageMagick or shelling out to PowerShell.
   const script = `
-$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Drawing
-$src = [System.Drawing.Image]::FromFile([string]'${sourcePath.replace(/\\/g, '\\\\')}')
-foreach ($size in ${sizes.join(',')}) {
-  $bmp = New-Object System.Drawing.Bitmap $size, $size
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.InterpolationMode = 'HighQualityBicubic'
-  $g.PixelOffsetMode = 'HighQuality'
-  $g.SmoothingMode = 'HighQuality'
-  $g.DrawImage($src, 0, 0, $size, $size)
-  $out = Join-Path '${outDir.replace(/\\/g, '\\\\')}' ("$size" + 'x' + "$size" + '.png')
-  $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
-  $g.Dispose(); $bmp.Dispose()
-}
-$src.Dispose()
+import sys
+try:
+    from PIL import Image
+except ImportError:
+    sys.stderr.write("Pillow not installed. Run: python3 -m pip install --user Pillow\\n")
+    sys.exit(2)
+
+src = Image.open(${JSON.stringify(sourcePath)}).convert("RGBA")
+out_dir = ${JSON.stringify(outDir)}
+for size in [${sizes.join(', ')}]:
+    src.resize((size, size), Image.LANCZOS).save(f"{out_dir}/{size}x{size}.png")
 `
-  run('powershell', ['-NoProfile', '-NonInteractive', '-Command', script])
+  run('python3', ['-'], script)
 }
 
-// Pillow only matters for the macOS mask. Probe python3 once so we can
-// skip the mac assets cleanly on Windows where python3 typically isn't
-// present (or resolves to the Microsoft Store stub that exits 9009).
-function hasPython3() {
+function resizeMaskedToPng(maskedPath, outPath, size) {
+  const script = `
+import sys
+try:
+    from PIL import Image
+except ImportError:
+    sys.stderr.write("Pillow not installed. Run: python3 -m pip install --user Pillow\\n")
+    sys.exit(2)
+
+src = Image.open(${JSON.stringify(maskedPath)}).convert("RGBA")
+src.resize((${size}, ${size}), Image.LANCZOS).save(${JSON.stringify(outPath)})
+`
+  run('python3', ['-'], script)
+}
+
+function ensurePython3() {
   const result = spawnSync('python3', ['--version'], { stdio: 'ignore' })
-  return result.status === 0
+  if (result.status !== 0) {
+    console.error('[icon] python3 not found. Install it (e.g. via Xcode CLT or Homebrew) and `python3 -m pip install --user Pillow`.')
+    process.exit(1)
+  }
 }
 
 function main() {
   ensureSource()
+  ensurePython3()
   rmSync(stagingDir, { force: true, recursive: true })
   mkdirSync(stagingDir, { recursive: true })
   mkdirSync(buildDir, { recursive: true })
 
-  // app-builder's icon converter detects size from the filename.
   const maskedPath = path.join(stagingDir, '1024x1024.png')
   const icnsPath = path.join(buildDir, 'icon.icns')
   const icoPath = path.join(buildDir, 'icon.ico')
   const pngPath = path.join(buildDir, 'icon.png')
+  const winPngPath = path.join(buildDir, 'icon-win.png')
 
-  // ICO first: doesn't depend on Pillow, so this works on Windows too.
-  console.log('[icon] packing ico...')
-  packIco(sourcePng, icoPath)
-  console.log(`[icon] wrote ${path.relative(rootDir, icoPath)}`)
-
-  if (!hasPython3()) {
-    console.warn('[icon] python3 / Pillow not available — skipping icon.icns + icon.png (mac assets). Run on macOS to refresh those.')
-    rmSync(stagingDir, { force: true, recursive: true })
-    return
-  }
-
-  console.log('[icon] applying macOS icon mask...')
+  // Mask first: every downstream asset (icns, ico, icon.png, icon-win.png)
+  // is the same rounded-square 1024×1024 image at different sizes/formats.
+  console.log('[icon] applying rounded-corner mask...')
   applyMacIconMask(maskedPath)
+
+  console.log('[icon] packing ico...')
+  packIco(maskedPath, icoPath)
+  console.log(`[icon] wrote ${path.relative(rootDir, icoPath)}`)
 
   console.log('[icon] packing icns...')
   packIcns(maskedPath, icnsPath)
+  console.log(`[icon] wrote ${path.relative(rootDir, icnsPath)}`)
 
   copyFileSync(maskedPath, pngPath)
-  rmSync(stagingDir, { force: true, recursive: true })
-
-  console.log(`[icon] wrote ${path.relative(rootDir, icnsPath)}`)
   console.log(`[icon] wrote ${path.relative(rootDir, pngPath)}`)
+
+  // BrowserWindow.icon on Windows takes a small PNG; 256 is plenty for
+  // taskbar / title bar at any DPI. The rounded corners come from the
+  // masked source — Windows itself doesn't round runtime window icons.
+  console.log('[icon] resizing icon-win.png (256×256)...')
+  resizeMaskedToPng(maskedPath, winPngPath, 256)
+  console.log(`[icon] wrote ${path.relative(rootDir, winPngPath)}`)
+
+  rmSync(stagingDir, { force: true, recursive: true })
 }
 
 main()

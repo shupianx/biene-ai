@@ -322,6 +322,13 @@ function packageWin() {
 
   buildCore('windows', 'amd64', 'core/dist/biene-core.exe')
 
+  // No --config.win.signAndEditExecutable=false here: that flag was a
+  // Windows-host workaround for the winCodeSign archive's macOS dylib
+  // symlinks failing to extract without admin / Developer Mode. On a Mac
+  // host the archive extracts cleanly, so we let electron-builder embed
+  // build/icon.ico into Biene.exe natively. Without a Windows code-signing
+  // identity, electron-builder logs a warning and skips signing — the
+  // resulting zip is unsigned but carries the branded icon.
   run('npm', [
     'run',
     'package:desktop',
@@ -329,7 +336,6 @@ function packageWin() {
     '--win',
     'zip',
     '--x64',
-    '--config.win.signAndEditExecutable=false',
     `--config.directories.output=${outputDir}`,
   ])
 

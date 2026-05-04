@@ -5,8 +5,6 @@
     "output": "release/.tmp/default",
     "buildResources": "build"
   },
-  "forceCodeSigning": true,
-  "afterPack": "scripts/win-rcedit.cjs",
   "afterSign": "scripts/notarize.cjs",
   "files": [
     "electron/**/*",
@@ -25,6 +23,7 @@
   ],
   "mac": {
     "category": "public.app-category.developer-tools",
+    "forceCodeSigning": true,
     "hardenedRuntime": true,
     "gatekeeperAssess": false,
     "binaries": [
@@ -33,5 +32,8 @@
     "entitlements": "build/entitlements.mac.plist",
     "entitlementsInherit": "build/entitlements.mac.inherit.plist",
     "notarize": false
+  },
+  "win": {
+    "forceCodeSigning": false
   }
 }

@@ -37,6 +37,10 @@ const de: Messages = {
     openSkillsBrowser: 'Skill-Bibliothek öffnen',
     openSettingsMenu: 'Einstellungsmenü öffnen',
     runCore: 'Kern starten',
+    minimize: 'Minimieren',
+    maximize: 'Maximieren',
+    restore: 'Wiederherstellen',
+    close: 'Schließen',
   },
   grid: {
     createOne: 'Einen erstellen',

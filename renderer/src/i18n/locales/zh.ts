@@ -37,6 +37,10 @@ const zh: Messages = {
     openSkillsBrowser: '打开技能浏览器',
     openSettingsMenu: '打开设置菜单',
     runCore: '启动内核',
+    minimize: '最小化',
+    maximize: '最大化',
+    restore: '还原',
+    close: '关闭',
   },
   grid: {
     createOne: '创建一个',

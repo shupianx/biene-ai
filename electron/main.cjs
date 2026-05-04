@@ -38,7 +38,6 @@ let coreStartPromise = null
 let quitAfterCoreStop = false
 let processConfirmHandled = false
 let loginShellPathPromise = null
-const windowAppearanceOptions = new WeakMap()
 
 function currentTheme() {
   return desktopSettings.theme === 'dark' ? 'dark' : 'light'
@@ -51,35 +50,16 @@ function currentLocale() {
 }
 
 function getWindowAppearance(theme) {
-  if (theme === 'dark') {
-    return {
-      backgroundColor: '#1A1814',
-      overlayColor: '#1F1C17',
-      overlaySymbolColor: '#F0EBE1',
-    }
-  }
-
   return {
-    backgroundColor: '#EDE8DF',
-    overlayColor: '#F6F2EA',
-    overlaySymbolColor: '#14120F',
+    backgroundColor: theme === 'dark' ? '#1A1814' : '#EDE8DF',
   }
 }
 
 function applyWindowAppearance(win) {
   if (!win || win.isDestroyed()) return
 
-  const { frameless = false } = windowAppearanceOptions.get(win) ?? {}
   const appearance = getWindowAppearance(currentTheme())
   win.setBackgroundColor(appearance.backgroundColor)
-
-  if (!frameless && process.platform !== 'darwin' && typeof win.setTitleBarOverlay === 'function') {
-    win.setTitleBarOverlay({
-      color: appearance.overlayColor,
-      symbolColor: appearance.overlaySymbolColor,
-      height: 40,
-    })
-  }
 }
 
 function refreshAllWindowAppearances() {
@@ -681,6 +661,15 @@ function configureAppWindow(win) {
       shell.openExternal(url)
     }
   })
+
+  // Forward maximize/unmaximize so the renderer's caption button can
+  // swap its glyph between maximize and restore.
+  const sendMaximizedState = () => {
+    if (win.isDestroyed()) return
+    win.webContents.send('desktop:windowMaximizedChange', win.isMaximized())
+  }
+  win.on('maximize', sendMaximizedState)
+  win.on('unmaximize', sendMaximizedState)
 }
 
 function loadRendererRoute(win, route) {
@@ -694,17 +683,14 @@ function loadRendererRoute(win, route) {
 function createAppWindow(options) {
   const isFrameless = Boolean(options.frameless)
   const appearance = getWindowAppearance(currentTheme())
+  // Windows: titleBarStyle 'hidden' removes the native chrome but keeps
+  // resize handles + Snap. We render the caption buttons (min/max/close)
+  // ourselves in renderer/AppTitleBar.vue. macOS keeps 'hiddenInset' so
+  // the traffic lights still show.
   const windowOptions = {
     frame: !isFrameless,
     titleBarStyle: isFrameless ? 'default' : (process.platform === 'darwin' ? 'hiddenInset' : 'hidden'),
     backgroundColor: appearance.backgroundColor,
-  }
-  if (!isFrameless && process.platform !== 'darwin') {
-    windowOptions.titleBarOverlay = {
-      color: appearance.overlayColor,
-      symbolColor: appearance.overlaySymbolColor,
-      height: 40,
-    }
   }
 
   const win = new BrowserWindow({
@@ -740,7 +726,6 @@ function createAppWindow(options) {
     },
   })
 
-  windowAppearanceOptions.set(win, { frameless: isFrameless })
   configureAppWindow(win)
   loadRendererRoute(win, options.route)
   win.webContents.once('did-finish-load', () => {
@@ -815,6 +800,23 @@ function registerDesktopHandlers() {
   })
   ipcMain.handle('desktop:showSettingsMenu', async (event, labels) => {
     showSettingsMenu(event, labels)
+  })
+
+  ipcMain.handle('desktop:windowMinimize', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize()
+  })
+  ipcMain.handle('desktop:windowToggleMaximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return false
+    if (win.isMaximized()) win.unmaximize()
+    else win.maximize()
+    return win.isMaximized()
+  })
+  ipcMain.handle('desktop:windowClose', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close()
+  })
+  ipcMain.handle('desktop:windowIsMaximized', (event) => {
+    return Boolean(BrowserWindow.fromWebContents(event.sender)?.isMaximized())
   })
 }
 

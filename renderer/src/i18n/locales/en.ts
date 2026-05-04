@@ -35,6 +35,10 @@ const en = {
     openSkillsBrowser: 'Open skills browser',
     openSettingsMenu: 'Open settings menu',
     runCore: 'Run core',
+    minimize: 'Minimize',
+    maximize: 'Maximize',
+    restore: 'Restore',
+    close: 'Close',
   },
   grid: {
     createOne: 'Create one',

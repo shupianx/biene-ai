@@ -1,0 +1,53 @@
+name: Build Windows
+
+# Manual-only trigger. Mac builds run locally on the maintainer's machine
+# (npm run build:mac, signed + notarized). This workflow exists so the
+# Windows zip is produced on a real Windows host — no wine, no Rosetta —
+# and the maintainer downloads the artifact for smoke-testing on Windows.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            renderer/package-lock.json
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'core/go.mod'
+          cache-dependency-path: 'core/go.sum'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix renderer
+
+      # Inline the win packaging steps instead of calling scripts/release.cjs.
+      # release.cjs spawns `npm` from Node code, which fails on Windows after
+      # the Node 20.12+ CVE-2024-27980 mitigation. The runner's shell doesn't
+      # have that limitation, so calling each step directly here works.
+      - name: Build Go core (windows/amd64)
+        run: node scripts/build-core.cjs --platform windows --arch amd64 --output core/dist/biene-core.exe
+
+      - name: Build renderer
+        run: npm run build:renderer
+
+      - name: Package electron app
+        run: npx electron-builder --config electron-builder.json --win zip --x64 --config.directories.output=release/win-x64
+
+      - name: Upload Windows zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: biene-win-x64
+          path: release/win-x64/*.zip
+          if-no-files-found: error
+          retention-days: 14
