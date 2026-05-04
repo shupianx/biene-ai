@@ -2,8 +2,9 @@ name: Build Windows
 
 # Manual-only trigger. Mac builds run locally on the maintainer's machine
 # (npm run build:mac, signed + notarized). This workflow exists so the
-# Windows zip is produced on a real Windows host — no wine, no Rosetta —
-# and the maintainer downloads the artifact for smoke-testing on Windows.
+# Windows installer is produced on a real Windows host — no wine, no
+# Rosetta — and the maintainer downloads the artifact for smoke-testing
+# or release attachment.
 on:
   workflow_dispatch:
 
@@ -41,13 +42,20 @@ jobs:
       - name: Build renderer
         run: npm run build:renderer
 
+      # NSIS produces "Biene Setup <version>.exe" plus a .blockmap and
+      # latest.yml for electron-updater. The .exe is the user-facing
+      # installer; the other two are only needed if we wire up auto-update
+      # later (and they're tiny anyway, so include them in the artifact).
       - name: Package electron app
-        run: npx electron-builder --config electron-builder.json --win zip --x64 --config.directories.output=release/win-x64
+        run: npx electron-builder --config electron-builder.json --win nsis --x64 --config.directories.output=release/win-x64
 
-      - name: Upload Windows zip
+      - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: biene-win-x64
-          path: release/win-x64/*.zip
+          path: |
+            release/win-x64/*.exe
+            release/win-x64/*.exe.blockmap
+            release/win-x64/latest.yml
           if-no-files-found: error
           retention-days: 14

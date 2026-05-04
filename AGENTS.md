@@ -59,8 +59,8 @@ npm run build:mac:sign-only    # 签名但不公证，本机快速测试
 
 Win 产物：在 GitHub Actions 页面手动触发
 `.github/workflows/build-win.yml`，跑完从 run 页面底部 Artifacts
-区下载 `biene-win-x64.zip`（外层 GitHub 包装 + 内层是 electron-builder
-产的 zip，解两次）。
+区下载 `biene-win-x64.zip`（外层 GitHub 自动套的 zip，内含 NSIS 安装包
+`Biene Setup <version>.exe` + `.blockmap` + `latest.yml` 用于自动更新）。
 
 ### 发布到 GitHub
 
@@ -75,13 +75,15 @@ release assets 仅 collaborator 能下载）。`scripts/publish-github.cjs`
 brew install gh
 gh auth login
 
-# 发布流程（基于当前 package.json 的 version → tag v<version>）
+# 发布流程（基于根 package.json 的 version → tag v<version>）
+# 注意：renderer/package.json::version 永远是 0.0.0，不要 bump；
+# 渲染层的版本号由 vite.config.ts 在构建期从根 package.json 注入。
 git push origin main --follow-tags    # 把 tag 推到 origin
 npm run build:mac                      # 本地构建 mac (.dmg + .zip + latest-mac.yml)
 npm run release:mac                    # 创建 draft release + 上传 mac 产物
 
-# 在 GitHub Actions 页面手动触发 Build Windows，跑完下载 artifact
-gh release upload v<version> path/to/Biene-<version>-win.zip --clobber
+# 在 GitHub Actions 页面手动触发 Build Windows，跑完下载 artifact，解开
+gh release upload v<version> "path/to/Biene Setup <version>.exe" --clobber
 
 # 然后浏览器打开 release，编辑 notes，点 "Publish release"
 ```
