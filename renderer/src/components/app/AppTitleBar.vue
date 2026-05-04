@@ -35,7 +35,7 @@
           :title="t('titleBar.minimize')"
           @click="onMinimize"
         >
-          <MaterialSymbolsMinimize class="caption-icon" aria-hidden="true" />
+          <MdiWindowMinimize class="caption-icon" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -44,7 +44,7 @@
           :title="t('titleBar.close')"
           @click="onClose"
         >
-          <MaterialSymbolsCloseSmall class="caption-icon" aria-hidden="true" />
+          <MdiWindowClose class="caption-icon" aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -56,8 +56,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import RiSettings3Line from '~icons/ri/settings-3-line'
-import MaterialSymbolsMinimize from '~icons/material-symbols/minimize'
-import MaterialSymbolsCloseSmall from '~icons/material-symbols/close-small'
+import MdiWindowMinimize from '~icons/mdi/window-minimize'
+import MdiWindowClose from '~icons/mdi/window-close'
 import bieneLogo from '../../assets/biene-logo.png'
 import { getDesktopBridge } from '../../runtime'
 import DesktopSettingsModal from './DesktopSettingsModal.vue'
@@ -123,7 +123,10 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
   position: relative;
   z-index: 40;
   flex-shrink: 0;
-  height: 40px;
+  /* 32px on both platforms — Win11 native height; on macOS the traffic
+     lights are re-centered via the BrowserWindow trafficLightPosition
+     option in electron/main.cjs to match. */
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -140,9 +143,8 @@ onBeforeUnmount(() => window.removeEventListener('biene:settings-menu-action', o
   padding-left: 86px;
 }
 
-/* Custom caption buttons live inside .titlebar-right and reach the right
-   edge themselves, so the titlebar zeroes its right padding on Windows.
-   The settings-icon group keeps its own gap via .titlebar-actions. */
+/* Win Electron: zero right padding so the custom caption buttons reach
+   the right edge of the window. */
 .titlebar.electron:not(.platform-darwin) {
   padding-right: 0;
 }

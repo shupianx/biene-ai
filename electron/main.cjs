@@ -683,6 +683,15 @@ function createAppWindow(options) {
     titleBarStyle: isFrameless ? 'default' : (process.platform === 'darwin' ? 'hiddenInset' : 'hidden'),
     backgroundColor: appearance.backgroundColor,
   }
+  // Our custom title bar is 32px tall. macOS 'hiddenInset' positions
+  // traffic lights for an implicit ~40px bar, so they look low at 32px.
+  // y=9 nudges the 12px-diameter buttons one pixel above geometric
+  // center — perceived center on macOS sits slightly above the math
+  // center because the dots' weight is bottom-heavy. x=14 matches the
+  // Big Sur+ default horizontal inset.
+  if (!isFrameless && process.platform === 'darwin') {
+    windowOptions.trafficLightPosition = { x: 11, y: 8 }
+  }
 
   const win = new BrowserWindow({
     width: options.width,
